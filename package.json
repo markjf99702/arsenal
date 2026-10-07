@@ -1,0 +1,16 @@
+{
+  "name": "arsenal",
+  "private": true,
+  "type": "module",
+  "description": "Every pitch in baseball: the grip, the spin, the speed and the break.",
+  "scripts": {
+    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node --test test/physics.test.mjs && node test/e2e.mjs",
+    "build": "node scripts/build.mjs",
+    "data": "node tools/statcast.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "upng-js": "^2.1.0"
+  }
+}

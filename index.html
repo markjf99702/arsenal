@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arsenal</title>
+  <meta name="description" content="Every pitch in big-league baseball: how it’s held, how it spins, how fast it goes and where it ends up. Throw each one from behind the plate, with real 2026 Statcast numbers.">
+  <meta property="og:title" content="Arsenal">
+  <meta property="og:description" content="Every pitch in baseball: the grip, the spin, the speed and the break.">
+  <meta property="og:image" content="https://junkdrawer.works/arsenal/og.png">
+  <meta property="og:url" content="https://junkdrawer.works/arsenal/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#f6f1e6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#12161f" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preload" href="fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <noscript><p class="noscript">Arsenal needs JavaScript to throw the pitches.</p></noscript>
+
+  <header class="top">
+    <h1 class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" class="mark-ball"/><path class="mark-seam" d="M9 5.5c3.2 3 4.6 6.6 4.6 10.5S12.2 23.5 9 26.5M23 5.5c-3.2 3-4.6 6.6-4.6 10.5s1.4 7.5 4.6 10.5"/></svg>Arsenal</h1>
+    <p class="lede">Every pitch in big-league baseball: how it’s held, how it spins, how hard it’s thrown and where it ends up. Pick one and throw it.</p>
+  </header>
+
+  <nav class="picker" aria-label="Pitches" id="picker"></nav>
+
+  <main class="pitch" id="pitch">
+    <section class="stage" aria-label="The pitch in flight">
+      <div class="frame">
+        <canvas id="flight" aria-label="Animation of the pitch flying from the pitcher to home plate"></canvas>
+        <div class="readout" aria-live="polite">
+          <div class="speed"><b id="ro-mph">–</b> <span>mph</span></div>
+          <div class="time" id="ro-time"></div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="controls">
+        <button class="throw" id="throw" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>Throw it again</button>
+        <div class="seg" role="group" aria-label="Camera" id="view">
+          <button type="button" data-v="catcher" aria-pressed="true">Behind the plate</button>
+          <button type="button" data-v="side" aria-pressed="false">Side</button>
+          <button type="button" data-v="top" aria-pressed="false">Above</button>
+        </div>
+        <div class="seg" role="group" aria-label="Speed" id="speed">
+          <button type="button" data-v="1" aria-pressed="false">Real speed</button>
+          <button type="button" data-v="0.25" aria-pressed="true">Slow</button>
+          <button type="button" data-v="0.05" aria-pressed="false">Slower</button>
+        </div>
+        <div class="seg" role="group" aria-label="Pitcher’s throwing hand" id="hand">
+          <button type="button" data-v="R" aria-pressed="true">Righty</button>
+          <button type="button" data-v="L" aria-pressed="false">Lefty</button>
+        </div>
+        <label class="check"><input type="checkbox" id="ghost" checked> No-spin ghost</label>
+        <label class="pairpick">Throw with <select id="pair"></select></label>
+      </div>
+      <p class="caption" id="caption"></p>
+    </section>
+
+    <article class="card" id="card">
+      <header class="card-head">
+        <p class="fam" id="c-fam"></p>
+        <h2 id="c-name"></h2>
+        <p class="line" id="c-line"></p>
+      </header>
+      <dl class="stats" id="c-stats"></dl>
+      <div class="duo">
+        <figure class="panel">
+          <canvas id="grip" aria-label="Drawing of the grip"></canvas>
+          <figcaption><h3>The grip</h3><p id="c-grip"></p><p class="small">As the pitcher sees it from behind. Dashed: the thumb, underneath.</p></figcaption>
+        </figure>
+        <figure class="panel">
+          <canvas id="spin" aria-label="The ball spinning on its axis"></canvas>
+          <div class="seg mini" role="group" aria-label="Spin view" id="spinview">
+            <button type="button" data-v="behind" aria-pressed="true">From behind</button>
+            <button type="button" data-v="side" aria-pressed="false">From the side</button>
+          </div>
+          <figcaption><h3>The spin</h3><p id="c-spin"></p></figcaption>
+        </figure>
+      </div>
+      <section class="how">
+        <h3>How it works</h3>
+        <p id="c-how"></p>
+        <ul class="facts" id="c-facts"></ul>
+      </section>
+      <nav class="next" aria-label="Other pitches">
+        <button type="button" id="prev"></button>
+        <button type="button" id="next"></button>
+      </nav>
+    </article>
+  </main>
+
+  <section class="all" aria-labelledby="all-title">
+    <h2 id="all-title">The whole arsenal</h2>
+    <p class="intro">Every type of pitch thrown in the 2026 regular season, <span id="total"></span> in all. Tap one to throw it.</p>
+    <div class="charts">
+      <figure class="chart">
+        <figcaption><h3 id="move-title">How each one moves</h3><p id="move-desc">How far spin pushes a right-hander’s pitch on its way to the plate, compared with a ball thrown with no spin. Bigger dots are thrown more often.</p></figcaption>
+        <div id="move"></div>
+      </figure>
+      <figure class="chart">
+        <figcaption><h3>How often, how hard, how hittable</h3><p>Share of all pitches, average speed, and how often hitters swing and miss.</p></figcaption>
+        <div id="lineup" class="lineup-wrap"></div>
+      </figure>
+    </div>
+    <p class="source">Numbers: Statcast via Baseball Savant, 2026 regular season. Averages weight each pitcher by how many he threw. “Spin moves it” is movement from spin alone, with gravity taken out; “Drops” includes gravity.</p>
+  </section>
+
+  <div class="tip" id="tip" role="tooltip" hidden></div>
+
+  <footer class="jd-foot">
+    <a href="https://junkdrawer.works/">Part of junkdrawer.works</a>
+    <span aria-hidden="true">·</span>
+    <a href="https://junkdrawer.works/privacy.html">Privacy</a>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
