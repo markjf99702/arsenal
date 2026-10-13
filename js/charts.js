@@ -63,7 +63,11 @@ function drawMovement(host, W, { onPick, tooltip }) {
   const placed = [];
   for (const p of items) {
     const r = Math.max(4.5, Math.min(24, Math.sqrt(p.n.share) * 4.3 * k));
-    const g = el('g', { class: `dot fam-${p.fam}`, tabindex: '0', role: 'button', 'aria-label': `${p.name}: ${fmt(p.n.rise)} inches of rise, ${fmt(Math.abs(p.n.arm))} inches to the ${p.n.arm >= 0 ? 'arm' : 'glove'} side` }, dots);
+    // Which way spin moves it, in words: "10.3 in down" rather than "-10.3 in down".
+    const rise = fmt(Math.abs(p.n.rise)), arm = fmt(Math.abs(p.n.arm));
+    const up = p.n.rise >= 0 ? 'up' : 'down', side = p.n.arm >= 0 ? 'arm' : 'glove';
+    const inches = s => `${s} inch${s === '1' ? '' : 'es'}`;
+    const g = el('g', { class: `dot fam-${p.fam}`, tabindex: '0', role: 'button', 'aria-label': `${p.name}: ${inches(rise)} ${up}, ${inches(arm)} to the ${side} side` }, dots);
     const cx = x(p.n.arm), cy = y(p.n.rise);
     el('circle', { cx, cy, r: r + 9, class: 'hit' }, g);
     el('circle', { cx, cy, r: r + 4, class: 'sel' }, g);
@@ -72,7 +76,7 @@ function drawMovement(host, W, { onPick, tooltip }) {
     label.textContent = p.short;
     taken.push({ x: cx - r - 2, y: cy - r - 2, w: 2 * r + 4, h: 2 * r + 4 });
     placed.push({ p, label, cx, cy, r });
-    const show = () => tooltip.show(g, `<b>${p.name}</b><br>${fmt(p.n.rise)} in ${p.n.rise >= 0 ? 'up' : 'down'}, ${fmt(Math.abs(p.n.arm))} in ${p.n.arm >= 0 ? 'arm side' : 'glove side'}<br>${fmt(p.n.mph)} mph · ${fmt(p.n.share, p.n.share < 1 ? 2 : 1)}% of pitches`);
+    const show = () => tooltip.show(g, `<b>${p.name}</b><br>${rise} in ${up}, ${arm} in ${side} side<br>${fmt(p.n.mph)} mph · ${fmt(p.n.share, p.n.share < 1 ? 2 : 1)}% of pitches`);
     g.addEventListener('pointerenter', show);
     g.addEventListener('focus', show);
     g.addEventListener('pointerleave', () => tooltip.hide());

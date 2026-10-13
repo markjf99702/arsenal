@@ -119,6 +119,22 @@ await page.locator('#hand [data-v="R"]').click();
   for (const s of shares) assert.ok(s.card === s.table && s.card === s.tip, `${s.code}: ${s.card} on the card, ${s.table} in the table, ${s.tip} in the chart`);
 }
 
+// The chart's dots say which way each pitch moves in words, without minus signs, for the eye and the ear.
+{
+  const dots = await page.evaluate(() => [...document.querySelectorAll('.move-chart .dot')].map(g => {
+    g.dispatchEvent(new FocusEvent('focus'));
+    const tip = document.getElementById('tip').textContent;
+    g.dispatchEvent(new FocusEvent('blur'));
+    return { label: g.getAttribute('aria-label'), tip };
+  }));
+  for (const { label, tip } of dots) {
+    assert.match(label, /^[\w -]+: [\d.]+ inch(es)? (up|down), [\d.]+ inch(es)? to the (arm|glove) side$/, label);
+    for (const [, num, unit] of label.matchAll(/([\d.]+) (inch(?:es)?)\b/g)) assert.equal(unit, num === '1' ? 'inch' : 'inches', label);
+    assert.match(tip, /[\d.]+ in (up|down), [\d.]+ in (arm|glove) side/, tip);
+    assert.doesNotMatch(tip, /-\d/, tip);
+  }
+}
+
 // The chart and the table pick pitches too.
 assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);
