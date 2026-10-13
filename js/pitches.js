@@ -110,5 +110,7 @@ const LIST = [
 ];
 
 export const PITCHES = LIST.map(p => ({ ...p, n: NUMBERS[p.code] }));
-export const BY_CODE = Object.fromEntries(PITCHES.map(p => [p.code, p]));
-export const BY_SLUG = Object.fromEntries(PITCHES.map(p => [p.slug, p]));
+// With no prototype, so a link like #constructor or #toString finds nothing instead of an object's built-ins.
+const lookup = key => Object.assign(Object.create(null), Object.fromEntries(PITCHES.map(p => [p[key], p])));
+export const BY_CODE = lookup('code');
+export const BY_SLUG = lookup('slug');

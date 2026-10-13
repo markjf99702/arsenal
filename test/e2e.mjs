@@ -80,6 +80,20 @@ assert.match(await heading(), /^Splitter/i);
 await page.locator('#next').click();
 assert.match(await heading(), /^Forkball/i);
 
+// A link named after something every object has, like #constructor, isn't a pitch: it opens on the four-seamer.
+{
+  const before = problems.length;
+  for (const name of ['constructor', '__proto__', 'toString']) {
+    await page.goto('about:blank');
+    await page.goto(base + '#' + name);
+    assert.match(await heading(), /^Four-seam fastball/i, `#${name} did not open on the four-seamer`);
+  }
+  // Changing the address to one partway through leaves the pitch alone.
+  await page.evaluate(() => new Promise(resolve => { addEventListener('hashchange', () => setTimeout(resolve, 50), { once: true }); location.hash = '#valueOf'; }));
+  assert.match(await heading(), /^Four-seam fastball/i);
+  assert.deepEqual(problems.slice(before), [], 'errors from a link named after an object property');
+}
+
 // A link straight to a pitch opens on it.
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);
