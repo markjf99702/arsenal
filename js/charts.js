@@ -121,7 +121,7 @@ export function lineupTable(host, { onPick }) {
   const table = document.createElement('table');
   table.className = 'lineup';
   table.innerHTML = `<caption class="sr">Every pitch type in 2026: share of all pitches, speed, and misses per 100 swings</caption>
-    <thead><tr><th scope="col">Pitch</th><th scope="col">Share of pitches</th><th scope="col">Speed, mph <span class="hint">(dot: average · bar: middle 80% of pitchers)</span></th><th scope="col" class="num">Misses per<br> 100 swings</th></tr></thead>`;
+    <thead><tr><th scope="col">Pitch</th><th scope="col">Share of pitches</th><th scope="col">Speed, mph <span class="hint">(dot: average · bar: middle 80% of pitches)</span></th><th scope="col" class="num">Misses per<br> 100 swings</th></tr></thead>`;
   const body = document.createElement('tbody');
   for (const p of rows) {
     const n = p.n;

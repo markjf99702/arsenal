@@ -164,6 +164,8 @@ await page.locator('#hand [data-v="R"]').click();
 // The chart and the table pick pitches too.
 assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);
+// The speed bars are the middle 80% of pitches, which is how tools/statcast.mjs works them out.
+assert.match(await page.locator('.lineup .hint').textContent(), /bar: middle 80% of pitches\)/);
 await page.locator('.move-chart .dot', { hasText: 'Curve' }).first().click();
 assert.match(await heading(), /^Curveball/i);
 // A dot picked with a tap or with Enter doesn't leave its tooltip open over the chart.
