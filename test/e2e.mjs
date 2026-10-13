@@ -59,6 +59,22 @@ assert.match(await page.locator('#ro-time').innerText(), /s to the plate/);
   assert.match(heard[0], /^Four-seam, 0\.\d\d seconds to the plate$/);
 }
 
+// Grey text reads clearly on the page and on the cards, in both palettes: at least 4.5 to 1, as WCAG AA asks.
+for (const colorScheme of ['light', 'dark']) {
+  await page.emulateMedia({ colorScheme });
+  const { paper, card } = await page.evaluate(() => {
+    const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const lum = hex => {
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    return { paper: ratio(token('--muted'), token('--paper')), card: ratio(token('--muted'), token('--card')) };
+  });
+  assert.ok(paper >= 4.5 && card >= 4.5, `${colorScheme}: grey text is ${paper.toFixed(2)} to 1 on the page and ${card.toFixed(2)} to 1 on the cards`);
+}
+await page.emulateMedia({ colorScheme: 'light' });
+
 // Picking a pitch from the picker updates the card, the address, and throws it.
 await page.locator('.chip', { hasText: 'Slider' }).click();
 assert.match(await heading(), /^Slider/i);
