@@ -140,6 +140,15 @@ assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);
 await page.locator('.move-chart .dot', { hasText: 'Curve' }).first().click();
 assert.match(await heading(), /^Curveball/i);
+// A dot picked with a tap or with Enter doesn't leave its tooltip open over the chart.
+await page.locator('.move-chart .dot', { hasText: 'Sweeper' }).tap();
+assert.match(await heading(), /^Sweeper/i);
+assert.equal(await page.locator('#tip').isHidden(), true, 'the tooltip stayed open after tapping a dot');
+await page.locator('.move-chart .dot', { hasText: 'Slider' }).focus();
+assert.equal(await page.locator('#tip').isVisible(), true, 'no tooltip for the dot with focus');
+await page.keyboard.press('Enter');
+assert.match(await heading(), /^Slider/i);
+assert.equal(await page.locator('#tip').isHidden(), true, 'the tooltip stayed open after picking a dot with Enter');
 await page.locator('.lineup tbody tr', { hasText: 'Splitter' }).locator('button').click();
 assert.match(await heading(), /^Splitter/i);
 

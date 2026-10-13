@@ -81,8 +81,10 @@ function drawMovement(host, W, { onPick, tooltip }) {
     g.addEventListener('focus', show);
     g.addEventListener('pointerleave', () => tooltip.hide());
     g.addEventListener('blur', () => tooltip.hide());
-    g.addEventListener('click', () => onPick(p));
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(p); } });
+    // Picking scrolls up to the pitch, and a tap leaves the dot focused, so hide the tooltip rather than leave it behind.
+    const pickIt = () => { tooltip.hide(); onPick(p); };
+    g.addEventListener('click', pickIt);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickIt(); } });
     nodes[p.code] = g;
   }
   // Names: the biggest dots choose first; each takes its preferred side unless that's crowded.
