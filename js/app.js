@@ -5,7 +5,7 @@ import { Stage } from './stage.js';
 import { SpinPanel, SLOW, tilt } from './spin.js';
 import { drawGrip } from './grip.js';
 import { movementChart, lineupTable, famName } from './charts.js';
-import { DECIDE } from './flight.js';
+import { DECIDE, throwPitch } from './flight.js';
 
 const $ = id => document.getElementById(id);
 const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d });
@@ -124,7 +124,8 @@ function renderCard() {
   $('c-grip').textContent = p.grip;
   $('c-how').textContent = p.how;
   const t = tilt(p, state.hand);
-  const turns = (n.rpm / 60) * (60.5 - n.extension) / (n.mph * 1.4667 * 0.957);
+  // Turns on the way in: the spin rate times the flight time the readout shows.
+  const turns = (n.rpm / 60) * throwPitch(p, { hand: state.hand, rng: () => 0.5 }).T;
   let spinText = `${fmt(n.rpm, 0)} rpm, shown ${SLOW}× slower: about ${Math.round(turns)} turns on the way to the plate.`;
   if (p.code === 'KN') spinText = `About ${fmt(n.rpm, 0)} rpm, shown ${SLOW}× slower: two or three turns on the whole way in, so the seams drift instead of spinning.`;
   else {

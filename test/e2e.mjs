@@ -135,6 +135,19 @@ await page.locator('#hand [data-v="R"]').click();
   }
 }
 
+// The spin text counts the turns the thrown ball makes: its spin rate times its time to the plate.
+{
+  const turns = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).map(code => {
+    window.arsenal.pick(code);
+    const f = window.arsenal.stage.flights[0];
+    const said = /about (\d+) turns/.exec(document.getElementById('c-spin').textContent);
+    return { code, said: said && Number(said[1]), ball: Math.round(f.rps * f.T) };
+  }));
+  const counted = turns.filter(t => t.said != null);
+  assert.equal(counted.length, 12, 'every pitch but the knuckleball counts its turns');
+  for (const t of counted) assert.equal(t.said, t.ball, `${t.code}: the card says ${t.said} turns, the ball makes ${t.ball}`);
+}
+
 // The chart and the table pick pitches too.
 assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);
