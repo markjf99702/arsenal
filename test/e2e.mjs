@@ -103,6 +103,22 @@ await arrived();
 assert.ok(await page.evaluate(() => window.arsenal.stage.flights[0].release.x > 0), 'a lefty releases on the first-base side');
 await page.locator('#hand [data-v="R"]').click();
 
+// The card, the table and the chart give each pitch the same share of all pitches.
+{
+  const shares = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).map(code => {
+    window.arsenal.pick(code);
+    const card = [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Thrown').querySelector('b').textContent;
+    const table = document.querySelector(`.lineup tbody tr[data-code="${code}"] td:nth-child(2) .val`).textContent;
+    const dot = document.querySelector('.move-chart .dot.on');
+    dot.dispatchEvent(new FocusEvent('focus'));
+    const tip = /([\d.]+%) of pitches/.exec(document.getElementById('tip').textContent)?.[1];
+    dot.dispatchEvent(new FocusEvent('blur'));
+    return { code, card, table, tip };
+  }));
+  assert.equal(shares.length, 13);
+  for (const s of shares) assert.ok(s.card === s.table && s.card === s.tip, `${s.code}: ${s.card} on the card, ${s.table} in the table, ${s.tip} in the chart`);
+}
+
 // The chart and the table pick pitches too.
 assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);

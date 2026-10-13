@@ -8,7 +8,8 @@ const el = (tag, attrs = {}, parent) => {
   if (parent) parent.appendChild(e);
   return e;
 };
-const fmt = (v, d = 1) => v.toFixed(d).replace(/\.0$/, '');
+// Rounded like the card rounds. toFixed shows the sinker's 16.65% as 16.6, because of how 16.65 is stored.
+const fmt = (v, d = 1) => String(Math.round(v * 10 ** d) / 10 ** d);
 const famName = Object.fromEntries(FAMILIES.map(f => [f.id, f.name]));
 
 // Where each name would rather sit beside its dot; the placer tries the others if that spot is taken.
