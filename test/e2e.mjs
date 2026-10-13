@@ -40,6 +40,22 @@ assert.match(await heading(), /Four-seam fastball/i);
 await arrived();
 assert.match(await page.locator('#ro-time').innerText(), /s to the plate/);
 
+// A screen reader hears one line when the ball lands, not each hundredth of a second while it flies.
+{
+  assert.equal(await page.locator('[aria-live] #ro-time').count(), 0, 'the running time is inside a live region');
+  const heard = await page.evaluate(() => new Promise(resolve => {
+    const live = [...document.querySelectorAll('[aria-live]')];
+    const said = [];
+    const watch = new MutationObserver(() => { for (const el of live) { const t = el.textContent.trim(); if (t && t !== said.at(-1)) said.push(t); } });
+    for (const el of live) watch.observe(el, { childList: true, characterData: true, subtree: true });
+    document.getElementById('throw').click();
+    const landed = () => (window.arsenal.stage.summary().every(s => s.arrived) ? setTimeout(() => { watch.disconnect(); resolve(said); }, 300) : requestAnimationFrame(landed));
+    requestAnimationFrame(landed);
+  }));
+  assert.equal(heard.length, 1, `a screen reader was given ${heard.length} lines for one throw: ${heard.slice(0, 3).join(' | ')}`);
+  assert.match(heard[0], /^Four-seam, 0\.\d\d seconds to the plate$/);
+}
+
 // Picking a pitch from the picker updates the card, the address, and throws it.
 await page.locator('.chip', { hasText: 'Slider' }).click();
 assert.match(await heading(), /^Slider/i);

@@ -58,6 +58,7 @@ function throwNow() {
 let roRaf = 0;
 function readoutLoop() {
   cancelAnimationFrame(roRaf);
+  $('landed').textContent = '';
   const tick = () => {
     const s = stage.summary();
     if (s) {
@@ -73,6 +74,10 @@ function readoutLoop() {
       const deciding = s.some(x => t >= x.f.T - DECIDE && t < x.f.T) && state.speed < 1;
       $('frame').classList.toggle('deciding', deciding);
       if (!s.every(x => x.arrived) || t === 0) { roRaf = requestAnimationFrame(tick); return; }
+      // Every ball is in: say it once to a screen reader, since the time above changes every frame.
+      $('landed').textContent = s.length > 1
+        ? s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} seconds`).join(', ')
+        : `${main.f.p.short}, ${main.f.T.toFixed(2)} seconds to the plate`;
     }
   };
   roRaf = requestAnimationFrame(tick);

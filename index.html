@@ -33,10 +33,11 @@
     <section class="stage" aria-label="The pitch in flight">
       <div class="frame">
         <canvas id="flight" aria-label="Animation of the pitch flying from the pitcher to home plate"></canvas>
-        <div class="readout" aria-live="polite">
+        <div class="readout">
           <div class="speed"><b id="ro-mph">–</b> <span>mph</span></div>
           <div class="time" id="ro-time"></div>
         </div>
+        <p class="sr" id="landed" aria-live="polite"></p>
         <div class="legend" id="legend"></div>
       </div>
       <div class="controls">
