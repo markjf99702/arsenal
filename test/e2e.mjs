@@ -148,6 +148,19 @@ await page.locator('#hand [data-v="R"]').click();
   for (const t of counted) assert.equal(t.said, t.ball, `${t.code}: the card says ${t.said} turns, the ball makes ${t.ball}`);
 }
 
+// On the card, the sideways movement and its unit stay on one line ("glove side 3.9 in", never "in" on its own).
+{
+  const split = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).filter(code => {
+    window.arsenal.pick(code);
+    const box = [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Spin moves it');
+    const text = box.querySelector('dd span').firstChild, s = text.textContent;
+    const top = (from, to) => { const r = document.createRange(); r.setStart(text, from); r.setEnd(text, to); return r.getBoundingClientRect().top; };
+    const num = /[\d.]+(?=\s+in$)/.exec(s);
+    return Math.abs(top(num.index, num.index + num[0].length) - top(s.length - 2, s.length)) > 2;
+  }));
+  assert.deepEqual(split, [], 'the unit wraps away from its number');
+}
+
 // The chart and the table pick pitches too.
 assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);

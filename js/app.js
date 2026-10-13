@@ -116,7 +116,8 @@ function renderCard() {
   $('c-stats').innerHTML = [
     stat('Speed', `${n.mph.toFixed(1)} mph`, n.low ? `most ${Math.round(n.low)}–${Math.round(n.high)}` : ''),
     stat('Spin', `${fmt(n.rpm, 0)} rpm`, p.code === 'KN' ? 'barely turning' : `${Math.round(n.rpm / 60)} turns a second`),
-    stat('Spin moves it', `${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}`, `${n.arm >= 0 ? 'arm side' : 'glove side'} ${inches(n.arm)}`),
+    // A no-break space keeps "in" with its number in the narrow box ("glove side 3.9 in", not "in" on a line alone).
+    stat('Spin moves it', `${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}`, `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`),
     stat('Drops', feetInches(n.drop), 'counting gravity'),
     stat('Thrown', `${share}%`, `${n.pitches.toLocaleString('en-US')} pitches`),
     stat('Misses', n.whiff == null ? '–' : `${Math.round(n.whiff)}`, 'per 100 swings'),
