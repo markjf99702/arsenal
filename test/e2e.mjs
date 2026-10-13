@@ -225,6 +225,24 @@ for (const speed of ['1', '0.25', '0.05']) {
 }
 await calm.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 assert.match(await calm.locator('#landed').textContent(), /^Eephus, 0\.\d\d seconds to the plate$/);
+// The spin panel holds still too, so it's drawn when something changes rather than every frame.
+{
+  await calm.locator('#spin').scrollIntoViewIfNeeded();
+  await calm.waitForTimeout(300);
+  await calm.evaluate(() => {
+    const ctx = document.getElementById('spin').getContext('2d'), clear = ctx.clearRect;
+    window.spinDraws = 0;
+    ctx.clearRect = function (...a) { window.spinDraws++; return clear.apply(this, a); };
+  });
+  await calm.waitForTimeout(1000);
+  const idle = await calm.evaluate(() => window.spinDraws);
+  assert.ok(idle <= 1, `the still spin panel was drawn ${idle} times in a second`);
+  await calm.locator('#spinview [data-v="side"]').click();
+  await calm.waitForTimeout(300);
+  assert.ok(await calm.evaluate(() => window.spinDraws) > idle, 'the still spin panel was not drawn again for the side view');
+  const inked = await calm.evaluate(() => { const c = document.getElementById('spin'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
+  assert.ok(inked > 1000, 'the still spin panel is blank');
+}
 await calmCtx.close();
 
 assert.deepEqual(problems.filter(p => !p.startsWith('failed:')), [], 'problems while using it');

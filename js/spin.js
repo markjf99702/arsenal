@@ -45,8 +45,14 @@ export class SpinPanel {
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     new ResizeObserver(() => this.resize()).observe(canvas);
     this.resize();
-    const loop = () => { this.draw(); this.raf = requestAnimationFrame(loop); };
+    // With reduced motion the ball holds still, so draw only when something has changed (dirty).
+    const loop = () => {
+      if (!this.reduced || this.dirty) { this.dirty = false; this.draw(); }
+      this.raf = requestAnimationFrame(loop);
+    };
     this.raf = requestAnimationFrame(loop);
+    // The clock's numbers are in Barlow Condensed, so draw again once the fonts are in.
+    document.fonts?.ready.then(() => { this.dirty = true; });
     // Stop drawing while it's off screen.
     new IntersectionObserver(([e]) => {
       cancelAnimationFrame(this.raf);
@@ -54,11 +60,16 @@ export class SpinPanel {
     }).observe(canvas);
   }
 
+  // The page sets these from its palette, and again when the theme changes.
+  get colors() { return this._colors; }
+  set colors(c) { this._colors = c; this.dirty = true; }
+
   resize() {
     const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.canvas.width = Math.max(1, Math.round(r.width * dpr));
     this.canvas.height = Math.max(1, Math.round(r.height * dpr));
+    this.dirty = true; // setting the size clears the canvas
   }
 
   set(o) {
@@ -68,6 +79,7 @@ export class SpinPanel {
       this.spin = spinOf(this.pitch, this.hand);
       this.M0 = null;
     }
+    this.dirty = true;
   }
 
   draw() {
