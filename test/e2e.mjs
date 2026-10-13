@@ -213,6 +213,31 @@ await page.evaluate(() => document.fonts.ready);
 assert.match(await heading(), /^Knuckleball/i, 'the page did not load offline');
 await ctx.setOffline(false);
 
+// It clears out only its own old offline copies. Every tool at junkdrawer.works/ shares one address, and so one set
+// of copies: another tool's, there before this page's service worker starts, is still there once it has.
+{
+  const sharedCtx = await browser.newContext();
+  const shared = await sharedCtx.newPage();
+  watch(shared);
+  await shared.goto(base + 'icon.svg'); // the same address without the app, so no service worker yet
+  await shared.evaluate(async () => {
+    await (await caches.open('another-tool-v1')).put('/another-tool/', new Response('another tool'));
+    await (await caches.open('arsenal-v0')).put('index.html', new Response('an older Arsenal'));
+  });
+  await shared.goto(base);
+  // It deletes the old copies before it takes over the page, and it's activated once that's done.
+  await shared.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated', null, { timeout: 30000 });
+  const left = await shared.evaluate(async () => ({
+    other: await caches.has('another-tool-v1'),
+    entry: await (await caches.match('/another-tool/', { cacheName: 'another-tool-v1' }))?.text(),
+    old: await caches.has('arsenal-v0'),
+  }));
+  assert.equal(left.other, true, "another tool's offline copy was deleted");
+  assert.equal(left.entry, 'another tool', "another tool's offline copy lost what was in it");
+  assert.equal(left.old, false, "an older Arsenal's offline copy was kept");
+  await sharedCtx.close();
+}
+
 // With reduced motion, every throw lands at once, at every speed.
 const calmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, reducedMotion: 'reduce' });
 const calm = await calmCtx.newPage();
