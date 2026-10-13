@@ -25,10 +25,13 @@ const browser = await pw.chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
 const page = await ctx.newPage();
 const problems = [];
-page.on('pageerror', e => problems.push(e.message));
-page.on('console', m => { if (m.type() === 'error') problems.push(m.text()); });
-page.on('requestfailed', r => problems.push('failed: ' + r.url()));
-page.on('request', r => { if (!r.url().startsWith(base)) problems.push('left the site: ' + r.url()); });
+const watch = p => {
+  p.on('pageerror', e => problems.push(e.message));
+  p.on('console', m => { if (m.type() === 'error') problems.push(m.text()); });
+  p.on('requestfailed', r => problems.push('failed: ' + r.url()));
+  p.on('request', r => { if (!r.url().startsWith(base)) problems.push('left the site: ' + r.url()); });
+};
+watch(page);
 
 await page.goto(base);
 await page.evaluate(() => document.fonts.ready);
@@ -124,6 +127,22 @@ await page.reload();
 await page.evaluate(() => document.fonts.ready);
 assert.match(await heading(), /^Knuckleball/i, 'the page did not load offline');
 await ctx.setOffline(false);
+
+// With reduced motion, every throw lands at once, at every speed.
+const calmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, reducedMotion: 'reduce' });
+const calm = await calmCtx.newPage();
+watch(calm);
+await calm.goto(base + '#eephus');
+await calm.evaluate(() => document.fonts.ready);
+for (const speed of ['1', '0.25', '0.05']) {
+  await calm.locator(`#speed [data-v="${speed}"]`).click();
+  const flying = await calm.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code)
+    .filter(code => { window.arsenal.pick(code); return !window.arsenal.stage.summary().every(s => s.arrived); }));
+  assert.deepEqual(flying, [], `with reduced motion, these still fly at ${speed}× speed`);
+}
+await calm.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+assert.match(await calm.locator('#landed').textContent(), /^Eephus, 0\.\d\d seconds to the plate$/);
+await calmCtx.close();
 
 assert.deepEqual(problems.filter(p => !p.startsWith('failed:')), [], 'problems while using it');
 await browser.close();

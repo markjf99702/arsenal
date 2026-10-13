@@ -51,7 +51,8 @@ export class Stage {
       this.flights.push(throwPitch(pairPitch, { hand: this.opts.hand, jitter: [j(), j()], release: main.release, rng }));
     }
     this.bg = null; // the eephus may need the camera tilted up
-    this.clock = this.reduced ? WINDUP + 10 : 0;
+    // Reduced motion starts at the end: 10 seconds of game time in, past every landing at any speed.
+    this.clock = this.reduced ? WINDUP + 10 / this.opts.speed : 0;
     this.play();
   }
 
