@@ -29,8 +29,9 @@ test('the gap to the no-spin ghost is the Statcast movement', () => {
   }
 });
 
+// The knuckleball too: its numbers leave out position players' lobs (tools/statcast.mjs), so they're one pitch's.
 test('total drop, gravity included, comes out close to Statcast’s', () => {
-  for (const p of steady) {
+  for (const p of PITCHES) {
     const f = throwPitch(p, { hand: 'R', rng: () => 0.5 });
     // Drop below the line the ball started out on: gravity's half g t², less the spin's lift.
     const drop = (0.5 * G * f.T * f.T - p.n.rise / 12) * 12;

@@ -52,6 +52,11 @@ const ACTIVE = { FF: 'fourseam', SI: 'sinker', FC: 'cutter', CH: 'changeup', FS:
 const activeRows = parseCSV(await (await fetch(`https://baseballsavant.mlb.com/leaderboard/active-spin?year=${season}&min=1&hand=&csv=true`)).text());
 const active = Object.fromEntries(activeRows.map(r => [String(r.entity_id), r]));
 
+// Only a knuckleballer throws the knuckleball for real, but position players lob a few in blowouts at 50 mph or so. So its
+// speed, spin, movement, release and misses come from the pitchers who threw at least this many (everyone, if nobody
+// did); how many were thrown, by how many pitchers and by whom most still count everyone.
+const REGULARS_ONLY = { KN: 100 };
+
 const all = {};
 for (const code of TYPES) {
   all[code] = await fetchType(code);
@@ -61,22 +66,27 @@ const total = Object.values(all).flat().reduce((s, r) => s + Number(r.pitches), 
 
 const out = {};
 for (const code of TYPES) {
-  const rows = all[code];
-  const n = rows.reduce((s, r) => s + Number(r.pitches), 0);
+  const every = all[code];
+  const n = every.reduce((s, r) => s + Number(r.pitches), 0);
   if (!n) continue;
+  // How the pitch behaves comes from these rows: everyone's, or for the knuckleball its regular throwers'.
+  const regulars = every.filter(r => Number(r.pitches) >= (REGULARS_ONLY[code] ?? 0));
+  const rows = regulars.length ? regulars : every;
+  const m = rows.reduce((s, r) => s + Number(r.pitches), 0);
   const avg = (key, k = 1) => {
     let s = 0, w = 0;
     for (const r of rows) { const v = num(r[key]); if (v == null) continue; s += v * r.pitches; w += Number(r.pitches); }
     return w ? (s / w) * k : null;
   };
-  // Middle 80% of pitches, by each pitcher's average speed.
+  // Middle 80% of pitches, by each pitcher's average speed. One pitcher on his own has no range to show.
   const speeds = rows.filter(r => num(r.velocity) != null).map(r => [num(r.velocity), Number(r.pitches)]).sort((a, b) => a[0] - b[0]);
-  const pct = p => { let c = 0; for (const [v, k] of speeds) { c += k; if (c >= p * n) return v; } return speeds.at(-1)?.[0] ?? null; };
+  const pct = p => { let c = 0; for (const [v, k] of speeds) { c += k; if (c >= p * m) return v; } return speeds.at(-1)?.[0] ?? null; };
+  const spread = speeds.length > 1;
   let whiffs = 0, swings = 0;
   for (const r of rows) { whiffs += num(r.whiffs) || 0; swings += num(r.swings) || 0; }
-  const most = rows.reduce((a, b) => (Number(b.pitches) > Number(a.pitches) ? b : a));
-  const regulars = rows.filter(r => Number(r.pitches) >= 200);
-  const hardest = regulars.length ? regulars.reduce((a, b) => (num(b.velocity) > num(a.velocity) ? b : a)) : null;
+  const most = every.reduce((a, b) => (Number(b.pitches) > Number(a.pitches) ? b : a));
+  const steady = every.filter(r => Number(r.pitches) >= 200);
+  const hardest = steady.length ? steady.reduce((a, b) => (num(b.velocity) > num(a.velocity) ? b : a)) : null;
   let act = 0, actN = 0;
   for (const r of rows) {
     const v = ACTIVE[code] && num(active[r.player_id]?.['active_spin_' + ACTIVE[code]]);
@@ -86,10 +96,10 @@ for (const code of TYPES) {
   out[code] = {
     pitches: n,
     share: round((100 * n) / total, 2),
-    pitchers: rows.length,
+    pitchers: every.length,
     mph: round(avg('velocity')),
-    low: round(pct(0.1)),
-    high: round(pct(0.9)),
+    low: spread ? round(pct(0.1)) : null,
+    high: spread ? round(pct(0.9)) : null,
     rpm: Math.round(avg('spin_rate') ?? 0) || null,
     active: actN ? Math.round(act / actN) : null, // percent of the spin that moves the ball
     rise: round(avg('api_break_z_induced', 12)), // inches, spin only (gravity taken out)
@@ -106,7 +116,9 @@ for (const code of TYPES) {
 const stamp = new Date().toISOString().slice(0, 10);
 const js = `// Made by tools/statcast.mjs from Baseball Savant's Statcast search on ${stamp}.
 // Every pitch of the ${season} regular season, by pitch type. Averages weight each pitcher by how many they threw.
+// The knuckleball's count only pitchers who threw at least ${REGULARS_ONLY.KN} of them, which leaves out position players' lobs.
 // rise and arm are spin-induced movement in inches (arm < 0 means toward the glove side); drop includes gravity.
+// low and high: the middle 80% of pitches by speed, or null when the average comes from one pitcher.
 export const SEASON = ${season};
 export const TOTAL = ${total};
 export const NUMBERS = ${JSON.stringify(out, null, 2).replace(/"(\w+)":/g, '$1:')};

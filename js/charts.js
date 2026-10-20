@@ -129,10 +129,14 @@ export function lineupTable(host, { onPick }) {
     tr.className = `fam-${p.fam}`;
     tr.dataset.code = p.code;
     const share = n.share < 1 ? fmt(n.share, 2) : fmt(n.share, 1);
+    // No bar when the average is one pitcher's (the knuckleball's): there's no range of pitchers to show.
+    const range = n.low == null
+      ? { said: `${fmt(n.mph)} mph on average`, bar: '' }
+      : { said: `${fmt(n.mph)} mph on average; most between ${fmt(n.low)} and ${fmt(n.high)}`, bar: `<span class="span" style="left:${pos(n.low)}%;width:${Math.max(0.8, pos(n.high) - pos(n.low))}%"></span>` };
     tr.innerHTML = `
       <th scope="row"><button type="button"><span class="key" aria-hidden="true"></span>${p.short}</button></th>
       <td><div class="cell"><span class="bar"><span style="width:${Math.max(0.6, (n.share / maxShare) * 100)}%"></span></span><span class="val">${share}%</span></div></td>
-      <td><div class="cell"><span class="range" aria-label="${fmt(n.mph)} mph on average; most between ${fmt(n.low)} and ${fmt(n.high)}"><span class="span" style="left:${pos(n.low)}%;width:${Math.max(0.8, pos(n.high) - pos(n.low))}%"></span><span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${fmt(n.mph)}</span></div></td>
+      <td><div class="cell"><span class="range" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${fmt(n.mph)}</span></div></td>
       <td class="num">${n.whiff == null ? '–' : Math.round(n.whiff)}</td>`;
     tr.querySelector('button').addEventListener('click', () => onPick(p));
     body.appendChild(tr);

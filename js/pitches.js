@@ -98,7 +98,7 @@ const LIST = [
     seam: 'four', target: [0.0, 2.2], pair: 'FF',
     line: 'Thrown with almost no spin, so the air pushes it around and nobody knows where it’s going.',
     grip: 'Fingertips or nails dug into the leather just behind the seam. The ball is pushed out with a stiff wrist so it barely turns.',
-    how: 'At about 350 rpm it turns only two or three times on the way to the plate. As it slowly rotates, the seams catch the air unevenly and the push keeps changing, so it wobbles and darts, differently every time. Matt Waldron was the only pitcher to throw it regularly in 2026; position players lobbed a few more in blowouts.',
+    how: 'At about 315 rpm it turns only two or three times on the way to the plate. As it slowly rotates, the seams catch the air unevenly and the push keeps changing, so it wobbles and darts, differently every time. Matt Waldron was the only pitcher to throw it regularly in 2026, so the speed, spin and movement here are his; position players lobbed a few more in blowouts.',
   },
   {
     code: 'EP', slug: 'eephus', name: 'Eephus', short: 'Eephus', fam: 'odd',

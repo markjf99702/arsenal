@@ -1,12 +1,14 @@
-// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-07.
+// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20.
 // Every pitch of the 2026 regular season, by pitch type. Averages weight each pitcher by how many they threw.
+// The knuckleball's count only pitchers who threw at least 100 of them, which leaves out position players' lobs.
 // rise and arm are spin-induced movement in inches (arm < 0 means toward the glove side); drop includes gravity.
+// low and high: the middle 80% of pitches by speed, or null when the average comes from one pitcher.
 export const SEASON = 2026;
-export const TOTAL = 713309;
+export const TOTAL = 713311;
 export const NUMBERS = {
   FF: {
-    pitches: 219143,
-    share: 30.72,
+    pitches: 219169,
+    share: 30.73,
     pitchers: 775,
     mph: 94.8,
     low: 92,
@@ -30,8 +32,8 @@ export const NUMBERS = {
     }
   },
   SI: {
-    pitches: 118795,
-    share: 16.65,
+    pitches: 118806,
+    share: 16.66,
     pitchers: 623,
     mph: 94.1,
     low: 91.1,
@@ -55,7 +57,7 @@ export const NUMBERS = {
     }
   },
   FC: {
-    pitches: 57270,
+    pitches: 57245,
     share: 8.03,
     pitchers: 382,
     mph: 89.8,
@@ -80,8 +82,8 @@ export const NUMBERS = {
     }
   },
   SL: {
-    pitches: 93553,
-    share: 13.12,
+    pitches: 93541,
+    share: 13.11,
     pitchers: 567,
     mph: 86.3,
     low: 83.1,
@@ -99,13 +101,13 @@ export const NUMBERS = {
       pitches: 1027
     },
     hardest: {
-      name: "Braxton Ashcraft",
-      mph: 91.8,
-      pitches: 536
+      name: "Jacob Misiorowski",
+      mph: 91.9,
+      pitches: 286
     }
   },
   ST: {
-    pitches: 59334,
+    pitches: 59341,
     share: 8.32,
     pitchers: 385,
     mph: 82.8,
@@ -126,14 +128,14 @@ export const NUMBERS = {
     hardest: {
       name: "Max Meyer",
       mph: 89,
-      pitches: 537
+      pitches: 533
     }
   },
   CU: {
-    pitches: 45410,
+    pitches: 45416,
     share: 6.37,
     pitchers: 385,
-    mph: 80.2,
+    mph: 80.3,
     low: 75.9,
     high: 84.9,
     rpm: 2605,
@@ -151,11 +153,11 @@ export const NUMBERS = {
     hardest: {
       name: "Jacob Misiorowski",
       mph: 88,
-      pitches: 273
+      pitches: 283
     }
   },
   KC: {
-    pitches: 11689,
+    pitches: 11687,
     share: 1.64,
     pitchers: 50,
     mph: 82.6,
@@ -180,7 +182,7 @@ export const NUMBERS = {
     }
   },
   SV: {
-    pitches: 3216,
+    pitches: 3218,
     share: 0.45,
     pitchers: 25,
     mph: 82.2,
@@ -226,7 +228,7 @@ export const NUMBERS = {
     hardest: null
   },
   CH: {
-    pitches: 79841,
+    pitches: 79833,
     share: 11.19,
     pitchers: 553,
     mph: 86,
@@ -251,9 +253,9 @@ export const NUMBERS = {
     }
   },
   FS: {
-    pitches: 23080,
+    pitches: 23077,
     share: 3.24,
-    pitchers: 154,
+    pitchers: 153,
     mph: 86.6,
     low: 82.8,
     high: 91.5,
@@ -304,17 +306,17 @@ export const NUMBERS = {
     pitches: 310,
     share: 0.04,
     pitchers: 5,
-    mph: 71.1,
-    low: 49.2,
-    high: 80.5,
-    rpm: 350,
+    mph: 80.5,
+    low: null,
+    high: null,
+    rpm: 315,
     active: null,
-    rise: 1,
-    arm: 0.2,
-    drop: 64.4,
-    height: 5.91,
-    extension: 5.8,
-    whiff: 20.4,
+    rise: -2.2,
+    arm: 2.3,
+    drop: 44.9,
+    height: 5.6,
+    extension: 6.41,
+    whiff: 21,
     most: {
       name: "Matt Waldron",
       pitches: 208

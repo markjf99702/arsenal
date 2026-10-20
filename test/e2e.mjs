@@ -201,6 +201,18 @@ assert.match(await heading(), /^Forkball/i);
 // A link straight to a pitch opens on it.
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);
+// The knuckleball's speed is its one regular thrower's, not dragged down by position players' lobs, so there's no
+// range of pitchers' speeds to show, on the card or in the table.
+{
+  const kn = await page.evaluate(() => ({
+    speed: [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Speed').querySelector('dd').textContent,
+    bars: document.querySelectorAll('.lineup tr[data-code="KN"] .range .span').length,
+    said: document.querySelector('.lineup tr[data-code="KN"] .range').getAttribute('aria-label'),
+  }));
+  assert.equal(kn.speed, '80.5 mph', `the knuckleball's card says ${kn.speed}`);
+  assert.equal(kn.bars, 0, 'the knuckleball has a speed range in the table');
+  assert.equal(kn.said, '80.5 mph on average');
+}
 
 // Fits a phone: nothing scrolls sideways.
 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'the page scrolls sideways on a phone');

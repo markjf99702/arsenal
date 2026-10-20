@@ -25,9 +25,9 @@
 
 ## The numbers
 
-Every number is from Statcast, through Baseball Savant's search, for the 2026 regular season: 713,309 pitches. Averages weight each pitcher by how many of that pitch he threw. "Spin moves it" is the movement from spin alone (Statcast's induced vertical break and horizontal break); "Drops" is the total drop from release, gravity included. `node tools/statcast.mjs 2027` fetches a new season into `js/numbers.js`; the words in `js/pitches.js` quote a few of the 2026 figures, so read them over after a refresh.
+Every number is from Statcast, through Baseball Savant's search, for the 2026 regular season: 713,311 pitches. Averages weight each pitcher by how many of that pitch he threw. The knuckleball's count only the pitchers who threw at least 100 (in 2026, Matt Waldron alone), which leaves out position players' lobs; how often it was thrown, and by whom, still counts everyone. "Spin moves it" is the movement from spin alone (Statcast's induced vertical break and horizontal break); "Drops" is the total drop from release, gravity included. `node tools/statcast.mjs 2027` fetches a new season into `js/numbers.js`; the words in `js/pitches.js` quote a few of the 2026 figures, so read them over after a refresh.
 
-The flight is a constant-acceleration model, like the one Statcast fits to each pitch: the speed, movement and release come from the data, and the aim is worked out so the pitch lands where that kind of pitch usually does. The tests check that the model's total drop comes out within 12% of Statcast's (or 3 inches, whichever is more) for every pitch but the knuckleball.
+The flight is a constant-acceleration model, like the one Statcast fits to each pitch: the speed, movement and release come from the data, and the aim is worked out so the pitch lands where that kind of pitch usually does. The tests check that the model's total drop comes out within 12% of Statcast's (or 3 inches, whichever is more) for every pitch.
 
 ## Running it
 
@@ -53,4 +53,4 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `js/charts.js`: the movement chart and the table. `js/app.js`: the page. `js/math3.js`: small 3D helpers.
 - `fonts/`: Barlow and Barlow Condensed (SIL Open Font License), served from here so nothing loads from elsewhere.
 - `sw.js`: keeps a copy for using offline.
-- `test/physics.test.mjs` checks that every pitch but the knuckleball, which wobbles, lands where it's aimed, that the gap to its ghost is the Statcast movement and its drop is close to Statcast's, the flight times, and the tilt clock. `test/e2e.mjs` picks pitches every way the page offers, throws them from every camera, pairs two, switches hands, and checks it works offline.
+- `test/physics.test.mjs` checks that every pitch but the knuckleball, which wobbles, lands where it's aimed and that the gap to its ghost is the Statcast movement; that every pitch's drop is close to Statcast's; the flight times; and the tilt clock. `test/e2e.mjs` picks pitches every way the page offers, throws them from every camera, pairs two, switches hands, and checks it works offline.
