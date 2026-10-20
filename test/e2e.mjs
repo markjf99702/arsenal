@@ -387,6 +387,25 @@ await ctx.setOffline(false);
   await sharedCtx.close();
 }
 
+// On the narrowest phones the card's big numbers stay on one line for every pitch ("2,605 rpm", never "2,605" over
+// "rpm"), and nothing scrolls sideways.
+for (const width of [320, 360]) {
+  const narrowCtx = await browser.newContext({ viewport: { width, height: 700 }, deviceScaleFactor: 2, hasTouch: true, serviceWorkers: 'block' });
+  const narrow = await narrowCtx.newPage();
+  watch(narrow);
+  await narrow.goto(base);
+  await narrow.evaluate(() => document.fonts.ready);
+  const wrapped = await narrow.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).flatMap(code => {
+    window.arsenal.pick(code);
+    return [...document.querySelectorAll('#c-stats b')]
+      .filter(b => b.getBoundingClientRect().height > parseFloat(getComputedStyle(b).lineHeight) * 1.5)
+      .map(b => `${code}: ${b.textContent}`);
+  }));
+  assert.deepEqual(wrapped, [], `at ${width}px these numbers on the card wrap onto two lines`);
+  assert.equal(await narrow.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the page scrolls sideways at ${width}px`);
+  await narrowCtx.close();
+}
+
 // With reduced motion, every throw lands at once, at every speed.
 const calmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, reducedMotion: 'reduce' });
 const calm = await calmCtx.newPage();

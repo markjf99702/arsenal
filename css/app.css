@@ -314,4 +314,8 @@ p { margin: 0; }
   .pairpick { flex-basis: 100%; white-space: nowrap; }
   .pairpick select { width: 100%; min-width: 0; }
 }
+/* On the narrowest phones the card's big numbers are a size smaller, and smaller again where even that doesn't fit, so
+   "2,605 rpm", "↓ 10.3 in" and "10 ft 11 in" stay on one line. */
+@media (max-width: 360px) { .stats b { font-size: 18px; } }
+@media (max-width: 350px) { .stats b { font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
