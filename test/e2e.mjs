@@ -90,6 +90,42 @@ for (const v of ['side', 'top', 'catcher']) {
   await arrived();
 }
 
+// From above, the label for the side up the screen stays clear of the speed in the top-left corner and of the legend
+// in the top-right, for either hand.
+{
+  await page.evaluate(() => {
+    const fill = CanvasRenderingContext2D.prototype.fillText;
+    window.topLabels = [];
+    window.stopWatchingLabels = () => { CanvasRenderingContext2D.prototype.fillText = fill; };
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      if (/SIDE/.test(text) && this.textBaseline === 'top') {
+        const m = this.measureText(text), dpr = window.arsenal.stage.dpr;
+        window.topLabels.push({ text, left: x / dpr, right: (x + m.width) / dpr, top: (y - m.actualBoundingBoxAscent) / dpr, bottom: (y + m.actualBoundingBoxDescent) / dpr });
+      }
+      return fill.call(this, text, x, y, ...rest);
+    };
+  });
+  await page.locator('#view [data-v="top"]').click();
+  for (const hand of ['L', 'R']) {
+    await page.locator(`#hand [data-v="${hand}"]`).click();
+    await arrived();
+  }
+  const { labels, speed, legend } = await page.evaluate(() => {
+    window.stopWatchingLabels();
+    const frame = document.querySelector('.frame').getBoundingClientRect();
+    const rel = r => ({ left: r.left - frame.left, right: r.right - frame.left, top: r.top - frame.top, bottom: r.bottom - frame.top });
+    const digits = document.getElementById('ro-mph').getBoundingClientRect(), unit = document.querySelector('.readout .speed span').getBoundingClientRect();
+    return { labels: window.topLabels, speed: rel({ left: digits.left, right: unit.right, top: digits.top, bottom: digits.bottom }), legend: rel(document.getElementById('legend').getBoundingClientRect()) };
+  });
+  const apart = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+  assert.deepEqual([...new Set(labels.map(l => l.text))].sort(), ['↑ ARM SIDE', '↑ GLOVE SIDE']);
+  for (const l of labels) {
+    assert.ok(apart(l, speed), `from above, "${l.text}" is drawn over the speed`);
+    assert.ok(apart(l, legend), `from above, "${l.text}" is drawn under the legend`);
+  }
+  await page.locator('#view [data-v="catcher"]').click();
+}
+
 // Throw it with a partner pitch: two flights from the same release point.
 await page.locator('#pair').selectOption('FF');
 await arrived();

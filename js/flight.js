@@ -310,13 +310,15 @@ export function drawTopField(ctx, cam, c, hand = 'R') {
   const a = P(0, RUBBER_Y), b = P(0, 0);
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   ctx.restore();
-  // Which side is which. Up the screen is first base.
+  // Which side is which. Up the screen is first base. The top label sits along the top edge, clear of every path,
+  // and starts past the speed readout the page puts in the top-left corner (about 114px wide).
+  const dpr = cam.dpr || 1;
   ctx.fillStyle = 'rgba(255,255,255,.9)';
-  ctx.font = `600 ${Math.round(Math.max(12 * (cam.dpr || 1), W / 60))}px "Barlow Condensed", system-ui, sans-serif`;
+  ctx.font = `600 ${Math.round(Math.max(12 * dpr, W / 60))}px "Barlow Condensed", system-ui, sans-serif`;
   ctx.textAlign = 'left';
   const armUp = hand === 'L';
-  ctx.textBaseline = 'top'; ctx.fillText(armUp ? '↑ ARM SIDE' : '↑ GLOVE SIDE', W * 0.05, 12 * (cam.dpr || 1));
-  ctx.textBaseline = 'bottom'; ctx.fillText(armUp ? '↓ GLOVE SIDE' : '↓ ARM SIDE', W * 0.05, H - 10 * (cam.dpr || 1));
+  ctx.textBaseline = 'top'; ctx.fillText(armUp ? '↑ ARM SIDE' : '↑ GLOVE SIDE', Math.max(W * 0.05, 120 * dpr), 12 * dpr);
+  ctx.textBaseline = 'bottom'; ctx.fillText(armUp ? '↓ GLOVE SIDE' : '↓ ARM SIDE', W * 0.05, H - 10 * dpr);
 }
 
 // ---------------------------------------------------------------- the ball in flight
