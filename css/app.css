@@ -161,7 +161,7 @@ p { margin: 0; }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
 .check input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
 .pairpick { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
-.pairpick select { border: 1px solid var(--line-strong); background: var(--card); border-radius: 8px; padding: 6px 8px; font-size: 14px; max-width: 220px; }
+.pairpick select { border: 1px solid var(--line-strong); background: var(--card); border-radius: 8px; padding: 6px 8px; font-size: 14px; }
 .caption { color: var(--muted); font-size: 14px; margin-top: 10px; max-width: 60em; }
 
 /* ---------------------------------------------------------------- card */
@@ -299,5 +299,10 @@ p { margin: 0; }
   .group { flex-wrap: nowrap; }
   .controls { gap: 8px; }
   .seg button { padding: 7px 9px; font-size: 13.5px; }
+  /* "Throw with" gets a row of its own, and the list the rest of it, so the controls stay the same size whichever pitch
+     is up and a long name like "Four-seam fastball (usual partner)" has room. On the narrowest phones the list gives
+     way, not the label. */
+  .pairpick { flex-basis: 100%; white-space: nowrap; }
+  .pairpick select { width: 100%; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

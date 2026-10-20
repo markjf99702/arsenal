@@ -162,6 +162,26 @@ const flights = await page.evaluate(() => window.arsenal.stage.flights.map(f => 
 assert.deepEqual(flights.map(f => f.code), ['SL', 'FF']);
 assert.equal(flights[0].x, flights[1].x);
 
+// The controls stay the same height from pitch to pitch, and the list has room for every partner, even the longest:
+// "Four-seam fastball (usual partner)".
+{
+  const { heights, cramped } = await page.evaluate(() => {
+    const select = document.getElementById('pair'), heights = new Set(), cramped = [];
+    const measure = document.createElement('canvas').getContext('2d');
+    for (const code of [...document.querySelectorAll('.chip')].map(b => b.dataset.code)) {
+      window.arsenal.pick(code);
+      heights.add(Math.round(document.querySelector('.controls').getBoundingClientRect().height));
+      const cs = getComputedStyle(select);
+      measure.font = cs.font;
+      const room = select.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 16; // 16px for the arrow
+      for (const o of select.options) if (measure.measureText(o.text).width > room) cramped.push(`${code}: ${o.text}`);
+    }
+    return { heights: [...heights], cramped };
+  });
+  assert.equal(heights.length, 1, `the controls change height from pitch to pitch: ${heights.join(', ')}px`);
+  assert.deepEqual(cramped, [], 'partners cut off in the "Throw with" list');
+}
+
 // Lefty: released from the other side.
 await page.locator('#hand [data-v="L"]').click();
 await arrived();
