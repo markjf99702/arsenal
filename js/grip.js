@@ -34,6 +34,18 @@ export const GRIPS = {
 };
 
 const SKIN = { fill: '220,174,138', line: '111,74,51', nail: '246,228,214' };
+// Where a finger is off the ball, the page shows through it, and the dark theme's page turns it a muddy brown. So a
+// solid layer of the light theme's paper goes under those parts first: on either page they come out the light skin
+// tone they have on the ball, and on the ball the seams still show through.
+const UNDER = '246,241,230';
+
+// Clips to everything outside the ball.
+function offBall(ctx, R) {
+  ctx.beginPath();
+  ctx.rect(-4 * R, -4 * R, 8 * R, 8 * R);
+  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.clip('evenodd');
+}
 
 // Draws one grip into a canvas. `lefty` mirrors it.
 export function drawGrip(ctx, w, h, code, { lefty = false } = {}) {
@@ -72,9 +84,6 @@ function finger(ctx, f, R) {
   const bx = f.bx * R, by = f.by * R, tx = f.tx * R, ty = f.ty * R, w = f.w * R;
   const ang = Math.atan2(ty - by, tx - bx);
   const L = Math.hypot(tx - bx, ty - by);
-  ctx.save();
-  ctx.translate(bx, by);
-  ctx.rotate(ang);
   const along = (a0, a1, rgb) => {
     const gr = ctx.createLinearGradient(0, 0, L, 0);
     gr.addColorStop(0, `rgba(${rgb},0)`);
@@ -82,11 +91,26 @@ function finger(ctx, f, R) {
     gr.addColorStop(1, `rgba(${rgb},${a1})`);
     return gr;
   };
-  ctx.beginPath();
-  ctx.moveTo(0, -w / 2);
-  ctx.lineTo(L - w / 2, -w / 2);
-  ctx.arc(L - w / 2, 0, w / 2, -Math.PI / 2, Math.PI / 2);
-  ctx.lineTo(0, w / 2);
+  const outline = () => {
+    ctx.beginPath();
+    ctx.moveTo(0, -w / 2);
+    ctx.lineTo(L - w / 2, -w / 2);
+    ctx.arc(L - w / 2, 0, w / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(0, w / 2);
+  };
+  // Off the ball, the solid layer underneath, fading toward the hand like the finger.
+  ctx.save();
+  offBall(ctx, R);
+  ctx.translate(bx, by);
+  ctx.rotate(ang);
+  outline();
+  ctx.fillStyle = along(1, 1, UNDER);
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.rotate(ang);
+  outline();
   ctx.fillStyle = along(0.42, 0.5, SKIN.fill);
   ctx.fill();
   ctx.strokeStyle = along(0.9, 0.95, SKIN.line);
@@ -115,6 +139,12 @@ function circleOK(ctx, R) {
   const x = -0.86 * R, y = 0.22 * R, r = R * 0.27, w = R * 0.19;
   ctx.save();
   ctx.lineWidth = w;
+  // Off the ball, the solid layer underneath, as for the other fingers.
+  ctx.save();
+  offBall(ctx, R);
+  ctx.strokeStyle = `rgb(${UNDER})`;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
   ctx.strokeStyle = `rgba(${SKIN.fill},.55)`;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
   ctx.lineWidth = Math.max(1.4, R * 0.026);

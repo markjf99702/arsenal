@@ -75,6 +75,26 @@ for (const colorScheme of ['light', 'dark']) {
 }
 await page.emulateMedia({ colorScheme: 'light' });
 
+// A finger off the ball in the grip drawing is the same skin tone on the dark page as on the light one, rather than
+// the see-through skin over the dark page. The spot is on the four-seamer's ring finger, beside the ball.
+{
+  await page.evaluate(() => window.arsenal.pick('FF'));
+  const seen = {};
+  for (const colorScheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme });
+    seen[colorScheme] = await page.evaluate(() => {
+      const c = document.getElementById('grip'), R = Math.min(c.width, c.height) * 0.36;
+      const x = Math.round(c.width / 2 + 0.85 * R), y = Math.round(c.height * 0.47 + 0.8 * R);
+      const [r, g, b, a] = c.getContext('2d').getImageData(x, y, 1, 1).data;
+      const page = getComputedStyle(c).backgroundColor.match(/\d+/g).map(Number);
+      return [r, g, b].map((v, i) => Math.round((v * a + page[i] * (255 - a)) / 255));
+    });
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+  const apart = Math.max(...seen.light.map((v, i) => Math.abs(v - seen.dark[i])));
+  assert.ok(apart <= 12, `a finger off the ball is rgb(${seen.dark}) on the dark page and rgb(${seen.light}) on the light one`);
+}
+
 // Picking a pitch from the picker updates the card, the address, and throws it.
 await page.locator('.chip', { hasText: 'Slider' }).click();
 assert.match(await heading(), /^Slider/i);
