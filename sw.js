@@ -14,8 +14,9 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    // Every tool at junkdrawer.works/ shares this address and its caches, so clear out only Arsenal's old copies.
-    .then(keys => Promise.all(keys.filter(k => k.startsWith('arsenal-') && k !== CACHE).map(k => caches.delete(k))))
+    // Every tool at junkdrawer.works/ shares this address and its caches, so clear out only Arsenal's own old copies,
+    // by their exact name: a tool called arsenal-something would have caches starting "arsenal-" too.
+    .then(keys => Promise.all(keys.filter(k => k !== CACHE && /^arsenal-v[0-9]+$/.test(k)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 

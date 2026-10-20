@@ -214,7 +214,8 @@ assert.match(await heading(), /^Knuckleball/i, 'the page did not load offline');
 await ctx.setOffline(false);
 
 // It clears out only its own old offline copies. Every tool at junkdrawer.works/ shares one address, and so one set
-// of copies: another tool's, there before this page's service worker starts, is still there once it has.
+// of copies: another tool's, there before this page's service worker starts, is still there once it has. So is one
+// from a tool whose name starts with this one's (arsenal-x).
 {
   const sharedCtx = await browser.newContext();
   const shared = await sharedCtx.newPage();
@@ -222,6 +223,7 @@ await ctx.setOffline(false);
   await shared.goto(base + 'icon.svg'); // the same address without the app, so no service worker yet
   await shared.evaluate(async () => {
     await (await caches.open('another-tool-v1')).put('/another-tool/', new Response('another tool'));
+    await (await caches.open('arsenal-x-v1')).put('/arsenal-x/', new Response('a tool called arsenal-x'));
     await (await caches.open('arsenal-v0')).put('index.html', new Response('an older Arsenal'));
   });
   await shared.goto(base);
@@ -230,10 +232,12 @@ await ctx.setOffline(false);
   const left = await shared.evaluate(async () => ({
     other: await caches.has('another-tool-v1'),
     entry: await (await caches.match('/another-tool/', { cacheName: 'another-tool-v1' }))?.text(),
+    longer: await (await caches.match('/arsenal-x/', { cacheName: 'arsenal-x-v1' }))?.text(),
     old: await caches.has('arsenal-v0'),
   }));
   assert.equal(left.other, true, "another tool's offline copy was deleted");
   assert.equal(left.entry, 'another tool', "another tool's offline copy lost what was in it");
+  assert.equal(left.longer, 'a tool called arsenal-x', "the offline copy of a tool called arsenal-x was deleted");
   assert.equal(left.old, false, "an older Arsenal's offline copy was kept");
   await sharedCtx.close();
 }
