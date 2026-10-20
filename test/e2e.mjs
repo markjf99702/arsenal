@@ -403,6 +403,21 @@ for (const width of [320, 360]) {
   }));
   assert.deepEqual(wrapped, [], `at ${width}px these numbers on the card wrap onto two lines`);
   assert.equal(await narrow.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the page scrolls sideways at ${width}px`);
+  // The spin view's two labels don't fit side by side here, so the pill cuts one off, but a pressed "From the side" stays
+  // inside the pill's rounded end: just past its top corner is the card, not the pressed button.
+  await narrow.locator('#spinview [data-v="side"]').click();
+  await narrow.evaluate(() => document.getElementById('spinview').scrollIntoView({ block: 'center' }));
+  const pill = await narrow.locator('#spinview').boundingBox();
+  const corner = await narrow.screenshot({ clip: { x: pill.x + pill.width - 6, y: pill.y, width: 6, height: 6 }, scale: 'css' });
+  const past = await narrow.evaluate(async png => {
+    const shot = await createImageBitmap(new Blob([Uint8Array.from(atob(png), c => c.charCodeAt(0))], { type: 'image/png' }));
+    const ctx = Object.assign(document.createElement('canvas'), { width: shot.width, height: shot.height }).getContext('2d');
+    ctx.drawImage(shot, 0, 0);
+    const card = getComputedStyle(document.getElementById('card')).backgroundColor.match(/\d+/g).map(Number);
+    const seen = [...ctx.getImageData(shot.width - 3, 2, 1, 1).data].slice(0, 3);
+    return { seen, apart: Math.max(...seen.map((v, i) => Math.abs(v - card[i]))) };
+  }, corner.toString('base64'));
+  assert.ok(past.apart <= 12, `at ${width}px a pressed "From the side" shows past the pill's rounded end: rgb(${past.seen})`);
   await narrowCtx.close();
 }
 

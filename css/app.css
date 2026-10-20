@@ -198,6 +198,9 @@ p { margin: 0; }
 .seg.mini button:last-child { border-radius: 0 999px 999px 0; }
 @supports (overflow: clip) { .seg.mini { overflow: visible; overflow-x: clip; } }
 @media (max-width: 480px) { .seg.mini { justify-self: stretch; } .seg.mini button { flex: 1; padding: 5px 2px; font-size: 12px; } }
+/* Up to 370px wide the two labels don't fit side by side, and clipping only sideways would cut a pressed "From the side"
+   off square, past the pill's rounded end. There the pill clips round, as it used to, and the buttons reach no further. */
+@media (max-width: 370px) { .seg.mini { overflow: hidden; } .seg.mini button::after { content: none; } }
 @media (max-width: 420px) { .duo { gap: 10px; } .panel p { font-size: 14px; } }
 
 .how h3 { font-size: 20px; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
