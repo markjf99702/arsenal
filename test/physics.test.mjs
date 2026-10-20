@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
-import { throwPitch, PLATE_Y, G } from '../js/flight.js';
+import { throwPitch, sideCamera, PLATE_Y, G } from '../js/flight.js';
 import { tilt } from '../js/spin.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
@@ -47,6 +47,18 @@ test('flight times are what a hitter gets', () => {
   assert.ok(ff > 0.37 && ff < 0.42, `four-seam ${ff}`);
   assert.ok(cu > 0.44 && cu < 0.5, `curve ${cu}`);
   assert.ok(ep > 0.8 && ep < 0.95, `eephus ${ep}`);
+});
+
+test('from the side, only a lob above the usual 7.5 feet gives up height to the readout', () => {
+  // The stage on a computer, about 650 x 447 CSS pixels, at both pixel densities.
+  for (const dpr of [1, 2]) {
+    const W = 650 * dpr, H = 447 * dpr;
+    assert.equal(Math.round(sideCamera(W, H, { dpr }).stretch * 2) / 2, 5, 'pitches at the usual height are stretched 5×');
+    // The top of a lob's arc is 0.8 feet under the camera's top, and the readout's two lines end 85px down.
+    const lob = sideCamera(W, H, { top: 8.7, dpr });
+    const crest = lob.project([0, 30, 8.7 - 0.8]).y / dpr;
+    assert.ok(crest > 85, `the top of a lob's arc is ${crest.toFixed(0)}px down, inside the readout`);
+  }
 });
 
 test('a knuckleball never goes the same way twice', () => {

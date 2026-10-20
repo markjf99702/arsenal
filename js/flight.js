@@ -102,13 +102,14 @@ export function catcherCamera(W, H, { lift = 0 } = {}) {
 }
 
 // From the third-base side: the pitcher on the left, the plate on the right.
-// Heights are stretched so the drop shows; `stretch` says by how much.
-export function sideCamera(W, H, { top = 7.5 } = {}) {
+// Heights are stretched so the drop shows; `stretch` says by how much. A lob that climbs above the usual 7.5 feet
+// (the eephus) is kept under the speed and time the page shows in the top-left corner, about 76px tall.
+export function sideCamera(W, H, { top = 7.5, dpr = 1 } = {}) {
   const padL = W * 0.05, padR = W * 0.05;
   const y0 = 62.5, y1 = -3;
   const kx = (W - padL - padR) / (y0 - y1);
   const ground = H * 0.86;
-  const usable = ground - H * 0.08;
+  const usable = ground - (top > 7.5 ? Math.max(H * 0.08, 76 * dpr) : H * 0.08);
   const stretch = Math.max(1, Math.min(6, usable / (top * kx)));
   const kz = kx * stretch;
   return {

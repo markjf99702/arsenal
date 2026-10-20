@@ -126,6 +126,35 @@ for (const v of ['side', 'top', 'catcher']) {
   await page.locator('#view [data-v="catcher"]').click();
 }
 
+// From the side, the eephus's lob stays under the speed and time in the top-left corner, on its own or with a fastball.
+{
+  await page.evaluate(() => window.arsenal.pick('EP'));
+  await page.locator('#view [data-v="side"]').click();
+  for (const pair of ['', 'FF']) {
+    await page.locator('#pair').selectOption(pair);
+    await arrived();
+    const through = await page.evaluate(() => {
+      const stage = window.arsenal.stage, cam = stage.camera(), dpr = cam.dpr;
+      const frame = document.querySelector('.frame').getBoundingClientRect();
+      const text = el => { const r = document.createRange(); r.selectNodeContents(el); const b = r.getBoundingClientRect(); return { left: b.left - frame.left, right: b.right - frame.left, top: b.top - frame.top, bottom: b.bottom - frame.top }; };
+      const boxes = [text(document.querySelector('.readout .speed')), text(document.getElementById('ro-time'))];
+      let n = 0;
+      for (const f of stage.flights) {
+        for (let i = 0; i <= 200; i++) {
+          const s = cam.project(f.pos((f.T * i) / 200)), x = s.x / dpr, y = s.y / dpr;
+          if (boxes.some(b => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom)) n++;
+        }
+      }
+      return n;
+    });
+    assert.equal(through, 0, `from the side, ${through} points along the eephus${pair ? ' and the four-seamer' : ''} run through the speed and time`);
+  }
+  await page.locator('#pair').selectOption('');
+  await page.locator('#view [data-v="catcher"]').click();
+  await page.evaluate(() => window.arsenal.pick('SL'));
+  await arrived();
+}
+
 // Throw it with a partner pitch: two flights from the same release point.
 await page.locator('#pair').selectOption('FF');
 await arrived();

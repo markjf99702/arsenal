@@ -78,7 +78,7 @@ export class Stage {
     const W = this.canvas.width, H = this.canvas.height;
     const top = Math.max(7.5, ...this.flights.map(f => apex(f) + 0.8));
     let cam;
-    if (this.opts.view === 'side') cam = sideCamera(W, H, { top });
+    if (this.opts.view === 'side') cam = sideCamera(W, H, { top, dpr: this.dpr || 1 });
     else if (this.opts.view === 'top') cam = topCamera(W, H);
     // Tilt up for a high lob so it stays in frame.
     else cam = catcherCamera(W, H, { lift: Math.max(0, Math.min(10, (top - 8) * 1.6)) });
