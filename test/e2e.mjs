@@ -289,6 +289,34 @@ assert.match(await heading(), /^Splitter/i);
 await page.locator('#next').click();
 assert.match(await heading(), /^Forkball/i);
 
+// The small things to tap reach further than they look, 44px tall, without taking taps from the controls around them.
+// On a phone the No-spin ghost checkbox has rows of controls 8px above and below, so it reaches as far as those.
+{
+  const reach = await page.evaluate(() => {
+    const tall = el => {
+      el.scrollIntoView({ block: 'center' });
+      const r = el.getBoundingClientRect(), x = r.left + Math.min(r.width / 2, 30), mid = r.top + r.height / 2;
+      let top = mid, bottom = mid;
+      while (top > mid - 40 && el.contains(document.elementFromPoint(x, top - 0.5))) top -= 0.5;
+      while (bottom < mid + 40 && el.contains(document.elementFromPoint(x, bottom + 0.5))) bottom += 0.5;
+      return bottom - top;
+    };
+    const ownsItsEdge = el => { el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.left + r.width / 2, r.bottom - 1)); };
+    return {
+      previous: tall(document.getElementById('prev')), next: tall(document.getElementById('next')),
+      'From behind': tall(document.querySelector('#spinview [data-v="behind"]')), 'From the side': tall(document.querySelector('#spinview [data-v="side"]')),
+      'a pitch in the table': tall(document.querySelector('.lineup tbody tr:nth-child(6) th button')),
+      ghost: tall(document.querySelector('label.check')),
+      keptTheirOwn: [...document.querySelectorAll('#speed button, #hand button')].every(ownsItsEdge),
+    };
+  });
+  for (const name of ['previous', 'next', 'From behind', 'From the side', 'a pitch in the table']) {
+    assert.ok(reach[name] >= 44, `${name}: a tap lands on it only within ${reach[name]}px`);
+  }
+  assert.ok(reach.ghost >= 36, `the No-spin ghost checkbox: a tap lands on it only within ${reach.ghost}px`);
+  assert.ok(reach.keptTheirOwn, 'the No-spin ghost checkbox takes taps on the speed or hand buttons above it');
+}
+
 // A link named after something every object has, like #constructor, isn't a pitch: it opens on the four-seamer.
 {
   const before = problems.length;

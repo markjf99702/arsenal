@@ -154,11 +154,13 @@ p { margin: 0; }
 }
 .throw svg { width: 16px; height: 16px; fill: currentColor; }
 .throw:active { transform: translateY(1px); }
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; background: var(--card); }
+/* Positioned, so a tap on one of these is always its own, even where the No-spin ghost checkbox's reach overlaps it. */
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; background: var(--card); position: relative; }
 .seg button { border: 0; background: transparent; padding: 7px 11px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+/* The small things to tap reach further than they look: padding, given back by an equal negative margin, so nothing moves. */
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; padding: 11.5px 0; margin: -11.5px 0; }
 .check input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
 .pairpick { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .pairpick select { border: 1px solid var(--line-strong); background: var(--card); border-radius: 8px; padding: 6px 8px; font-size: 14px; }
@@ -186,8 +188,15 @@ p { margin: 0; }
 .panel h3 { font-size: 20px; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
 .panel p { font-size: 14.5px; color: var(--ink-2); }
 .panel p.small { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
-.seg.mini { justify-self: center; margin-top: -2px; max-width: 100%; }
-.seg.mini button { font-size: 12.5px; padding: 5px 9px; }
+.seg.mini { justify-self: center; margin-top: -2px; max-width: 100%; min-width: 0; }
+.seg.mini button { font-size: 12.5px; padding: 5px 9px; position: relative; }
+/* Padding would grow the dark pressed button, so these reach 8px above and below it with a see-through layer instead.
+   For that the pill clips only sideways (where a label too long for a narrow phone is cut off, as before), so the
+   rounded ends are the end buttons' own. */
+.seg.mini button::after { content: ''; position: absolute; inset: -8px 0; }
+.seg.mini button:first-child { border-radius: 999px 0 0 999px; }
+.seg.mini button:last-child { border-radius: 0 999px 999px 0; }
+@supports (overflow: clip) { .seg.mini { overflow: visible; overflow-x: clip; } }
 @media (max-width: 480px) { .seg.mini { justify-self: stretch; } .seg.mini button { flex: 1; padding: 5px 2px; font-size: 12px; } }
 @media (max-width: 420px) { .duo { gap: 10px; } .panel p { font-size: 14px; } }
 
@@ -197,7 +206,7 @@ p { margin: 0; }
 .facts li { padding-left: 16px; position: relative; }
 .facts li::before { content: ''; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--fam); }
 .next { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
-.next button { border: 0; background: none; padding: 4px 0; font: 600 16px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; }
+.next button { border: 0; background: none; padding: 14px 0; margin: -10px 0; font: 600 16px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; }
 .next button:hover { color: var(--accent); }
 
 /* ---------------------------------------------------------------- all pitches */
@@ -268,7 +277,7 @@ p { margin: 0; }
   .lineup tfoot td:nth-child(3) { grid-area: 1 / 2 / 2 / 4; }
   .lineup tfoot td:not(:nth-child(3)) { display: none; }
   .lineup td { padding: 0; }
-  .lineup th button { padding: 4px 0; }
+  .lineup th button { padding: 11.5px 0; margin: -7.5px 0; position: relative; z-index: 1; } /* its reach sits over the bars below it */
   .lineup .cell { min-width: 0; }
   .lineup .val { min-width: 3em; }
   .lineup thead th:nth-child(4) br { display: none; }
