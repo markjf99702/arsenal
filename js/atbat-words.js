@@ -19,7 +19,8 @@ export function resultWord(p) {
     case 'tip': return 'Foul tip, caught: strike three';
     case 'foul': return 'Foul';
     case 'hbp': return 'Hit by pitch';
-    default: return { out: 'In play, out', '1B': 'Single', '2B': 'Double', '3B': 'Triple', HR: 'Home run' }[p.play];
+    // The same words as the end card's (ENDING), so the log and the card name a ball in play alike.
+    default: return ENDING[p.play];
   }
 }
 

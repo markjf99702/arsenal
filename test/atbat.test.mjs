@@ -6,7 +6,7 @@ import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
-import { why, note, boxAt, calledLine, bounced, NAME } from '../js/atbat-words.js';
+import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
 
 const RESULTS = new Set(['ball', 'called', 'whiff', 'foul', 'tip', 'inplay', 'hbp']);
 const ENDS = new Set(['K', 'KL', 'BB', 'HBP', 'out', '1B', '2B', '3B', 'HR']);
@@ -123,6 +123,13 @@ test('the scout’s note says what decided the at-bat', () => {
   assert.equal(k.result, 'K');
   assert.equal(k.pitches.length, 6);
   assert.equal(note(k), 'The curveball was 6\u00a0mph slower than the slider before it, and his timing was set for the faster one. 6 pitches: he swung at 3 and missed 2, chasing one out of the zone.');
+});
+
+test('a ball in play is named the same in the log as on the end card', () => {
+  for (const ab of PLAYED) {
+    const last = ab.pitches.at(-1);
+    if (last.result === 'inplay') assert.equal(resultWord(last), ENDING[ab.result], `seed ${ab.seed}`);
+  }
 });
 
 test('each pitch’s why says where it went, what he was looking for, and what he did', () => {
