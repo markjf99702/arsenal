@@ -432,4 +432,13 @@ p { margin: 0; }
   .bat-head h2 { font-size: 30px; }
   .bat-call { padding: 14px; }
   .spots { grid-template-columns: repeat(5, 44px); grid-template-rows: repeat(5, 44px); }
+  /* The batter's side goes on one line just above the grid, at his end of it so the arrow points at him, and the two
+     sit centred together. The pitches go two to a row, each with its speed and share under its name. */
+  .spots-wrap { display: grid; justify-content: center; gap: 6px; }
+  .spots-wrap .side { order: -1; max-width: none; white-space: nowrap; }
+  .spots-wrap .side.left { text-align: left; }
+  .spots-wrap .side.right { text-align: right; }
+  .ab-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ab-chips .ab-chip { white-space: normal; text-align: left; border-radius: 16px; padding: 6px 12px; }
+  .ab-chips .ab-chip small { display: block; margin: 1px 0 0; padding-left: 15px; }
 }

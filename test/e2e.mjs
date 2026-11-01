@@ -467,6 +467,19 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await ph.locator('#ab-pitcher').selectOption('skenes');
   await ph.waitForTimeout(1200);
   assert.deepEqual(await ph.evaluate(() => ({ busy: window.arsenal.atBat.state.busy, ro: document.getElementById('ab-ro').textContent, log: document.querySelectorAll('#ab-log li').length })), { busy: false, ro: '', log: 0 }, `${at}, after a new pitcher mid-pitch`);
+  // Skenes's six pitches take three rows, and the batter's side is one line over the grid, at his end of it.
+  for (const batter of ['R', 'L']) {
+    await ph.locator(`#ab-batter [data-v="${batter}"]`).tap();
+    const box = await ph.evaluate(() => {
+      const side = document.getElementById('ab-side'), s = side.getBoundingClientRect(), g = document.getElementById('ab-spots').getBoundingClientRect();
+      return {
+        rows: new Set([...document.querySelectorAll('#ab-pitches .ab-chip')].map(b => Math.round(b.getBoundingClientRect().top))).size,
+        oneLine: s.height < parseFloat(getComputedStyle(side).lineHeight) * 1.5, above: s.bottom <= g.top,
+        width: Math.round(s.left - g.left) === 0 && Math.round(s.right - g.right) === 0, align: getComputedStyle(side).textAlign,
+      };
+    });
+    assert.deepEqual(box, { rows: 3, oneLine: true, above: true, width: true, align: batter === 'R' ? 'left' : 'right' }, `${at}, the call box for a ${batter === 'R' ? 'right' : 'left'}-handed batter`);
+  }
   assert.equal(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${at}, the page scrolls sideways`);
   await phoneCtx.close();
 }
