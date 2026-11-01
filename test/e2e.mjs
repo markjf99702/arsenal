@@ -459,6 +459,9 @@ await page.locator('#hand [data-v="R"]').click();
   assert.match(cards.FC.moves, /↑ 8\.0 in/);
   assert.match(cards.FS.moves, /arm side 11\.0 in/);
   assert.match(cards.KC.moves, /↓ 10\.0 in/);
+  // And the movement is as big and dark as the card's other numbers, though its arrow is hidden from a screen reader.
+  const look = await page.evaluate(() => [...document.querySelectorAll('#c-stats b')].map(b => { const shown = b.querySelector('[aria-hidden]') || b, cs = getComputedStyle(shown); return `${cs.fontSize} ${cs.color}`; }));
+  assert.equal(new Set(look).size, 1, `the card's numbers: ${look.join(', ')}`);
   assert.equal(cards.KC.hardest, 'Hardest on average: Trevor Megill, 88.0 mph.');
 }
 
@@ -496,7 +499,7 @@ await page.locator('#hand [data-v="R"]').click();
   const split = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).filter(code => {
     window.arsenal.pick(code);
     const box = [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Spin moves it');
-    const text = box.querySelector('dd span').firstChild, s = text.textContent;
+    const text = box.querySelector('dd > span').firstChild, s = text.textContent;
     const top = (from, to) => { const r = document.createRange(); r.setStart(text, from); r.setEnd(text, to); return r.getBoundingClientRect().top; };
     const num = /[\d.]+(?=\s+in$)/.exec(s);
     return Math.abs(top(num.index, num.index + num[0].length) - top(s.length - 2, s.length)) > 2;
