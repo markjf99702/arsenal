@@ -199,7 +199,7 @@ function legend() {
   const items = [`<span><i class="ln" style="--c:${MAIN}"></i>${state.pitch.short}</span>`];
   if (state.pair) items.push(`<span><i class="ln" style="--c:${PAIR}"></i>${BY_CODE[state.pair].short}</span>`);
   if (state.ghost) items.push(`<span><i class="ln dash"></i>No spin</span>`);
-  items.push(`<span><i class="ring"></i>Decision point</span>`);
+  items.push(`<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>`);
   $('legend').innerHTML = items.join('');
 }
 

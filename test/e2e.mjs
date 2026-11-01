@@ -59,6 +59,10 @@ assert.match(await page.locator('#ro-time').innerText(), /s to the plate/);
   assert.match(heard[0], /^Four-seam, 0\.\d\d seconds to the plate$/);
 }
 
+// On a phone the legend still labels the dashed ring, in one word so it stays clear of two pitches' times.
+assert.equal(await page.locator('#legend > span:last-child').innerText(), 'Decide', 'the decision point is not labelled on a phone');
+assert.equal(await page.locator('#legend .ring').isVisible(), true, 'the decision point is not labelled on a phone');
+
 // Grey text reads clearly on the page and on the cards, in both palettes: at least 4.5 to 1, as WCAG AA asks.
 for (const colorScheme of ['light', 'dark']) {
   await page.emulateMedia({ colorScheme });
