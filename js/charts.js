@@ -87,7 +87,7 @@ function drawMovement(host, W, { onPick, tooltip }) {
     const show = () => tooltip.show(g, `<b>${p.name}</b><br>${rise} in ${up}, ${arm} in ${side} side<br>${mphText(p.n.mph)} mph · ${shareText(p.n.share)}% of pitches`);
     g.addEventListener('pointerenter', show);
     g.addEventListener('focus', show);
-    g.addEventListener('pointerleave', () => tooltip.hide());
+    g.addEventListener('pointerleave', () => tooltip.leave());
     g.addEventListener('blur', () => tooltip.hide());
     // Picking scrolls up to the pitch, and a tap leaves the dot focused, so hide the tooltip rather than leave it behind.
     const pickIt = () => { tooltip.hide(); onPick(p); };

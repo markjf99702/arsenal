@@ -541,6 +541,56 @@ assert.equal(await page.locator('#tip').isVisible(), true, 'no tooltip for the d
 await page.keyboard.press('Enter');
 assert.match(await heading(), /^Slider/i);
 assert.equal(await page.locator('#tip').isHidden(), true, 'the tooltip stayed open after picking a dot with Enter');
+// WCAG 2.2 asks that content shown on hover or focus can be dismissed and hovered (SC 1.4.13): Escape hides the tooltip,
+// whether it came with focus or with the pointer, and it stays while the pointer moves from the dot onto it, going once
+// the pointer has left both.
+{
+  const dot = page.locator('.move-chart .dot', { hasText: 'Splitter' });
+  const tipShown = () => page.locator('#tip').isVisible();
+  await dot.focus();
+  assert.equal(await tipShown(), true, 'no tooltip for the dot with focus');
+  await page.keyboard.press('Escape');
+  assert.equal(await tipShown(), false, 'Escape left the tooltip open for the dot with focus');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')?.split(':')[0]), 'Splitter', 'Escape moved focus');
+  await dot.evaluate(g => g.blur());
+  await dot.hover();
+  assert.equal(await tipShown(), true, 'no tooltip for the dot under the pointer');
+  await page.keyboard.press('Escape');
+  assert.equal(await tipShown(), false, 'Escape left the tooltip open for the dot under the pointer');
+  await page.mouse.move(0, 0);
+  await dot.hover();
+  const box = await page.locator('#tip').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await page.waitForTimeout(600);
+  assert.equal(await tipShown(), true, 'the tooltip went as the pointer moved onto it');
+  await page.mouse.move(2, 2, { steps: 4 });
+  await page.waitForTimeout(600);
+  assert.equal(await tipShown(), false, 'the tooltip stayed after the pointer left it');
+}
+
+// The spinning ball turns for as long as it's on screen, so a tap, a click or Enter stops it, and again starts it
+// (WCAG 2.2, SC 2.2.2); the spin's words say so.
+{
+  const ball = page.locator('#spin');
+  await ball.scrollIntoViewIfNeeded();
+  const pose = () => ball.evaluate(c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let h = 0; for (let i = 0; i < d.length; i += 97) h = (h * 31 + d[i]) >>> 0; return h; });
+  const said = () => page.locator('#c-spin').textContent();
+  assert.equal(await ball.getAttribute('role'), 'button');
+  assert.equal(await ball.getAttribute('aria-pressed'), 'false');
+  assert.match(await said(), / Tap the ball to stop it\.$/);
+  await ball.click();
+  assert.equal(await ball.getAttribute('aria-pressed'), 'true', 'the ball isn’t marked stopped after a click');
+  assert.match(await said(), / Tap the ball to spin it\.$/);
+  const a = await pose();
+  await page.waitForTimeout(400);
+  assert.equal(await pose(), a, 'the stopped ball still turns');
+  await ball.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await ball.getAttribute('aria-pressed'), 'false', 'Enter didn’t start the ball again');
+  await page.waitForTimeout(400);
+  assert.notEqual(await pose(), a, 'the ball didn’t start turning again');
+  await page.evaluate(() => scrollTo(0, 0));
+}
 // Picked with the keyboard further down the page, from the table or with previous and next, the page goes up to the
 // pitch and focus goes with it, to its name, rather than staying down the page out of sight.
 // (Each starts once the page has stopped scrolling: Chromium can drop a smooth scroll begun while the page is still
@@ -1353,6 +1403,10 @@ for (const speed of ['1', '0.25', '0.05']) {
 }
 await calm.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 assert.match(await calm.locator('#landed').textContent(), /^Eephus, 0\.\d\d seconds to the plate$/);
+// It says why the ball doesn't fly, and the spinning ball starts out still, there to start with a tap.
+assert.match(await calm.locator('#caption').textContent(), / Your device asks for less motion, so each throw is shown where it finishes\.$/);
+assert.equal(await calm.locator('#spin').getAttribute('aria-pressed'), 'true');
+assert.match(await calm.locator('#c-spin').textContent(), / Tap the ball to spin it\.$/);
 // The spin panel holds still too, so it's drawn when something changes rather than every frame.
 {
   await calm.locator('#spin').scrollIntoViewIfNeeded();

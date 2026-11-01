@@ -161,7 +161,7 @@ function renderCard() {
     const act = n.active ?? null;
     if (act != null) spinText += ` ${act}% of the spin does the pushing; the rest is bullet spin around the line of flight.`;
   }
-  $('c-spin').textContent = spinText;
+  $('c-spin').textContent = `${spinText} ${spinHint()}`;
   const facts = [];
   if (n.most) facts.push(`Thrown most by ${n.most.name}: ${n.most.pitches.toLocaleString('en-US')} of them.`);
   if (n.hardest && n.hardest.name !== n.most?.name && n.pitchers > 3) facts.push(`Hardest on average: ${n.hardest.name}, ${fmt(n.hardest.mph)} mph.`);
@@ -185,6 +185,18 @@ function drawGripNow() {
   drawGrip(gripCanvas.getContext('2d'), gripCanvas.width, gripCanvas.height, state.pitch.code, { lefty: state.hand === 'L' });
 }
 new ResizeObserver(drawGripNow).observe(gripCanvas);
+
+// The spinning ball stops and starts again with a tap, a click, or Enter or Space on it: it turns for as long as it's on
+// screen, so it can be stopped (WCAG 2.2, SC 2.2.2). Where the device asks for less motion it starts out still.
+const spinCanvas = $('spin');
+const spinHint = () => (spin.still ? 'Tap the ball to spin it.' : 'Tap the ball to stop it.');
+function toggleSpin() {
+  spinCanvas.setAttribute('aria-pressed', String(spin.toggle()));
+  $('c-spin').textContent = $('c-spin').textContent.replace(/Tap the ball to (stop|spin) it\.$/, spinHint());
+}
+spinCanvas.setAttribute('aria-pressed', String(spin.still));
+spinCanvas.addEventListener('click', toggleSpin);
+spinCanvas.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSpin(); } });
 
 // ---------------------------------------------------------------- controls
 function seg(id, key, cast = v => v, after = () => {}) {
@@ -246,7 +258,10 @@ function caption() {
     side: `From the third-base side, pitcher on the left. Heights are stretched ${stretch()}× so the drop is easier to see. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
     top: `From above, pitcher on the left. Distances sideways are stretched ${stretch()}× so the break is easier to see. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
   }[state.view];
-  $('caption').textContent = [cap, pairing()].filter(Boolean).join(' ');
+  // With reduced motion every throw starts where it finishes (js/stage.js), so Throw it again and the speeds change only
+  // its scatter: it says why the ball doesn't fly.
+  const still = stage.reduced ? 'Your device asks for less motion, so each throw is shown where it finishes.' : '';
+  $('caption').textContent = [cap, pairing(), still].filter(Boolean).join(' ');
 }
 // Two pitches thrown together: what throwing them together shows. "When the hitter has to decide, the four-seam and the
 // changeup are 8 inches apart; at the plate, 1 ft 7 in. The changeup gets there 0.04 s later. The ghost is the
@@ -259,9 +274,14 @@ function pairing() {
 }
 
 // ---------------------------------------------------------------- charts
+// The movement chart's tooltip, for a dot under the pointer or with focus. As WCAG 2.2 asks of content that shows on
+// hover or focus (SC 1.4.13), Escape hides it, and it waits a moment after the pointer leaves the dot, so the pointer
+// can move onto it; it goes once the pointer has left both.
 const tip = $('tip');
+let tipWait = 0;
 const tooltip = {
   show(target, html) {
+    clearTimeout(tipWait);
     tip.innerHTML = html;
     tip.hidden = false;
     const r = target.getBoundingClientRect(), t = tip.getBoundingClientRect();
@@ -270,8 +290,11 @@ const tooltip = {
     x = Math.max(8, Math.min(innerWidth - t.width - 8, x));
     tip.style.left = `${x + scrollX}px`; tip.style.top = `${y + scrollY}px`;
   },
-  hide() { tip.hidden = true; },
+  hide() { clearTimeout(tipWait); tip.hidden = true; },
+  leave() { clearTimeout(tipWait); tipWait = setTimeout(() => { if (!tip.matches(':hover')) tooltip.hide(); }, 300); },
 };
+tip.addEventListener('pointerleave', () => tooltip.leave());
+addEventListener('keydown', e => { if (e.key === 'Escape' && !tip.hidden) tooltip.hide(); });
 const chart = movementChart($('move'), { onPick: p => pick(p, { scroll: true }), tooltip });
 const table = lineupTable($('lineup'), { onPick: p => pick(p, { scroll: true }) });
 $('total').textContent = `${TOTAL.toLocaleString('en-US')} pitches`;

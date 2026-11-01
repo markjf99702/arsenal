@@ -47,12 +47,15 @@ export class SpinPanel {
     this.hand = 'R';
     this.start = performance.now();
     this.colors = { ink: '#1b2230', muted: '#6b7282', accent: '#c8202f', ring: '#d9d0bf' };
+    // It holds still where the device asks for less motion, and whenever it's stopped (toggle): then it's drawn only
+    // when something has changed (dirty), in the pose it stopped in (`held`, seconds into its turning).
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.still = this.reduced;
+    this.held = 0.15;
     new ResizeObserver(() => this.resize()).observe(canvas);
     this.resize();
-    // With reduced motion the ball holds still, so draw only when something has changed (dirty).
     const loop = () => {
-      if (!this.reduced || this.dirty) { this.dirty = false; this.draw(); }
+      if (!this.still || this.dirty) { this.dirty = false; this.draw(); }
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
@@ -78,8 +81,17 @@ export class SpinPanel {
     this.dirty = true; // setting the size clears the canvas
   }
 
+  // Stop it where it is, or start it again from there. Returns whether it's still now.
+  toggle() {
+    if (this.still) this.start = performance.now() - this.held * 1000;
+    else this.held = (performance.now() - this.start) / 1000;
+    this.still = !this.still;
+    this.dirty = true;
+    return this.still;
+  }
+
   set(o) {
-    if (o.pitch && o.pitch !== this.pitch) { this.pitch = o.pitch; this.start = performance.now(); }
+    if (o.pitch && o.pitch !== this.pitch) { this.pitch = o.pitch; this.start = performance.now(); this.held = 0.15; }
     Object.assign(this, o);
     if (this.pitch) {
       this.spin = spinOf(this.pitch, this.hand);
@@ -97,7 +109,7 @@ export class SpinPanel {
     const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.3;
     const axisV = view(this.spin.axis);
     const M0 = orient(LOCAL[pitch.seam] || FOUR, axisV, 0.6);
-    const secs = this.reduced ? 0.15 : (performance.now() - this.start) / 1000;
+    const secs = this.still ? this.held : (performance.now() - this.start) / 1000;
     const angle = (this.spin.rps / SLOW) * 2 * Math.PI * secs;
     const lw = Math.max(1, W / 260);
     const c = this.colors;
