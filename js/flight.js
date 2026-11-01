@@ -337,11 +337,10 @@ export function ballMatrix(f, cam, t) {
   return { M0, axisView, angle };
 }
 
-export function drawPath(ctx, cam, f, upTo, color, { dashed = false, width = 2, ghost = false } = {}) {
+// `halo`: a darker line under it, `haloWidth` wide, so a pale line stands out on a pale sky.
+export function drawPath(ctx, cam, f, upTo, color, { dashed = false, width = 2, ghost = false, halo = null, haloWidth = width + 2 } = {}) {
   const n = 60;
   ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
   ctx.lineCap = 'round';
   if (dashed) ctx.setLineDash([width * 2.5, width * 2.5]);
   ctx.beginPath();
@@ -352,6 +351,9 @@ export function drawPath(ctx, cam, f, upTo, color, { dashed = false, width = 2, 
     if (i) ctx.lineTo(s.x, s.y); else ctx.moveTo(s.x, s.y);
     if (t >= upTo) break;
   }
+  if (halo) { ctx.strokeStyle = halo; ctx.lineWidth = haloWidth; ctx.stroke(); }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
   ctx.stroke();
   ctx.restore();
 }

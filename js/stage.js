@@ -8,6 +8,7 @@ import { drawBatter, drawMarks, atBatCamera } from './tracker.js';
 
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
+const HALO = 'rgba(20, 30, 45, .65)';
 
 export class Stage {
   constructor(canvas, { onState = () => {}, onArrive = () => {} } = {}) {
@@ -154,23 +155,36 @@ export class Stage {
     const t = this.gameTime();
     const lw = Math.max(1.5, W / 520);
     const colorsFor = i => (i === 0 ? this.opts.color || '#ffd166' : this.opts.pairColor || '#ffffff');
+    // On the light palette's pale sky the yellow, the pale blue and the white would all but vanish, so each path, its
+    // dots and its decision ring get a thin dark halo, about 2 CSS pixels wider. The dark palette needs none.
+    const halo = this.opts.dark ? null : HALO, hw = 2 * cam.dpr;
+
+    // Strobe: the ball every 1/30 s, faint, so speed shows as spacing. Each dot's halo is a ring just outside it, drawn
+    // first, so the paths go over it rather than it over them.
+    const strobe = this.flights.map(f => {
+      const dots = [];
+      for (let s = 0; s < Math.min(t, f.T); s += 1 / 30) {
+        const p = cam.project(f.pos(s));
+        dots.push([p.x, p.y, Math.max(1.5, Math.min(cam.ballR(p.depth) * 0.5, lw * 1.8))]);
+      }
+      return dots;
+    });
+    if (halo) {
+      ctx.strokeStyle = halo; ctx.lineWidth = hw / 2;
+      for (const dots of strobe) for (const [x, y, r] of dots) { ctx.beginPath(); ctx.arc(x, y, r + hw / 4, 0, Math.PI * 2); ctx.stroke(); }
+    }
 
     // The no-spin ghost of the main pitch.
     const main = this.flights[0];
     if (this.opts.ghost) {
-      drawPath(ctx, cam, main, Math.min(t, main.T), colors.ghost, { dashed: true, width: lw * 0.9, ghost: true });
+      drawPath(ctx, cam, main, Math.min(t, main.T), colors.ghost, { dashed: true, width: lw * 0.9, ghost: true, halo, haloWidth: lw * 0.9 + hw });
     }
-    this.flights.forEach((f, i) => drawPath(ctx, cam, f, Math.min(t, f.T), colorsFor(i), { width: lw * 1.2 }));
+    this.flights.forEach((f, i) => drawPath(ctx, cam, f, Math.min(t, f.T), colorsFor(i), { width: lw * 1.2, halo, haloWidth: lw * 1.2 + hw }));
 
-    // Strobe: the ball every 1/30 s, faint, so speed shows as spacing.
-    this.flights.forEach((f, i) => {
+    strobe.forEach((dots, i) => {
       ctx.fillStyle = colorsFor(i);
       ctx.globalAlpha = 0.5;
-      for (let s = 0; s < Math.min(t, f.T); s += 1 / 30) {
-        const p = cam.project(f.pos(s));
-        const r = Math.max(1.5, Math.min(cam.ballR(p.depth) * 0.5, lw * 1.8));
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
-      }
+      for (const [x, y, r] of dots) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
     });
 
@@ -180,9 +194,10 @@ export class Stage {
       if (t < td) return;
       const p = cam.project(f.pos(td));
       const r = Math.max(cam.ballR(p.depth) * 1.9, lw * 4.5);
+      ctx.setLineDash([lw * 2, lw * 2]);
+      if (halo) { ctx.strokeStyle = halo; ctx.lineWidth = lw + hw; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke(); }
       ctx.strokeStyle = colorsFor(i);
       ctx.lineWidth = lw;
-      ctx.setLineDash([lw * 2, lw * 2]);
       ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     });

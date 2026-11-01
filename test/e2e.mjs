@@ -326,6 +326,44 @@ assert.equal(flights[0].x, flights[1].x);
   assert.match(paired.caption, / When the hitter has to decide, the slider and the four-seam are (\d+ inches|an inch|less than an inch) apart; at the plate, (\d+ inches|\d ft( \d+ in)?)\. The four-seam gets there 0\.\d\d\u00a0s sooner\. The ghost is the slider’s\.$/, 'the caption for two pitches thrown together');
   assert.match(paired.heard, /^Slider 0\.\d\d seconds, Four-seam 0\.\d\d seconds\. When the hitter has to decide they’re (\d+ inches|an inch|less than an inch) apart; at the plate, (\d+ inches|\d (foot|feet)( \d+ inch(es)?)?)\.$/, 'what a screen reader hears for two pitches thrown together');
 }
+// On the light palette's pale sky each path has a dark halo, so the yellow line and the pale blue one stand off what's
+// beside them at 3 to 1 (WCAG 2.2, SC 1.4.11); on the sky alone the blue was 1.1 to 1.3. From the side, halfway between
+// two of the dots, out from each side of each line to just past its halo (with the ghost off, as it runs along the
+// slider).
+{
+  await page.locator('#view [data-v="side"]').click();
+  await page.locator('#ghost').uncheck();
+  await page.locator('#throw').click();
+  await arrived();
+  const low = await page.evaluate(() => {
+    const stage = window.arsenal.stage, cam = stage.camera(), ctx = document.getElementById('flight').getContext('2d');
+    const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const lw = Math.max(1.5, cam.W / 520) * 1.2, out = [];
+    stage.flights.forEach((f, i) => {
+      const color = i === 0 ? [0xff, 0xd2, 0x3f] : [0x7f, 0xd3, 0xff];
+      for (const t of [5.5 / 30, 8.5 / 30]) {
+        const a = cam.project(f.pos(t - 0.005)), b = cam.project(f.pos(t + 0.005)), p = cam.project(f.pos(t));
+        const len = Math.hypot(b.x - a.x, b.y - a.y), nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+        // Out from the middle of the line to a pixel past where its halo ends, the most it stands off anything there.
+        for (const side of [1, -1]) {
+          let best = 0, at = null;
+          for (let d = lw / 2; d <= lw / 2 + 1.5 * cam.dpr; d += 0.5) {
+            const px = [...ctx.getImageData(Math.round(p.x + side * nx * d), Math.round(p.y + side * ny * d), 1, 1).data].slice(0, 3);
+            if (ratio(color, px) > best) { best = ratio(color, px); at = px; }
+          }
+          if (best < 3) out.push(`${f.p.short} at ${t.toFixed(2)} s: ${best.toFixed(2)} to 1 against rgb(${at})`);
+        }
+      }
+    });
+    return out;
+  });
+  assert.deepEqual(low, [], 'the paths against what’s beside them on the light sky');
+  const halos = await page.evaluate(() => [...document.querySelectorAll('.readout, .legend')].map(el => getComputedStyle(el).textShadow.split(/,(?![^(]*\))/).length));
+  assert.ok(halos.every(n => n >= 3), `the words over the pictures have a halo of ${halos.join(', ')} shadows`);
+  await page.locator('#ghost').check();
+  await page.locator('#view [data-v="catcher"]').click();
+}
 
 // The controls stay the same height from pitch to pitch, and the list has room for every partner, even the longest:
 // "Four-seam fastball (usual partner)".
