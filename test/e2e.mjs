@@ -811,6 +811,30 @@ for (const [link, kind] of [
   assert.deepEqual({ kind: end.kind, matches: end.matches, last: end.last, headline: end.headline }, { kind, matches: true, last: 'Last pitch', headline: 0 }, `the end card of ${link} (${end.result})`);
 }
 
+// A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
+{
+  const showing = () => page.evaluate(() => {
+    const { pitch, pair, hand } = window.arsenal.state;
+    return {
+      hash: location.hash, pitch: pitch.code, pair, hand, list: document.getElementById('pair').value,
+      pressed: document.querySelector('#hand [aria-pressed="true"]').dataset.v, lefty: window.arsenal.stage.flights[0].release.x > 0,
+    };
+  });
+  await page.goto('about:blank');
+  await page.goto(base + '#sweeper+sinker.lefty');
+  assert.deepEqual(await showing(), { hash: '#sweeper+sinker.lefty', pitch: 'ST', pair: 'SI', hand: 'L', list: 'SI', pressed: 'L', lefty: true }, 'opened from #sweeper+sinker.lefty');
+  // Throwing it alone, or with a right-hander, or with another pitch, the address says so.
+  await page.locator('#pair').selectOption('');
+  assert.equal((await showing()).hash, '#sweeper.lefty');
+  await page.locator('#hand [data-v="R"]').click();
+  assert.equal((await showing()).hash, '#sweeper');
+  await page.locator('#pair').selectOption('FF');
+  assert.equal((await showing()).hash, '#sweeper+four-seam');
+  // Changed by hand, the address is followed. A part that isn't a pitch is left out.
+  await page.evaluate(() => new Promise(resolve => { addEventListener('hashchange', () => setTimeout(resolve, 50), { once: true }); location.hash = '#slider+nothing.lefty'; }));
+  assert.deepEqual(await showing(), { hash: '#slider+nothing.lefty', pitch: 'SL', pair: null, hand: 'L', list: '', pressed: 'L', lefty: true }, 'after changing the address to #slider+nothing.lefty');
+}
+
 // A link straight to a pitch opens on it.
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);

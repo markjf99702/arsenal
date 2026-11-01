@@ -173,7 +173,7 @@ function seg(id, key, cast = v => v, after = () => {}) {
 }
 seg('view', 'view', v => v, () => { stage.set({ view: state.view }); caption(); if (stage.summary()?.every(x => x.arrived)) return; });
 seg('speed', 'speed', Number, throwNow);
-seg('hand', 'hand', v => v, () => { renderCard(); throwNow(); });
+seg('hand', 'hand', v => v, () => { renderCard(); throwNow(); address(); });
 $('spinview').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -182,7 +182,7 @@ $('spinview').addEventListener('click', e => {
 });
 $('ghost').addEventListener('change', e => { state.ghost = e.target.checked; stage.set({ ghost: state.ghost }); legend(); });
 $('throw').addEventListener('click', throwNow);
-$('pair').addEventListener('change', e => { state.pair = e.target.value || null; legend(); throwNow(); });
+$('pair').addEventListener('change', e => { state.pair = e.target.value || null; legend(); throwNow(); address(); });
 
 function pairOptions() {
   const p = state.pitch;
@@ -247,10 +247,37 @@ function pick(p, { scroll = false, push = true } = {}) {
   legend();
   chart.select(p.code);
   table.select(p.code);
-  // A framed one-file copy may not be allowed to change its address; that's fine.
-  if (push && location.hash.slice(1) !== p.slug) { try { history.replaceState(null, '', `#${p.slug}`); } catch {} }
+  if (push) address();
   if (scroll) $('pitch').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   throwNow();
+}
+
+// ---------------------------------------------------------------- the address
+// A link to what's showing: the pitch, then the one thrown with it after a +, and .lefty for a left-hander, like
+// #sweeper+sinker.lefty. The address is replaced rather than added to, so Back still leaves the page. (A framed one-file
+// copy may not be allowed to change its address; that's fine.) The tab's title is the pitch's again too, after an
+// at-bat's.
+const here = () => `${state.pitch.slug}${state.pair ? `+${BY_CODE[state.pair].slug}` : ''}${state.hand === 'L' ? '.lefty' : ''}`;
+function address() {
+  if (location.hash.slice(1) !== here()) { try { history.replaceState(null, '', `#${here()}`); } catch {} }
+  document.title = `${state.pitch.name} · Arsenal`;
+}
+// Reads a link like that. It's one only if it starts with a pitch, so #at-bat, an at-bat's link (#ab.…) or a word that
+// isn't a pitch gives null and leaves things as they are. A part it doesn't know is left out: #sweeper+nothing is the
+// sweeper alone. A plain #sweeper is a right-hander's, as it always was.
+function readLink(h) {
+  if (h.startsWith('ab.')) return null;
+  const [pitches, ...more] = h.split('.');
+  const [first, second] = pitches.split('+');
+  const pitch = BY_SLUG[first], pair = BY_SLUG[second];
+  if (!pitch) return null;
+  return { pitch, pair: pair && pair !== pitch ? pair.code : null, hand: more.includes('lefty') ? 'L' : 'R' };
+}
+function follow(link) {
+  state.hand = link.hand;
+  for (const b of $('hand').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.hand));
+  state.pair = link.pair;
+  pick(link.pitch, { push: false });
 }
 
 // Pitch to a hitter. A link like #ab.skenes.R.k3x9a.FF6.SL23 replays one at-bat.
@@ -258,8 +285,8 @@ const atBat = setupAtBat({ dark: isDark() });
 addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
   if (h.startsWith('ab.')) { if (atBat.load(h)) $('at-bat').scrollIntoView(); return; }
-  const p = BY_SLUG[h];
-  if (p && p !== state.pitch) pick(p, { push: false });
+  const link = readLink(h);
+  if (link && (link.pitch !== state.pitch || link.pair !== state.pair || link.hand !== state.hand)) follow(link);
 });
 
 function applyTheme() {
@@ -271,7 +298,9 @@ darkQuery.addEventListener('change', applyTheme);
 new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 applyTheme();
 caption();
-pick(BY_SLUG[location.hash.slice(1)] || PITCHES[0], { push: false });
+const opened = readLink(location.hash.slice(1));
+if (opened) follow(opened);
+else pick(PITCHES[0], { push: false });
 if (location.hash.startsWith('#ab.') && atBat.load(location.hash.slice(1))) $('at-bat').scrollIntoView();
 
 // Hooks for the screenshot and test scripts.
