@@ -1,7 +1,7 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
 import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotName } from './atbat.js';
-import { resultWord, why, note, ENDING, hitterWon, NAME } from './atbat-words.js';
+import { resultWord, why, note, ENDING, NAME } from './atbat-words.js';
 import { markKind } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
@@ -173,7 +173,9 @@ export function setupAtBat({ dark = false } = {}) {
       ? `<span class="ct${ab.result === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[ab.result]}">${SCOREBOOK[ab.result]}</span><span class="on">${on}</span>`
       : `<span class="ct">${balls}-${strikes}</span><span class="dots"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots"><b>S</b>${dots(strikes, 2, 's')}</span>`;
     if (last) {
-      $('ab-last').innerHTML = `<p class="res res-${markKind(last.result)}">${resultWord(last)}</p><p>${why(last, shown.at(-2), ab.batter)}</p>`;
+      // Once it's over the end card has the headline, so this only says why the last pitch went how it did.
+      const head = over ? '<p class="lbl">Last pitch</p>' : `<p class="res res-${markKind(last.result)}">${resultWord(last)}</p>`;
+      $('ab-last').innerHTML = `${head}<p>${why(last, shown.at(-2), ab.batter)}</p>`;
       $('ab-live').textContent = over ? `${ENDING[ab.result]} ${on}.` : `${resultWord(last)}. The count is ${balls} and ${strikes}.`;
     } else {
       $('ab-last').innerHTML = `<p class="res">Your call</p><p>Pick a pitch and a spot, then throw it. Strikes and swings are red, balls green, balls in play blue.</p>`;
@@ -186,7 +188,8 @@ export function setupAtBat({ dark = false } = {}) {
     waiting();
     if (over) {
       $('ab-result').textContent = ENDING[ab.result];
-      $('ab-result').className = `end-result ${hitterWon(ab.result) ? 'lost' : 'won'}`;
+      // Coloured like the last pitch's mark and its number in the log: a strikeout red, a walk green, a ball in play blue.
+      $('ab-result').className = `end-result res-${markKind(last.result)}`;
       $('ab-note').textContent = note(ab);
       $('ab-copied').textContent = '';
       $('ab-link').hidden = true;

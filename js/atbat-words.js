@@ -21,7 +21,6 @@ export function resultWord(p) {
 }
 
 export const ENDING = { K: 'Strikeout swinging', KL: 'Strikeout looking', BB: 'Walk', HBP: 'Hit by pitch', out: 'Out in play', '1B': 'Single', '2B': 'Double', '3B': 'Triple', HR: 'Home run' };
-export const hitterWon = result => ['BB', 'HBP', '1B', '2B', '3B', 'HR'].includes(result);
 
 // Where a pitch missed the zone, from the hitter's side: "3 in below the zone", "5 in off the plate away".
 export function missed(p, batter) {

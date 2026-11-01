@@ -406,9 +406,10 @@ p { margin: 0; }
 .small { font-size: 13px; color: var(--muted); }
 
 .last .res { font: 700 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
-.last .res-strike { color: var(--res-strike); }
-.last .res-ball { color: var(--res-ball); }
-.last .res-play { color: var(--res-play); }
+.last .res-strike, .end-result.res-strike { color: var(--res-strike); }
+.last .res-ball, .end-result.res-ball { color: var(--res-ball); }
+.last .res-play, .end-result.res-play { color: var(--res-play); }
+.last .lbl { font: 600 13px/1 var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
 .last p { color: var(--ink-2); }
 .log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--ink-2); }
 .log li { display: flex; gap: 8px; align-items: baseline; }
@@ -430,8 +431,6 @@ p { margin: 0; }
 /* Focus comes here when the at-bat ends from the pitch controls, which go. */
 .end-result:focus { outline: none; }
 .end-result:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
-.end-result.won { color: var(--res-play); }
-.end-result.lost { color: var(--res-strike); }
 .hundred { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
 .hundred .plain { justify-self: start; }
 .legend-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--ink-2); }

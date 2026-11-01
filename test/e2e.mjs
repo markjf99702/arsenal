@@ -623,6 +623,30 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await phoneCtx.close();
 }
 
+// The end card's headline is coloured like the last pitch's mark and its number in the log: a strikeout red, a walk or
+// a hit by pitch green, a ball in play blue, a home run too. The last pitch's box under it says why without repeating
+// the headline in other words.
+for (const [link, kind] of [
+  [STRIKEOUT, 'strike'], ['#ab.average.R.3a.FF8.FF6.SL16.FF7', 'ball'], ['#ab.average.R.2x.FF6.FF8.CH16.SL16.FF10', 'ball'],
+  ['#ab.average.R.3.CH17.FF14.FF16', 'play'], ['#ab.average.R.4c.FF9.SI16.FF7', 'play'],
+]) {
+  await page.goto('about:blank');
+  await page.goto(base + link);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const end = await page.evaluate(() => {
+    const kind = document.querySelector('#ab-log li:last-child').className.replace('k-', '');
+    const probe = document.getElementById('ab-end').appendChild(document.createElement('i'));
+    probe.style.color = `var(--res-${kind})`;
+    const want = getComputedStyle(probe).color;
+    probe.remove();
+    return {
+      result: document.getElementById('ab-result').textContent, kind, matches: getComputedStyle(document.getElementById('ab-result')).color === want,
+      last: document.querySelector('#ab-last p').textContent, headline: document.querySelectorAll('#ab-last .res').length,
+    };
+  });
+  assert.deepEqual({ kind: end.kind, matches: end.matches, last: end.last, headline: end.headline }, { kind, matches: true, last: 'Last pitch', headline: 0 }, `the end card of ${link} (${end.result})`);
+}
+
 // A link straight to a pitch opens on it.
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);
