@@ -1,7 +1,7 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
@@ -83,6 +83,7 @@ const READS_BADLY = [
   [/(\d+) of the \1 pitches/, '"4 of the 4"', 'note'],
   [/'/, 'a straight apostrophe'],
   [/sitting on|pick(ed)? it up/, 'jargon the page doesn’t explain'],
+  [/laid off|fought it off|squared it up|found a hole|into the gap/, 'a baseball idiom the page doesn’t explain'],
 ];
 test('the at-bat’s words read cleanly over thousands of at-bats', () => {
   for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why, only] of READS_BADLY) {
@@ -153,6 +154,43 @@ test('each pitch’s why says where it went, what he was looking for, and what h
     // He swung at it knowing what it was only when he recognised it.
     if (/swung at it anyway/.test(text)) assert.ok(p.picked && !p.inZone && p.result === 'whiff', at);
   });
+});
+
+// The decision point is where two different pitches can look alike. So the why gives the distance there only when the
+// last pitch was another kind and close to it, within 8 inches: a pitch a foot off the last one's line still goes
+// unrecognised 42% of the time (js/atbat-params.js, recognize), so a big distance isn't why he missed it. After the same
+// kind of pitch it says nothing about lines at all.
+test('the why talks about the decision point and lines only after another kind of pitch', () => {
+  let close = 0, line = 0;
+  for (const ab of PLAYED) ab.pitches.forEach((p, i) => {
+    const prev = ab.pitches[i - 1], text = why(p, prev, ab.batter), at = `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}, pitch ${p.n}: ${text}`;
+    assert.doesNotMatch(text, /from where the last pitch/, at);
+    const looked = /At the decision point it looked like the ([a-z -]+) before it, (an inch|(\d+) inches) apart, and he didn’t recognise it in time\./.exec(text);
+    if (looked) {
+      close++;
+      assert.ok(prev && prev.code !== p.code && looked[1] === NAME[prev.code], at);
+      assert.ok(!looked[3] || Number(looked[3]) <= 8, at);
+    }
+    if (/different line/.test(text)) { line++; assert.ok(prev && prev.code !== p.code, at); }
+    // Not recognised, and not close to a different pitch before it: just that.
+    if (!p.picked && !looked) assert.ok(text.includes(`He didn’t recognise the ${NAME[p.code]} in time.`), at);
+    // A single on a pitch he didn't recognise: fooled, and he still got enough of it.
+    if (p.play === '1B' && p.contact <= 0.6) assert.ok(text.includes(p.picked ? 'He hit it between the fielders.' : 'He was fooled and still got enough of it.'), at);
+  });
+  assert.ok(close > 100 && line > 100, `${close} close at the decision point, ${line} on a different line`);
+});
+
+test('a pitch under half an inch off the zone was just off the edge, and ball four in the zone caught it', () => {
+  // Misiorowski's first pitch crossed 0.04 inches past the zone's edge, and was called a strike.
+  const first = replay('#ab.misiorowski.R.6cywx9.FF8.CU23.FF9.FC18.FF8').pitches[0];
+  assert.ok(!first.inZone && ZONE.half - Math.abs(first.plate[0]) > -0.5 / 12, 'the pitch isn’t just off the edge');
+  assert.match(why(first, null, 'R'), /It was just off the edge, but the umpire gave the pitcher the strike\./);
+  // Nola's walk ended on a pitch in the zone, called a ball.
+  const walk = replay('#ab.nola.R.1vegxhd.KC18.FF23.FF6.CH22.FF3');
+  assert.equal(walk.result, 'BB');
+  assert.ok(walk.pitches.at(-1).inZone);
+  assert.match(note(walk), /^Ball four caught the edge, but the umpire called it a ball\. /);
+  for (const ab of PLAYED) if (ab.result === 'BB') assert.equal(/^Ball four caught the edge/.test(note(ab)), ab.pitches.at(-1).inZone, `seed ${ab.seed}: ${note(ab)}`);
 });
 
 // An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), played the way the page plays it.

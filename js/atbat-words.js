@@ -51,13 +51,14 @@ export function calledLine(p, batter) {
 }
 
 // Where a pitch missed the zone, from the hitter's side: "3 inches below the zone", "5 inches off the plate away".
+// Under half an inch is "just off the edge", not "an inch".
 export function missed(p, batter) {
   const [x, z] = p.plate;
-  const parts = [];
-  if (z < ZONE.bottom) parts.push(`${inches(ZONE.bottom - z)} below the zone`);
-  else if (z > ZONE.top) parts.push(`${inches(z - ZONE.top)} above the zone`);
+  const parts = [], half = 0.5 / 12;
+  if (z < ZONE.bottom - half) parts.push(`${inches(ZONE.bottom - z)} below the zone`);
+  else if (z > ZONE.top + half) parts.push(`${inches(z - ZONE.top)} above the zone`);
   const off = Math.abs(x) - ZONE.half;
-  if (off > 0) {
+  if (off >= half) {
     const inside = batter === 'R' ? x < 0 : x > 0;
     parts.push(`${inches(off)} off the plate ${inside ? 'inside' : 'away'}`);
   }
@@ -92,13 +93,17 @@ export function why(p, prev, batter) {
   if (!same) {
     const slower = prev ? Math.round(prev.mph - p.mph) : 0;
     const speed = slower >= 5 ? ` It was ${mph(slower)} slower than the last pitch.` : slower <= -5 ? ` It was ${mph(-slower)} harder than the last pitch.` : '';
-    if (p.picked) out.push((p.tunnel != null && p.tunnel > 0.5 ? 'It came out on a different line from the last pitch, and he recognised it.' : 'He recognised it anyway.') + speed);
-    else if (p.tunnel != null) out.push(`At the decision point it was ${inches(p.tunnel)} from where the last pitch had been, and he didn’t recognise it in time.${speed}`);
-    else out.push(`He didn’t recognise it in time.${speed}`);
+    // Lines and the decision point only after a different kind of pitch, which is what can look alike. A pitch a foot off
+    // the last one's line still goes unrecognised 42% of the time (js/atbat-params.js, recognize), so the distance is
+    // given only when it was close, within 8 inches.
+    const other = prev && prev.code !== p.code && p.tunnel != null;
+    if (p.picked) out.push((other && p.tunnel > 0.5 ? 'It came out on a different line from the last pitch, and he recognised it.' : 'He recognised it anyway.') + speed);
+    else if (other && Math.round(p.tunnel * 12) <= 8) out.push(`At the decision point it looked like the ${NAME[prev.code]} before it, ${inches(p.tunnel)} apart, and he didn’t recognise it in time.${speed}`);
+    else out.push(`He didn’t recognise ${the(p.code)} in time.${speed}`);
   }
   if (!p.swing) {
     if (p.result === 'hbp') out.push('It got away inside.');
-    else if (p.result === 'ball' && !p.inZone) out.push(`He laid off: ${offBy(p, batter, 'was')}.`);
+    else if (p.result === 'ball' && !p.inZone) out.push(`He took it: ${offBy(p, batter, 'was')}.`);
     else if (p.result === 'ball') out.push('It caught the edge, but the umpire called it a ball.');
     else if (!p.inZone) out.push(`${cap(offBy(p, batter, 'was'))}, but the umpire gave the pitcher the strike.`);
     else {
@@ -122,14 +127,14 @@ export function why(p, prev, batter) {
     else if (!p.inZone && p.picked) out.push(`He saw ${the(p.code)} and swung at it anyway.`);
     else out.push('He was on it, and it still beat him.');
   } else if (p.result === 'foul') {
-    out.push(p.before.strikes === 2 ? 'He fought it off to stay alive.' : 'He got a piece of it.');
+    out.push(p.before.strikes === 2 ? 'He fouled it off to stay alive.' : 'He got a piece of it.');
   } else if (p.result === 'inplay') {
     const s = p.contact;
     // Weak contact by when he swung, as in the note: early, late or on time.
     const weak = p.early > 0.008 ? 'He was out in front and rolled it over: an easy out.' : p.early < -0.008 ? 'It got in on him: weak contact, an easy out.' : 'He got it off the end of the bat: weak contact, an easy out.';
     out.push({
-      HR: 'He squared it up.', '3B': 'He hit it into the gap and kept running.', '2B': 'He hit it hard, into the gap.',
-      '1B': s > 0.6 ? 'He lined it into the outfield.' : 'He found a hole.',
+      HR: 'He hit it right on the barrel.', '3B': 'He hit it between the outfielders and kept running.', '2B': 'He hit it hard, between the outfielders.',
+      '1B': s > 0.6 ? 'He lined it into the outfield.' : p.picked ? 'He hit it between the fielders.' : 'He was fooled and still got enough of it.',
       out: s > 0.75 ? 'He hit it hard, but right at someone.' : s < 0.3 ? weak : 'He put it in play, and they made the play.',
     }[p.play]);
   }
@@ -187,6 +192,8 @@ export function note(ab) {
   } else if (r === 'BB') {
     const out = ps.filter(p => !p.inZone).length, chased = ps.filter(p => p.swing && !p.inZone).length;
     lead = `${out === n ? `All ${all(n)}` : `${cap(few(out))} of his ${n}`} missed the zone, and he ${chased ? `chased only ${few(chased)}` : 'didn’t chase any'}.`;
+    // Ball four in the zone was the umpire's call, and that comes first.
+    if (last.inZone) lead = `Ball four caught the edge, but the umpire called it a ball. ${lead}`;
     // The lead has the pitches and the chases. If every pitch missed and he didn't chase, he never swung: it's said.
     rest = out === n && !chased ? '' : tally(ps, { count: false, chase: false });
   } else if (r === 'HBP') {
