@@ -404,7 +404,15 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await ph.evaluate(() => document.fonts.ready);
   await ph.locator('#ab-pitches .ab-chip', { hasText: 'Four-seam' }).tap();
   await ph.locator('#ab-spots [aria-label="up and in"]').tap();
+  // Throw it with the button low on the screen, where a thumb is: the picture is on screen while the ball flies.
+  await ph.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
   await ph.locator('#ab-throw').tap();
+  const flying = await ph.evaluate(() => {
+    const r = document.getElementById('ab-flight').getBoundingClientRect();
+    return { busy: window.arsenal.atBat.state.busy, seen: (Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height };
+  });
+  assert.ok(flying.busy, `${at}, the pitch had landed before it could be checked`);
+  assert.ok(flying.seen >= 0.8, `${at}, only ${Math.round(Math.max(0, flying.seen) * 100)}% of the picture is on screen while the pitch flies`);
   await idle();
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
   assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8 mph four-seam', `${at}, the readout doesn't say what the pitch did`);
@@ -447,7 +455,11 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await idle();
 
   // The next hitter starts clean: no readout left from the last one.
+  // Scrolled so the end card is behind the picture, it's still there to tap; the pitch controls come back below it.
+  await ph.evaluate(() => scrollBy(0, document.getElementById('ab-end').getBoundingClientRect().top - 60));
   await ph.locator('#ab-next').tap();
+  const back = await ph.evaluate(() => ({ picture: document.getElementById('ab-flight').getBoundingClientRect().bottom, controls: document.getElementById('ab-callbox').getBoundingClientRect().top }));
+  assert.ok(back.controls >= back.picture && back.controls < height - 100, `${at}, after Next hitter the pitch controls start at ${Math.round(back.controls)}px, under a picture ending at ${Math.round(back.picture)}px`);
   assert.equal(await ph.locator('#ab-ro').textContent(), '', `${at}, the readout still describes the last at-bat`);
   assert.equal(await ph.locator('#ab-count .ct').textContent(), '0-0');
   // So does a new pitcher picked while a pitch is in the air.
@@ -455,6 +467,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await ph.locator('#ab-pitcher').selectOption('skenes');
   await ph.waitForTimeout(1200);
   assert.deepEqual(await ph.evaluate(() => ({ busy: window.arsenal.atBat.state.busy, ro: document.getElementById('ab-ro').textContent, log: document.querySelectorAll('#ab-log li').length })), { busy: false, ro: '', log: 0 }, `${at}, after a new pitcher mid-pitch`);
+  assert.equal(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${at}, the page scrolls sideways`);
   await phoneCtx.close();
 }
 

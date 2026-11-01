@@ -15,6 +15,15 @@ const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B
 export function setupAtBat({ dark = false } = {}) {
   const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1 };
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
+  // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
+  const frame = $('ab-flight').parentElement;
+  new ResizeObserver(() => $('at-bat').style.setProperty('--ab-frame', `${Math.ceil(frame.getBoundingClientRect().height)}px`)).observe(frame);
+  // Into view, and out from behind the picture: the browser counts what's behind it as in view.
+  const reveal = el => {
+    const behind = getComputedStyle(frame).position === 'sticky' && el.getBoundingClientRect().top < frame.getBoundingClientRect().bottom;
+    el.scrollIntoView({ block: behind ? 'start' : 'nearest' });
+  };
+  document.querySelector('.bat-call').addEventListener('focusin', e => { if (e.target.matches(':focus-visible')) reveal(e.target); });
   // Framed for the at-bat (atBatCamera): from the pitcher's hand down to a pitch in the dirt.
   stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', dark, atBat: true });
 
@@ -34,7 +43,8 @@ export function setupAtBat({ dark = false } = {}) {
     drawCall();
     $('ab-hint').textContent = `A typical call in a ${S.ab.balls}-${S.ab.strikes} count: ${NAME[c.code]}, ${spotName(c.spot)}.`;
   });
-  $('ab-next').addEventListener('click', () => { S.seed = newSeed(); fresh(); $('ab-flight').scrollIntoView({ block: 'nearest' }); });
+  // The next hitter: the pitch controls come back where the result was, and into view (under the picture, on a phone).
+  $('ab-next').addEventListener('click', () => { S.seed = newSeed(); fresh(); reveal($('ab-callbox')); });
   $('ab-copy').addEventListener('click', copyLink);
   $('ab-run').addEventListener('click', hundred);
 
@@ -81,7 +91,7 @@ export function setupAtBat({ dark = false } = {}) {
 
   // Throw a pitch that has already happened in the model: the marks so far, and in the readout what's coming.
   function fly(rec) {
-    $('ab-ro').textContent = `Pitch ${rec.n} · ${pitchLine(rec)}`;
+    readout(`Pitch ${rec.n}`, pitchLine(rec));
     stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
     stage.show([rec.path]);
   }
@@ -97,6 +107,8 @@ export function setupAtBat({ dark = false } = {}) {
   }
 
   const pitchLine = p => `${p.mph.toFixed(1)} mph ${SHORT(p.code).toLowerCase()}`;
+  // The line under the count: what's coming or what happened, then the pitch. On a phone they're two short lines.
+  const readout = (what = '', pitch = '') => { $('ab-ro').innerHTML = what && `${what}<span class="sep"> · </span><span>${pitch}</span>`; };
 
   function marks(ps) {
     return ps.map(p => ({ x: p.plate[0], z: p.plate[1], n: p.n, kind: markKind(p.result) }));
@@ -157,8 +169,9 @@ export function setupAtBat({ dark = false } = {}) {
     }
     // While a pitch flies the readout says what's coming (fly); once it's in, what happened.
     if (!S.pending) {
-      $('ab-ro').textContent = over ? `${ENDING[ab.result]} · ${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`
-        : last ? `${resultWord(last)} · ${pitchLine(last)}` : '';
+      if (over) readout(ENDING[ab.result], `${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`);
+      else if (last) readout(resultWord(last), pitchLine(last));
+      else readout();
     }
     drawCall();
   }

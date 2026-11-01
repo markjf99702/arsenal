@@ -339,7 +339,19 @@ p { margin: 0; }
   .bat-stage { position: sticky; top: 12px; }
 }
 #ab-flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
-@media (max-width: 640px) { #ab-flight { aspect-ratio: 4 / 3.6; } }
+@media (max-width: 640px) { #ab-flight { aspect-ratio: 16 / 10.5; } }
+/* Narrower than that the call box is under the picture, so on a screen taller than it's wide the picture stays at the
+   top while you call the pitch, throw it and watch it (and on a phone it's shorter, so the call fits under it). The
+   pitcher, batter and speed row and the caption scroll away under it. A ring of the page's colour round the picture
+   covers whatever scrolls past its rounded corners and the margins beside it. Things scrolled into view stop below
+   it: js/atbat-ui.js keeps --ab-frame at the picture's height. */
+@media (max-width: 979px) and (orientation: portrait) {
+  .bat-grid { gap: 0; }
+  .bat-stage { display: contents; }
+  .bat-stage > .frame { position: sticky; top: 0; z-index: 3; box-shadow: 0 0 0 12px var(--paper); }
+  .bat-call { margin-top: 18px; }
+  #ab-callbox, #ab-end, #ab-chart, .bat-call button { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
+}
 .count { display: flex; align-items: center; gap: 12px; }
 .count .ct { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 .count .dots { display: inline-flex; align-items: center; gap: 4px; font-size: 15px; }
@@ -349,6 +361,20 @@ p { margin: 0; }
 .count .dots i.s { background: #d6463e; border-color: #fff; }
 .count .ct.kl { display: inline-block; transform: scaleX(-1); }
 .count .on { font-size: 16px; font-weight: 600; }
+/* On a phone the picture is short, so the readout keeps to its top-left corner, clear of the zone and the pitcher's
+   hand: the balls and strikes stacked beside the count, and what happened over the pitch, on two lines. */
+@media (max-width: 520px) {
+  .bat-stage .readout { left: 10px; top: 8px; }
+  .count { display: grid; grid-template-columns: auto auto; gap: 2px 8px; justify-content: start; }
+  .count .ct { grid-row: span 2; font-size: 28px; line-height: 1; }
+  .count .on { grid-row: span 2; font-size: 14px; }
+  .count .dots { font-size: 13px; gap: 3px; }
+  .count .dots i { width: 9px; height: 9px; border-width: 1.5px; }
+  #ab-ro { font-size: 14px; line-height: 1.25; margin-top: 4px; }
+  #ab-ro .sep { display: none; }
+  #ab-ro span:last-child { display: block; }
+}
+@media (max-width: 360px) { .count .ct { font-size: 24px; } #ab-ro { font-size: 13px; } }
 
 .bat-call { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); display: grid; gap: 14px; min-width: 0; }
 .bat-call h3 { font-size: 18px; text-transform: uppercase; letter-spacing: .04em; }
