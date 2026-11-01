@@ -40,14 +40,28 @@ export function setupAtBat({ dark = false } = {}) {
   seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ picked: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
-  // Picking a pitch or a spot presses it where it is (drawCall), so focus stays on it.
-  $('ab-pitches').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (b) { S.code = b.dataset.code; drawCall(); }
+  // The pitches and the spots are each a group of radio buttons: one stop for Tab, at the one picked, and the arrow keys
+  // pick another. Picked, one is checked where it is (drawCall), so focus stays on it.
+  $('ab-pitches').addEventListener('click', e => { const b = e.target.closest('button'); if (b) choose(b); });
+  $('ab-spots').addEventListener('click', e => { const b = e.target.closest('button'); if (b) choose(b); });
+  // Along the pitches, Right and Down go to the next one and Left and Up the one before, round from the end to the
+  // start, and Home and End go to the first and the last.
+  $('ab-pitches').addEventListener('keydown', e => {
+    const all = [...$('ab-pitches').children], i = all.indexOf(e.target), n = all.length;
+    const to = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: n - 1 }[e.key];
+    if (i < 0 || to === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    choose(all[(to + n) % n], true);
   });
-  $('ab-spots').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (b) { S.spot = spotById(b.dataset.spot); drawCall(); }
+  // On the grid they go the way they point, as it's drawn: Left and Right a column, Up and Down a row, stopping at its
+  // edge, and Home and End to the ends of the row (with Ctrl, the first and last spots).
+  $('ab-spots').addEventListener('keydown', e => {
+    const all = [...$('ab-spots').children], i = all.indexOf(e.target), r = Math.floor(i / 5), c = i % 5;
+    const to = { ArrowLeft: [r, c - 1], ArrowRight: [r, c + 1], ArrowUp: [r - 1, c], ArrowDown: [r + 1, c], Home: [e.ctrlKey ? 0 : r, 0], End: [e.ctrlKey ? 4 : r, 4] }[e.key];
+    if (i < 0 || !to || e.altKey || e.metaKey) return;
+    e.preventDefault();
+    const [row, col] = to.map(v => Math.max(0, Math.min(4, v)));
+    choose(all[row * 5 + col], true);
   });
   // While a pitch is in the air, the catcher's call and the hundred throws wait for it to land: the model has already
   // thrown it, so either would give away how it went.
@@ -164,24 +178,37 @@ export function setupAtBat({ dark = false } = {}) {
 
   // ---------------------------------------------------------------- drawing
   // The pitches and spots, for this pitcher and batter. They're made again only when one of those changes (fresh), so
-  // a button with focus is never swapped for a new one.
+  // a button with focus is never swapped for a new one. A pitch is read out in full: "Four-seam, 97 mph, 41% of his
+  // pitches".
   function buildCall() {
-    $('ab-pitches').innerHTML = S.pitcher.pitches.map(p => `<button type="button" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-pressed="false"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${p.mph.toFixed(0)} · ${pct(p.share)}</small></button>`).join('');
+    $('ab-pitches').innerHTML = S.pitcher.pitches.map(p => {
+      const mph = p.mph.toFixed(0), share = pct(p.share);
+      return `<button type="button" role="radio" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-checked="false" tabindex="-1" aria-label="${SHORT(p.code)}, ${mph} mph, ${share} of his pitches"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${mph}\u00a0mph · ${share}</small></button>`;
+    }).join('');
     // The grid as the catcher sees it: a right-handed hitter on the left, so his inside is on the left.
     const cols = S.batter === 'R' ? [-2, -1, 0, 1, 2] : [2, 1, 0, -1, -2];
     $('ab-spots').innerHTML = [2, 1, 0, -1, -2].flatMap(r => cols.map(c => {
       const spot = SPOTS.find(s => s.c === c && s.r === r), name = spotName(spot);
-      return `<button type="button" class="spot${spot.zone ? ' in' : ''}" data-spot="${spot.id}" aria-label="${name}" title="${name}" aria-pressed="false"></button>`;
+      return `<button type="button" role="radio" class="spot${spot.zone ? ' in' : ''}" data-spot="${spot.id}" aria-label="${name}" title="${name}" aria-checked="false" tabindex="-1"></button>`;
     })).join('');
-    $('ab-side').textContent = S.batter === 'R' ? '← Right-handed batter' : 'Left-handed batter →';
+    $('ab-side').innerHTML = S.batter === 'R' ? '<span aria-hidden="true">←</span> Right-handed batter' : 'Left-handed batter <span aria-hidden="true">→</span>';
     $('ab-side').className = `side ${S.batter === 'R' ? 'left' : 'right'}`;
     drawCall();
   }
 
-  // The call as it stands: the pitch and spot pressed, and in words.
+  // A pitch or a spot picked, by a tap or with the arrow keys (`keys`, which take focus along with them).
+  function choose(b, keys = false) {
+    if (b.dataset.code) S.code = b.dataset.code;
+    else S.spot = spotById(b.dataset.spot);
+    drawCall();
+    if (keys) b.focus();
+  }
+
+  // The call as it stands: the pitch and spot checked, each the one stop for Tab in its group, and in words.
   function drawCall() {
-    for (const b of $('ab-pitches').children) b.setAttribute('aria-pressed', String(b.dataset.code === S.code));
-    for (const b of $('ab-spots').children) b.setAttribute('aria-pressed', String(b.dataset.spot === S.spot.id));
+    const mark = (b, on) => { b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1; };
+    for (const b of $('ab-pitches').children) mark(b, b.dataset.code === S.code);
+    for (const b of $('ab-spots').children) mark(b, b.dataset.spot === S.spot.id);
     $('ab-choice').textContent = S.code ? `${SHORT(S.code)}, ${spotName(S.spot)}` : '';
   }
 

@@ -506,25 +506,60 @@ assert.match(await heading(), /^Forkball/i);
     how: 'Pick a pitch and a spot, then throw it. The hitter has to commit at the decision point, DECIDE seconds from the plate, and a swing at a pitch out of the zone is a chase. Strikes are red (called, swinging or fouled), balls green, balls in play blue.',
     above: true, last: 'none',
   }, 'before the first pitch');
-  // Picked with the keyboard, a pitch and a spot keep focus, and so does Throw while the ball flies (at Slow, so there's
-  // time to look) and once it has landed.
+  // The pitches and the spots are each a group of radio buttons, one stop for Tab at the one checked, so Throw is a few
+  // Tabs from the first pitch rather than thirty. Each pitch is read with its units, as its speed and share show.
+  {
+    const groups = await page.evaluate(() => ['ab-pitches', 'ab-spots'].map(id => {
+      const box = document.getElementById(id), all = [...box.children];
+      return { role: box.getAttribute('role'), radios: all.every(b => b.getAttribute('role') === 'radio'), stops: all.filter(b => b.tabIndex >= 0).map(b => b.getAttribute('aria-checked')) };
+    }));
+    assert.deepEqual(groups, [{ role: 'radiogroup', radios: true, stops: ['true'] }, { role: 'radiogroup', radios: true, stops: ['true'] }], 'the pitches and the spots as groups of radio buttons');
+    const chip = await page.locator('#ab-pitches .ab-chip').first().evaluate(b => ({ said: b.getAttribute('aria-label'), shown: b.querySelector('small').textContent }));
+    const [, mph, share] = /^Four-seam, (\d+) mph, (\d+%) of his pitches$/.exec(chip.said) || [];
+    assert.equal(chip.shown, `${mph}\u00a0mph · ${share}`, `a pitch read as "${chip.said}" shows "${chip.shown}"`);
+    await page.locator('#ab-pitches .ab-chip').first().focus();
+    let tabs = 0;
+    for (; tabs < 30 && (await page.evaluate(() => document.activeElement.id)) !== 'ab-throw'; tabs++) await page.keyboard.press('Tab');
+    assert.ok(tabs <= 3, `Throw is ${tabs} Tabs on from the first pitch`);
+  }
+  // The arrow keys pick as they go, and focus goes with them: along the pitches, round from the last to the first; on
+  // the grid the way they point as it's drawn (turned round for a left-handed batter, below), stopping at its edges, and
+  // Home and End go to the ends of the row. The call under the grid follows.
+  const arrows = async (group, keys) => {
+    await page.locator(`#${group} [aria-checked="true"]`).focus();
+    const went = [];
+    for (const key of keys) {
+      await page.keyboard.press(key);
+      went.push(await page.evaluate(group => {
+        const a = document.activeElement, on = document.querySelectorAll(`#${group} [aria-checked="true"]`);
+        const name = a.dataset.code ? a.textContent.trim().split(' ')[0] : a.getAttribute('aria-label');
+        return on.length === 1 && on[0] === a && a.tabIndex === 0 ? name : `${name}, with ${on.length} checked`;
+      }, group));
+    }
+    return went;
+  };
+  assert.deepEqual(await arrows('ab-pitches', ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowUp', 'Home', 'End']), ['Sinker', 'Slider', 'Sinker', 'Four-seam', 'Curve', 'Four-seam', 'Curve'], 'the arrow keys along the pitches');
+  assert.deepEqual(await arrows('ab-spots', ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'Home', 'End']), ['in, at the belt', 'down the middle', 'up in the zone', 'high, above the zone', 'high, above the zone', 'high and off the plate inside', 'high and off the plate away'], 'the arrow keys on the grid, for a right-handed batter');
+  assert.equal(await page.locator('#ab-choice').innerText(), 'Curve, high and off the plate away');
+  // Picked with Enter, a pitch and a spot keep focus, and so does Throw while the ball flies (at Slow, so there's time to
+  // look) and once it has landed.
   const focused = () => page.evaluate(() => {
     const a = document.activeElement;
-    return { id: a.id, name: a.getAttribute('aria-label') || a.textContent.trim().split(' ')[0], pressed: a.getAttribute('aria-pressed'), busy: window.arsenal.atBat.state.busy };
+    return { id: a.id, name: a.dataset.code ? a.textContent.trim().split(' ')[0] : a.getAttribute('aria-label') || a.textContent.trim().split(' ')[0], checked: a.getAttribute('aria-checked'), busy: window.arsenal.atBat.state.busy };
   });
   await page.locator('#ab-pitches .ab-chip', { hasText: 'Slider' }).focus();
   await page.keyboard.press('Enter');
-  assert.deepEqual(await focused(), { id: '', name: 'Slider', pressed: 'true', busy: false }, 'focus after picking a pitch with Enter');
+  assert.deepEqual(await focused(), { id: '', name: 'Slider', checked: 'true', busy: false }, 'focus after picking a pitch with Enter');
   await page.locator('#ab-spots [aria-label="down and away"]').focus();
   await page.keyboard.press('Enter');
-  assert.deepEqual(await focused(), { id: '', name: 'down and away', pressed: 'true', busy: false }, 'focus after picking a spot with Enter');
+  assert.deepEqual(await focused(), { id: '', name: 'down and away', checked: 'true', busy: false }, 'focus after picking a spot with Enter');
   assert.equal(await page.locator('#ab-choice').innerText(), 'Slider, down and away');
   await page.locator('#ab-speed [data-v="0.25"]').click();
   await page.locator('#ab-throw').focus();
   await page.keyboard.press('Enter');
-  assert.deepEqual(await focused(), { id: 'ab-throw', name: 'Throw', pressed: null, busy: true }, 'focus while the pitch flies');
+  assert.deepEqual(await focused(), { id: 'ab-throw', name: 'Throw', checked: null, busy: true }, 'focus while the pitch flies');
   await idle();
-  assert.deepEqual(await focused(), { id: 'ab-throw', name: 'Throw', pressed: null, busy: false }, 'focus once the pitch has landed');
+  assert.deepEqual(await focused(), { id: 'ab-throw', name: 'Throw', checked: null, busy: false }, 'focus once the pitch has landed');
   await page.locator('#ab-speed [data-v="1"]').click();
   assert.equal(await page.locator('#ab-log li').count(), 1);
   assert.ok((await page.locator('#ab-last .res').innerText()).length > 2, 'no result shown for the first pitch');
@@ -604,11 +639,13 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
   // A new pitcher or batter starts a new at-bat, and a screen reader hears who's up.
   assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: Tyler Rogers to a left-handed batter.');
+  // Turned round, the grid's arrow keys still go the way they point: right is toward a left-handed batter's inside.
+  assert.deepEqual(await arrows('ab-spots', ['ArrowDown', 'ArrowRight', 'ArrowRight']), ['in the dirt and in', 'in the dirt and off the plate inside', 'in the dirt and off the plate inside'], 'the arrow keys on the grid, for a left-handed batter');
   // The new pitcher's pitches and the turned grid pick too.
   await page.locator('#ab-pitches .ab-chip').last().click();
   await page.locator('#ab-spots [aria-label="down and away"]').click();
   assert.match(await page.locator('#ab-choice').innerText(), /^\w+, down and away$/);
-  assert.equal(await page.locator('#ab-spots [aria-pressed="true"]').getAttribute('aria-label'), 'down and away');
+  assert.equal(await page.locator('#ab-spots [aria-checked="true"]').getAttribute('aria-label'), 'down and away');
   await page.locator('#ab-throw').click();
   await idle();
   assert.equal(await page.locator('#ab-log li').count(), 1);
