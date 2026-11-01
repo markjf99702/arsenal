@@ -369,6 +369,9 @@ assert.match(await heading(), /^Forkball/i);
   let m = await model();
   if (!m.result) assert.equal((await page.locator('#ab-count .ct').innerText()), `${m.balls}-${m.strikes}`);
   for (let i = 0; i < 20 && !(await model()).result; i++) {
+    // A hundred of each, from the count as it stands: never a count past the end, like 4-1 or 2-3.
+    await page.locator('#ab-run').click();
+    assert.match(await page.locator('#ab-chart > p').first().textContent(), /^League-average righty, .+, in a [0-3]-[0-2] count(, right after the [a-z -]+)?: what happens out of 100 throws of each pitch\.$/);
     await page.locator('#ab-suggest').click();
     assert.match(await page.locator('#ab-hint').innerText(), /^A typical call in a \d-\d count: /);
     await page.locator('#ab-throw').click();
@@ -396,11 +399,15 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.locator('#ab-copied').textContent(), 'Link copied. Whoever opens it sees this exact at-bat.');
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'https://junkdrawer.works/arsenal/#' + link, 'Copy link copied something else');
   assert.equal(await page.locator('#ab-link').isHidden(), true, 'the link field shows after the link was copied');
-  // A hundred of each, from here.
+  // Once it's over there's no next pitch, so a hundred of each look back at the last one, from the count it was in.
+  const endedOn = await page.evaluate(() => { const l = window.arsenal.atBat.state.ab.pitches.at(-1); return `${l.before.balls}-${l.before.strikes}`; });
+  assert.equal(await page.locator('#ab-run').textContent(), `What else could he have thrown on that ${endedOn} pitch?`);
   await page.locator('#ab-run').click();
+  assert.match(await page.locator('#ab-chart > p').first().textContent(), new RegExp(`^On that ${endedOn} pitch, called .+, instead of the [a-z -]+: what happens out of 100 throws of each pitch\\.$`));
   assert.equal(await page.locator('#ab-chart .hundred-bars li').count(), await page.evaluate(() => window.arsenal.atBat.state.pitcher.pitches.length));
   // Another pitcher, and a left-handed batter: the grid turns round so his inside is on the right.
   await page.locator('#ab-next').click();
+  assert.equal(await page.locator('#ab-run').textContent(), 'Throw each of his pitches 100 times from here');
   await page.locator('#ab-pitcher').selectOption('rogers');
   assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and inside');
@@ -423,8 +430,15 @@ assert.match(await heading(), /^Forkball/i);
 const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
 for (const [width, height] of [[390, 844], [320, 640]]) {
   const phoneCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
-  // The clipboard is refused, as it is in some in-app browsers and in the framed copy.
-  await phoneCtx.addInitScript(() => { if (navigator.clipboard) navigator.clipboard.writeText = () => Promise.reject(new DOMException('The Clipboard API has been blocked', 'NotAllowedError')); });
+  await phoneCtx.addInitScript(() => {
+    // The clipboard is refused, as it is in some in-app browsers and in the framed copy.
+    if (navigator.clipboard) navigator.clipboard.writeText = () => Promise.reject(new DOMException('The Clipboard API has been blocked', 'NotAllowedError'));
+    // Taps "What would a catcher call?" and the hundred throws, and says whether they answered.
+    window.askNow = () => {
+      for (const id of ['ab-suggest', 'ab-run']) document.getElementById(id).click();
+      return { waits: ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled')), hint: document.getElementById('ab-hint').textContent, chart: document.getElementById('ab-chart').childElementCount };
+    };
+  });
   const ph = await phoneCtx.newPage();
   watch(ph);
   const idle = () => ph.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
@@ -436,13 +450,16 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   // Throw it with the button low on the screen, where a thumb is: the picture is on screen while the ball flies.
   await ph.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
   await ph.locator('#ab-throw').tap();
+  // While it flies, the catcher's call and the hundred throws wait: the model has already thrown it, so they'd give it away.
   const flying = await ph.evaluate(() => {
     const r = document.getElementById('ab-flight').getBoundingClientRect();
-    return { busy: window.arsenal.atBat.state.busy, seen: (Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height };
+    return { busy: window.arsenal.atBat.state.busy, seen: (Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height, asked: window.askNow() };
   });
   assert.ok(flying.busy, `${at}, the pitch had landed before it could be checked`);
   assert.ok(flying.seen >= 0.8, `${at}, only ${Math.round(Math.max(0, flying.seen) * 100)}% of the picture is on screen while the pitch flies`);
+  assert.deepEqual(flying.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the pitch was in the air`);
   await idle();
+  assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
   assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8 mph four-seam', `${at}, the readout doesn't say what the pitch did`);
 
@@ -465,7 +482,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     const { busy, ab } = window.arsenal.atBat.state, last = ab.pitches.at(-1);
     return {
       busy, count: document.querySelector('#ab-count .ct').textContent, log: document.querySelectorAll('#ab-log li').length,
-      ro: document.getElementById('ab-ro').textContent,
+      ro: document.getElementById('ab-ro').textContent, asked: window.askNow(),
       want: { count: `${last.before.balls}-${last.before.strikes}`, log: ab.pitches.length - 1, ro: `Pitch ${last.n} · ${last.mph.toFixed(1)} mph` },
     };
   });
@@ -473,6 +490,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 80.3 mph' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
   assert.equal(replay.ro, 'Pitch 6 · 80.3 mph curve', `${at}, while the link's last pitch flies`);
+  assert.deepEqual(replay.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the link's last pitch flies`);
   await idle();
   assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()} · 6 pitches`);
   // Once it's over, the count gives way to the scorebook's mark and the count it ended on, and that's what a screen
@@ -507,6 +525,26 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     };
   });
   assert.deepEqual(copied, { said: "Couldn't copy here. Select the link and copy it:", link: 'https://junkdrawer.works/arsenal/' + STRIKEOUT, shown: true, focused: true, selected: true, inside: true, sideways: false }, `${at}, Copy link with the clipboard refused`);
+
+  // The hundred throws look back at strike three: what else he could have thrown on that 2-2 pitch, rather than a next
+  // pitch from a count of 2 and 3. Tapped low on the screen, the chart comes into view below the picture, and each bar
+  // has only the outcomes that happened, so they all start at the same place.
+  assert.equal(await ph.locator('#ab-run').textContent(), 'What else could he have thrown on that 2-2 pitch?');
+  await ph.evaluate(() => scrollBy(0, document.getElementById('ab-run').getBoundingClientRect().bottom - (innerHeight - 20)));
+  await ph.locator('#ab-run').tap();
+  for (let y = -1, now; (now = await ph.evaluate(() => scrollY)) !== y; y = now) await ph.waitForTimeout(250);
+  const hundred = await ph.evaluate(() => {
+    const c = document.getElementById('ab-chart'), r = c.getBoundingClientRect(), f = document.getElementById('ab-flight').getBoundingClientRect();
+    return {
+      said: [...c.querySelectorAll('p')].map(p => p.textContent), below: r.top >= f.bottom - 1, onScreen: r.top < innerHeight - 150,
+      empty: [...c.querySelectorAll('.sg')].filter(s => !(parseFloat(s.style.flexGrow) > 0)).length,
+      starts: new Set([...c.querySelectorAll('.bar')].map(b => Math.round(b.firstElementChild.getBoundingClientRect().left))).size,
+    };
+  });
+  assert.deepEqual(hundred, {
+    said: ['On that 2-2 pitch, called in the dirt, instead of the curveball: what happens out of 100 throws of each pitch.', "Blues went the pitcher's way, oranges the hitter's."],
+    below: true, onScreen: true, empty: 0, starts: 1,
+  }, `${at}, the hundred throws at the end of the strikeout`);
 
   // The next hitter starts clean: no readout left from the last one.
   // Scrolled so the end card is behind the picture, it's still there to tap; the pitch controls come back below it.

@@ -31,8 +31,10 @@ export function setupAtBat({ dark = false } = {}) {
   seg('ab-batter', v => { S.batter = v; fresh(); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
+  // While a pitch is in the air, the catcher's call and the hundred throws wait for it to land: the model has already
+  // thrown it, so either would give away how it went.
   $('ab-suggest').addEventListener('click', () => {
-    if (S.ab.result) return;
+    if (S.busy || S.ab.result) return;
     // A copy of the at-bat, so asking doesn't change what happens next.
     const look = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: (S.seed + S.calls.length * 7919 + 1) >>> 0 });
     look.balls = S.ab.balls; look.strikes = S.ab.strikes;
@@ -46,7 +48,7 @@ export function setupAtBat({ dark = false } = {}) {
   $('ab-copy').addEventListener('click', copyLink);
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
-  $('ab-run').addEventListener('click', hundred);
+  $('ab-run').addEventListener('click', () => { if (!S.busy) hundred(); });
 
   function seg(id, on) {
     const box = $(id);
@@ -85,6 +87,7 @@ export function setupAtBat({ dark = false } = {}) {
     S.busy = true;
     S.pending = rec;
     $('ab-throw').disabled = true;
+    waiting();
     $('ab-hint').textContent = '';
     fly(rec);
   }
@@ -150,7 +153,7 @@ export function setupAtBat({ dark = false } = {}) {
     const balls = last ? last.after.balls : 0, strikes = last ? last.after.strikes : 0;
     const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
     // Once it's over, the count gives way to the scorebook's mark for how it ended, and the count it ended on.
-    const on = over && `on a ${last.before.balls}-${last.before.strikes} pitch`;
+    const ended = over && `${last.before.balls}-${last.before.strikes}`, on = over && `on a ${ended} pitch`;
     $('ab-count').innerHTML = over
       ? `<span class="ct${ab.result === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[ab.result]}">${SCOREBOOK[ab.result]}</span><span class="on">${on}</span>`
       : `<span class="ct">${balls}-${strikes}</span><span class="dots"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots"><b>S</b>${dots(strikes, 2, 's')}</span>`;
@@ -163,6 +166,9 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${spotName(p.spot)} · ${p.mph.toFixed(1)} mph</span></li>`).join('');
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
+    // Once it's over, the hundred throws look back at the last pitch.
+    $('ab-run').textContent = over ? `What else could he have thrown on that ${ended} pitch?` : 'Throw each of his pitches 100 times from here';
+    waiting();
     if (over) {
       $('ab-result').textContent = ENDING[ab.result];
       $('ab-result').className = `end-result ${hitterWon(ab.result) ? 'lost' : 'won'}`;
@@ -179,20 +185,38 @@ export function setupAtBat({ dark = false } = {}) {
     drawCall();
   }
 
+  // While a pitch is in the air, the buttons that would give it away wait (see the listeners above). They keep focus.
+  function waiting() {
+    for (const id of ['ab-suggest', 'ab-run']) $(id).setAttribute('aria-disabled', String(S.busy));
+  }
+
   // ---------------------------------------------------------------- a hundred of each
+  // From the count and spot as they stand, before the next pitch. Once the at-bat is over there's no next pitch, so it
+  // looks back at the last one instead: the same count, the same spot and the pitch before it, with every pitch he
+  // could have thrown there. (whatIf reads only the pitcher, the batter, the knobs, the count and the pitch before.)
   function hundred() {
-    const ab = S.ab;
-    const t = whatIf(ab, S.spot, 100, (S.seed ^ (ab.pitches.length * 2654435761)) >>> 0);
+    const ab = S.ab, last = ab.pitches.at(-1);
+    const view = ab.result ? { ...ab, balls: last.before.balls, strikes: last.before.strikes, pitches: ab.pitches.slice(0, -1) } : ab;
+    const spot = ab.result ? last.spot : S.spot;
+    const t = whatIf(view, spot, 100, (S.seed ^ (view.pitches.length * 2654435761)) >>> 0);
     const ORDER = [['whiff', 'Swinging strike'], ['called', 'Called strike'], ['foul', 'Foul'], ['out', 'Out in play'], ['ball', 'Ball'], ['hit', 'Hit']];
     const rows = S.pitcher.pitches.map(p => {
       const v = t[p.code];
       v.ball += v.hbp;
-      const segs = ORDER.map(([k]) => `<span class="sg sg-${k}" style="flex-grow:${v[k]}" title="${v[k]} ${ORDER.find(o => o[0] === k)[1].toLowerCase()}"></span>`).join('');
+      // Only the outcomes that happened, so every bar starts at the same place and ends on a real piece.
+      const segs = ORDER.filter(([k]) => v[k] > 0).map(([k, l]) => `<span class="sg sg-${k}" style="flex-grow:${v[k]}" title="${v[k]} ${l.toLowerCase()}"></span>`).join('');
       return `<li><span class="nm">${SHORT(p.code)}</span><span class="bar" role="img" aria-label="${ORDER.map(([k, l]) => `${v[k]} ${l.toLowerCase()}`).join(', ')}">${segs}</span><span class="sum">${v.whiff} miss${v.whiff === 1 ? '' : 'es'} · ${v.hit} hit${v.hit === 1 ? '' : 's'}</span></li>`;
     }).join('');
-    $('ab-chart').innerHTML = `<p class="small">${S.pitcher.name}, ${spotName(S.spot)}, in a ${ab.balls}-${ab.strikes} count${ab.pitches.length ? `, right after the ${NAME[ab.pitches.at(-1).code]}` : ''}: what happens out of 100 throws of each pitch.</p>
+    const before = view.pitches.at(-1);
+    const caption = ab.result
+      ? `On that ${view.balls}-${view.strikes} pitch, called ${spotName(spot)}, instead of the ${NAME[last.code]}`
+      : `${S.pitcher.name}, ${spotName(spot)}, in a ${view.balls}-${view.strikes} count${before ? `, right after the ${NAME[before.code]}` : ''}`;
+    $('ab-chart').innerHTML = `<p class="small">${caption}: what happens out of 100 throws of each pitch.</p>
       <ul class="legend-row">${ORDER.map(([k, l]) => `<li><i class="sg-${k}"></i>${l}</li>`).join('')}</ul>
+      <p class="small">Blues went the pitcher's way, oranges the hitter's.</p>
       <ol class="hundred-bars">${rows}</ol>`;
+    // Into view, below the picture on a phone (its scroll margin), so the tap visibly did something.
+    $('ab-chart').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
 
   // ---------------------------------------------------------------- links
