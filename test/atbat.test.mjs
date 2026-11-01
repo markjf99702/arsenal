@@ -70,11 +70,49 @@ const words = ab => [['note', note(ab)], ...ab.pitches.map((p, i) => [`pitch ${p
 const READS_BADLY = [
   [/\d in\b/, 'inches as "in"'],
   [/\d (ms|mph)\b/, 'a unit that can start a line on its own'],
+  [/\b(chased|missed|swung at|chasing) [01]\b/, 'a count of 0 or 1 as a digit', 'note'],
+  [/(\d+) of the \1 pitches/, '"4 of the 4"', 'note'],
+  [/'/, 'a straight apostrophe', 'note'],
 ];
 test('the at-bat’s words read cleanly over thousands of at-bats', () => {
-  for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why] of READS_BADLY) {
+  for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why, only] of READS_BADLY) {
+    if (only && !what.startsWith(only)) continue;
     assert.doesNotMatch(text, re, `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}, ${what}: ${why}: ${text}`);
   }
+});
+
+test('the scout’s note says what decided the at-bat', () => {
+  for (const ab of PLAYED) {
+    const text = note(ab), last = ab.pitches.at(-1), prev = ab.pitches.at(-2), at = `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}: ${text}`;
+    // The walk's lead counts the pitches and the chases, so the rest doesn't count them again.
+    if (ab.result === 'BB') assert.equal((text.match(/chase/g) || []).length, 1, at);
+    // A foul tip is contact: the tally counts it apart, not as a miss.
+    if (last.result === 'tip') {
+      assert.match(text, /tipped/, at);
+      if (!ab.pitches.some(p => p.result === 'whiff')) assert.doesNotMatch(text, /missed/, at);
+    }
+    // Hit by a pitch: the count and the call, not the last pitch's own "It got away inside" again.
+    if (ab.result === 'HBP') assert.match(text, /^The (first-pitch|[0-3]-[0-2]) [a-z -]+, meant to be [a-z, ]+, got away and hit him\./, at);
+    // Strike three looking off the plate was the umpire's call.
+    assert.equal(/the umpire gave the pitcher the edge/.test(text), ab.result === 'KL' && !last.inZone, at);
+    // Two pitches look alike only if they finished well apart: twice as far as at the decision point, and 8 inches.
+    if (/looked just like/.test(text)) {
+      const apart = Math.hypot(last.plate[0] - prev.plate[0], last.plate[1] - prev.plate[1]);
+      assert.ok(apart >= Math.max(2 * last.tunnel, 8 / 12), at);
+    }
+    // Weak contact by when he swung: rolled over when early, jammed when late.
+    if (/rolled it over/.test(text)) assert.ok(last.early > 0.008, at);
+    if (/got in on him/.test(text)) assert.ok(last.early < -0.008, at);
+  }
+  // A four-pitch walk, every one high and inside.
+  assert.equal(note(replay('#ab.average.R.1.FF0.FF0.FF0.FF0')), 'All four missed the zone, and he didn’t chase any.');
+  // Misiorowski's curve was meant for the dirt and hung in the zone.
+  assert.match(note(replay('#ab.misiorowski.R.m.FF13.SL19.CU22')), /^The curveball was meant to be in the dirt but crossed down in the zone, and he didn’t miss it\./);
+  // The README's strikeout: six pitches, ending on a curve 6 mph slower than the slider before it.
+  const k = replay('#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22');
+  assert.equal(k.result, 'K');
+  assert.equal(k.pitches.length, 6);
+  assert.equal(note(k), 'The curveball was 6\u00a0mph slower than the slider before it, and his timing was set for the faster one. 6 pitches: he swung at 3 and missed 2, chasing one out of the zone.');
 });
 
 // An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), played the way the page plays it.
