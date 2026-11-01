@@ -11,17 +11,19 @@ const IN_ZONE = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const COUNTS = ['00', '01', '02', '10', '11', '12', '20', '21', '22', '30', '31', '32'];
 const TYPES = ['FF', 'SI', 'FC', 'SL', 'ST', 'CU', 'KC', 'SV', 'CH', 'FS', 'FO', 'KN'];
 const FASTBALLS = ['FF', 'SI', 'FC'];
-// The pitchers you can pitch as, by Statcast id: picked for arsenals that play differently.
+// The pitchers you can pitch as, by Statcast id: picked for arsenals that play differently. Each has a line shown once
+// he's picked, and a tag that follows his name in the list ("Chris Sale – lefty, big slider"): short, so the list
+// fits a 320px phone.
 const PITCHERS = [
-  [694973, 'skenes', 'Six pitches, most of them hard.'],
-  [694819, 'misiorowski', 'A four-seamer at 100 mph, and a curve at 88.'],
-  [592332, 'gausman', 'Four-seamer and splitter that look alike until late.'],
-  [650911, 'sanchez', 'A lefty’s sinker and changeup.'],
-  [519242, 'sale', 'A lefty’s slider that sweeps a foot.'],
-  [605400, 'nola', 'Lives on the knuckle curve.'],
-  [695243, 'miller', 'A closer: 101 mph and a slider.'],
-  [643511, 'rogers', 'A submariner: an 83 mph sinker from below the knees.'],
-  [663362, 'waldron', 'A knuckleballer, with fastballs to keep hitters honest.'],
+  [694973, 'skenes', 'Six pitches, most of them hard.', 'six pitches'],
+  [694819, 'misiorowski', 'A four-seamer at 100 mph, and a curve at 88.', 'power arm'],
+  [592332, 'gausman', 'Four-seamer and splitter that look alike until late.', 'splitter'],
+  [650911, 'sanchez', 'A lefty’s sinker and changeup.', 'lefty'],
+  [519242, 'sale', 'A lefty’s slider that sweeps a foot.', 'lefty, big slider'],
+  [605400, 'nola', 'Lives on the knuckle curve.', 'knuckle curve'],
+  [695243, 'miller', 'A closer: 101 mph and a slider.', 'closer, slider'],
+  [643511, 'rogers', 'A submariner: an 83 mph sinker from below the knees.', 'submariner'],
+  [663362, 'waldron', 'A knuckleballer, with fastballs to keep hitters honest.', 'knuckleball'],
 ];
 
 const one = async (filters = []) => (await search(season, filters, 'league'))[0] || {};
@@ -70,13 +72,13 @@ const rows = {};
 for (const t of TYPES) {
   for (const r of await search(season, [['hfPT', [t]]], 'name')) (rows[r.player_id] ||= []).push({ t, r });
 }
-const pitchers = PITCHERS.map(([id, key, line]) => {
+const pitchers = PITCHERS.map(([id, key, line, tag]) => {
   const mine = rows[id] || [];
   const total = mine.reduce((s, x) => s + n(x.r), 0);
   if (!total) throw new Error(`no ${season} pitches for ${key} (${id})`);
   const sideOf = mine.reduce((s, x) => s + (num(x.r.release_pos_x) || 0) * n(x.r), 0) / total;
   return {
-    key, line,
+    key, line, tag,
     name: mine[0].r.player_name.split(', ').reverse().join(' '),
     hand: sideOf < 0 ? 'R' : 'L',
     pitches: mine

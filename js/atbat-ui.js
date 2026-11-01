@@ -36,7 +36,8 @@ export function setupAtBat({ dark = false } = {}) {
   stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', dark, atBat: true });
 
   // ---------------------------------------------------------------- controls
-  $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}</option>`).join('');
+  // Each with what he is, so the list itself tells Tyler Rogers from Aaron Nola, and the lefties apart.
+  $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}${p.tag ? ` – ${p.tag}` : ''}</option>`).join('');
   // Another pitcher or batter faces a new hitter. The same seed would bring back the same one, guessing the same pitches,
   // so switching away and back would be a do-over against a hitter you already know.
   $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ picked: true, changed: true }); });

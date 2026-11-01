@@ -636,6 +636,12 @@ assert.match(await heading(), /^Forkball/i);
   // His name set apart from his line, which has a colon of its own.
   assert.equal(await page.locator('#ab-line').textContent(), 'Tyler Rogers. A submariner: an 83 mph sinker from below the knees.');
   assert.equal(await page.locator('#ab-line b').textContent(), 'Tyler Rogers.');
+  // The list says what each real pitcher is, after his name, so it tells them apart, and the lefties, before picking.
+  assert.deepEqual(await page.locator('#ab-pitcher option').allTextContents(), [
+    'League-average righty', 'Paul Skenes – six pitches', 'Jacob Misiorowski – power arm', 'Kevin Gausman – splitter',
+    'Cristopher Sánchez – lefty', 'Chris Sale – lefty, big slider', 'Aaron Nola – knuckle curve',
+    'Mason Miller – closer, slider', 'Tyler Rogers – submariner', 'Matt Waldron – knuckleball',
+  ], 'the pitcher list');
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate inside');
   await page.locator('#ab-batter [data-v="L"]').click();
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
@@ -1121,6 +1127,14 @@ for (const width of [320, 360]) {
       .map(b => `${code}: ${b.textContent}`);
   }));
   assert.deepEqual(wrapped, [], `at ${width}px these numbers on the card wrap onto two lines`);
+  // Every pitcher in Pitch to a hitter's list fits it, with what he is after his name.
+  const cut = await narrow.evaluate(() => {
+    const select = document.getElementById('ab-pitcher'), cs = getComputedStyle(select), measure = document.createElement('canvas').getContext('2d');
+    measure.font = cs.font;
+    const room = select.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 24; // 24px for the arrow: a phone's is about 20
+    return [...select.options].filter(o => measure.measureText(o.text).width > room).map(o => o.text);
+  });
+  assert.deepEqual(cut, [], `at ${width}px these pitchers are cut off in the list`);
   assert.equal(await narrow.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the page scrolls sideways at ${width}px`);
   // The spin view's buttons are "Behind" and "Side" here, as "From behind" and "From the side" don't fit side by side,
   // and a pressed "Side" stays inside the pill's rounded end: just past its top corner is the card, not the pressed button.

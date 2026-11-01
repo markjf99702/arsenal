@@ -215,6 +215,7 @@ export const PITCHERS = [
  {
   "key": "skenes",
   "line": "Six pitches, most of them hard.",
+  "tag": "six pitches",
   "name": "Paul Skenes",
   "hand": "R",
   "pitches": [
@@ -295,6 +296,7 @@ export const PITCHERS = [
  {
   "key": "misiorowski",
   "line": "A four-seamer at 100 mph, and a curve at 88.",
+  "tag": "power arm",
   "name": "Jacob Misiorowski",
   "hand": "R",
   "pitches": [
@@ -351,6 +353,7 @@ export const PITCHERS = [
  {
   "key": "gausman",
   "line": "Four-seamer and splitter that look alike until late.",
+  "tag": "splitter",
   "name": "Kevin Gausman",
   "hand": "R",
   "pitches": [
@@ -395,6 +398,7 @@ export const PITCHERS = [
  {
   "key": "sanchez",
   "line": "A lefty’s sinker and changeup.",
+  "tag": "lefty",
   "name": "Cristopher Sánchez",
   "hand": "L",
   "pitches": [
@@ -439,6 +443,7 @@ export const PITCHERS = [
  {
   "key": "sale",
   "line": "A lefty’s slider that sweeps a foot.",
+  "tag": "lefty, big slider",
   "name": "Chris Sale",
   "hand": "L",
   "pitches": [
@@ -495,6 +500,7 @@ export const PITCHERS = [
  {
   "key": "nola",
   "line": "Lives on the knuckle curve.",
+  "tag": "knuckle curve",
   "name": "Aaron Nola",
   "hand": "R",
   "pitches": [
@@ -563,6 +569,7 @@ export const PITCHERS = [
  {
   "key": "miller",
   "line": "A closer: 101 mph and a slider.",
+  "tag": "closer, slider",
   "name": "Mason Miller",
   "hand": "R",
   "pitches": [
@@ -595,6 +602,7 @@ export const PITCHERS = [
  {
   "key": "rogers",
   "line": "A submariner: an 83 mph sinker from below the knees.",
+  "tag": "submariner",
   "name": "Tyler Rogers",
   "hand": "R",
   "pitches": [
@@ -627,6 +635,7 @@ export const PITCHERS = [
  {
   "key": "waldron",
   "line": "A knuckleballer, with fastballs to keep hitters honest.",
+  "tag": "knuckleball",
   "name": "Matt Waldron",
   "hand": "R",
   "pitches": [

@@ -34,12 +34,12 @@ test('each of the 25 spots has its own name, and the two sides read alike', () =
   }
 });
 
-// js/league.js is written by tools/league.mjs, so a line changed by hand in one has to match the other, or the next
-// refresh puts the old one back.
-test('each real pitcher’s line is the one tools/league.mjs writes', async () => {
+// js/league.js is written by tools/league.mjs, so a line or a tag changed by hand in one has to match the other, or the
+// next refresh puts the old one back.
+test('each real pitcher’s line and tag are the ones tools/league.mjs writes', async () => {
   const tool = await readFile(new URL('../tools/league.mjs', import.meta.url), 'utf8');
-  const lines = Object.fromEntries([...tool.matchAll(/\[\d+, '(\w+)', '([^']*)'\]/g)].map(m => [m[1], m[2]]));
-  assert.deepEqual(REAL.map(p => [p.key, p.line]), REAL.map(p => [p.key, lines[p.key]]));
+  const rows = Object.fromEntries([...tool.matchAll(/\[\d+, '(\w+)', '([^']*)', '([^']*)'\]/g)].map(m => [m[1], [m[2], m[3]]]));
+  assert.deepEqual(REAL.map(p => [p.key, p.line, p.tag]), REAL.map(p => [p.key, ...(rows[p.key] || [])]));
 });
 
 test('the same seed and the same calls replay the same at-bat', () => {
