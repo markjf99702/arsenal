@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
@@ -12,14 +13,29 @@ let pw;
 try { pw = require('playwright'); } catch { pw = require(join(execSync('npm root -g').toString().trim(), 'playwright')); }
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
-const server = createServer(async (req, res) => {
-  const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  let body;
-  try { body = await readFile(join(root, path === '/' ? 'index.html' : path)); } catch { res.writeHead(404); res.end(); return; }
-  res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'text/html' });
-  res.end(body);
+// The server answers the way GitHub Pages does at junkdrawer.works/arsenal/: under /arsenal/, so a path from the
+// site's root would miss, and a browser may keep each file for ten minutes and asks again by its ETag. `net` is the
+// connection: 'up' or 'down' (the server drops every connection).
+const SITE = '/arsenal/';
+let net = 'up';
+const server = createServer((req, res) => {
+  if (net === 'down') { req.socket.destroy(); return; }
+  serve(req, res);
 }).listen(0);
-const base = `http://localhost:${server.address().port}/`;
+async function serve(req, res) {
+  let path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (!path.startsWith(SITE)) { res.writeHead(404); res.end(); return; }
+  path = path.slice(SITE.length - 1);
+  if (path.endsWith('/')) path += 'index.html';
+  let body;
+  try { body = await readFile(join(root, path)); } catch { res.writeHead(404); res.end(); return; }
+  const etag = `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
+  const head = { etag, 'cache-control': 'max-age=600', 'content-type': TYPES[extname(path)] || 'text/html' };
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, head); res.end(); return; }
+  res.writeHead(200, head);
+  res.end(body);
+}
+const base = `http://localhost:${server.address().port}${SITE}`;
 
 const browser = await pw.chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
@@ -519,13 +535,16 @@ assert.match(await heading(), /^Knuckleball/i);
 // Fits a phone: nothing scrolls sideways.
 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'the page scrolls sideways on a phone');
 
-// Works offline once it has been opened.
-await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 10000 }).catch(() => {});
+// Works offline once it has been opened. The server goes down as well as the browser: in some Chromium builds the
+// browser's offline switch alone doesn't stop the service worker's own requests, and this passed with no copy at all.
+await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 10000 });
+net = 'down';
 await ctx.setOffline(true);
 await page.reload();
 await page.evaluate(() => document.fonts.ready);
 assert.match(await heading(), /^Knuckleball/i, 'the page did not load offline');
 await ctx.setOffline(false);
+net = 'up';
 
 // It clears out only its own old offline copies. Every tool at junkdrawer.works/ shares one address, and so one set
 // of copies: another tool's, there before this page's service worker starts, is still there once it has. So is one
