@@ -83,7 +83,10 @@ export function setupAtBat({ dark = false } = {}) {
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
     S.busy = false;
     S.pending = null;
-    $('ab-line').textContent = `${S.pitcher.name}: ${S.pitcher.line}`;
+    // The pitcher's name, set apart from his line (which can have a colon of its own: "A submariner: an 83 mph sinker").
+    const name = document.createElement('b');
+    name.textContent = `${S.pitcher.name}.`;
+    $('ab-line').replaceChildren(name, ` ${S.pitcher.line}`);
     $('ab-pitcher').value = S.pitcher.key;
     for (const b of $('ab-batter').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === S.batter));
     stage.set({ hand: S.pitcher.hand, batter: S.batter, marks: [] });

@@ -45,7 +45,8 @@ export function spotName(spot) {
 
 // ---------------------------------------------------------------- pitchers
 
-// A league-average righty: the five most common pitches at their league averages.
+// A league-average righty: a four-seamer, sinker, slider, changeup and curve at their league averages. (Not the five
+// most thrown: the sweeper and the cutter are both thrown more often than the curve.)
 const AVERAGE_SET = ['FF', 'SI', 'SL', 'CH', 'CU'];
 const avgShare = AVERAGE_SET.reduce((s, c) => s + NUMBERS[c].share, 0);
 const fromLeague = (code, share) => {
@@ -53,7 +54,7 @@ const fromLeague = (code, share) => {
   return { code, share, mph: n.mph, rpm: n.rpm, rise: n.rise, arm: n.arm, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
 };
 export const AVERAGE = {
-  key: 'average', name: 'League-average righty', hand: 'R', line: 'The five most common pitches, each at the league average.',
+  key: 'average', name: 'League-average righty', hand: 'R', line: 'A four-seamer, sinker, slider, changeup and curve, each at the league average.',
   pitches: AVERAGE_SET.map(c => fromLeague(c, NUMBERS[c].share / avgShare)),
 };
 // For calibration: every common pitch, thrown as often as the league throws it.

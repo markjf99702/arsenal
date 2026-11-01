@@ -474,6 +474,9 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ab-throw', 'focus after Next hitter');
   await page.locator('#ab-pitcher').selectOption('rogers');
   assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
+  // His name set apart from his line, which has a colon of its own.
+  assert.equal(await page.locator('#ab-line').textContent(), 'Tyler Rogers. A submariner: an 83 mph sinker from below the knees.');
+  assert.equal(await page.locator('#ab-line b').textContent(), 'Tyler Rogers.');
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate inside');
   await page.locator('#ab-batter [data-v="L"]').click();
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
