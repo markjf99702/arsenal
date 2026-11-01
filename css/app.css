@@ -410,6 +410,7 @@ p { margin: 0; }
 .plain[aria-disabled="true"] { opacity: .45; cursor: default; border-color: var(--line-strong); }
 .small { font-size: 13px; color: var(--muted); }
 
+.last:empty { display: none; }
 .last .res { font: 700 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
 .last .res-strike, .end-result.res-strike { color: var(--res-strike); }
 .last .res-ball, .end-result.res-ball { color: var(--res-ball); }

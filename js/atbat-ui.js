@@ -27,8 +27,8 @@ export function setupAtBat({ dark = false } = {}) {
 
   // ---------------------------------------------------------------- controls
   $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}</option>`).join('');
-  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); fresh(); });
-  seg('ab-batter', v => { S.batter = v; fresh(); });
+  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); fresh({ say: true }); });
+  seg('ab-batter', v => { S.batter = v; fresh({ say: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
   // Picking a pitch or a spot presses it where it is (drawCall), so focus stays on it.
@@ -56,7 +56,7 @@ export function setupAtBat({ dark = false } = {}) {
   // with focus on Throw, the button that was gone with the end card.
   $('ab-next').addEventListener('click', () => {
     S.seed = newSeed();
-    fresh();
+    fresh({ say: true });
     reveal($('ab-callbox'));
     $('ab-throw').focus({ preventScroll: true });
   });
@@ -76,7 +76,8 @@ export function setupAtBat({ dark = false } = {}) {
   }
 
   // ---------------------------------------------------------------- an at-bat
-  function fresh({ keepCalls = false } = {}) {
+  // A new at-bat. Picking another pitcher or batter starts one too, so `say` tells a screen reader who's up now.
+  function fresh({ keepCalls = false, say = false } = {}) {
     S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: S.seed });
     if (!keepCalls) S.calls = [];
     S.code = S.pitcher.pitches[0].code;
@@ -95,6 +96,8 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-hint').textContent = '';
     buildCall();
     drawState();
+    const who = S.pitcher.key === 'average' ? 'the league-average righty' : S.pitcher.name;
+    if (say) $('ab-live').textContent = `New at-bat: ${who} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
   }
 
   function pitch() {
@@ -183,7 +186,8 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-last').innerHTML = `${head}<p>${why(last, shown.at(-2), ab.batter)}</p>`;
       $('ab-live').textContent = over ? `${ENDING[ab.result]} ${on}.` : `${resultWord(last)}. The count is ${balls} and ${strikes}.`;
     } else {
-      $('ab-last').innerHTML = `<p class="res">Your call</p><p>Pick a pitch and a spot, then throw it. Strikes and swings are red, balls green, balls in play blue.</p>`;
+      // Before the first pitch there's nothing to say: how to play is at the top of the call box.
+      $('ab-last').replaceChildren();
     }
     // Each pitch, the spot called and, if it went to another box, where it crossed.
     $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${speed(p)}</span></li>`).join('');

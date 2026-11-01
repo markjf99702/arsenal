@@ -404,6 +404,16 @@ assert.match(await heading(), /^Forkball/i);
   await page.goto('about:blank');
   await page.goto(base + '#ab.average.R.1p'); // the README's hitter, before the first pitch
   const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  // How to play is at the top of the call box, before the pitches, and nothing stands for the last pitch yet.
+  const first = await page.evaluate(async () => ({
+    how: document.getElementById('ab-how').textContent.replace(String((await import(new URL('js/flight.js', location.href))).DECIDE), 'DECIDE'),
+    above: document.getElementById('ab-how').getBoundingClientRect().bottom <= document.getElementById('ab-pitches').getBoundingClientRect().top,
+    last: getComputedStyle(document.getElementById('ab-last')).display,
+  }));
+  assert.deepEqual(first, {
+    how: 'Pick a pitch and a spot, then throw it. The hitter has to commit at the decision point, DECIDE seconds from the plate, and a swing at a pitch out of the zone is a chase. Strikes are red (called, swinging or fouled), balls green, balls in play blue.',
+    above: true, last: 'none',
+  }, 'before the first pitch');
   // Picked with the keyboard, a pitch and a spot keep focus, and so does Throw while the ball flies (at Slow, so there's
   // time to look) and once it has landed.
   const focused = () => page.evaluate(() => {
@@ -474,12 +484,15 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ab-throw', 'focus after Next hitter');
   await page.locator('#ab-pitcher').selectOption('rogers');
   assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
+  assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: Tyler Rogers to a right-handed batter.');
   // His name set apart from his line, which has a colon of its own.
   assert.equal(await page.locator('#ab-line').textContent(), 'Tyler Rogers. A submariner: an 83 mph sinker from below the knees.');
   assert.equal(await page.locator('#ab-line b').textContent(), 'Tyler Rogers.');
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate inside');
   await page.locator('#ab-batter [data-v="L"]').click();
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
+  // A new pitcher or batter starts a new at-bat, and a screen reader hears who's up.
+  assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: Tyler Rogers to a left-handed batter.');
   // The new pitcher's pitches and the turned grid pick too.
   await page.locator('#ab-pitches .ab-chip').last().click();
   await page.locator('#ab-spots [aria-label="down and away"]').click();
