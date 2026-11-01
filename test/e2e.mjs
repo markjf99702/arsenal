@@ -465,6 +465,25 @@ assert.match(await heading(), /^Forkball/i);
   await page.goto(base + '#' + link);
   await idle();
   assert.equal(await page.locator('#ab-log').innerText(), log, 'the link replayed a different at-bat');
+  assert.equal(await page.locator('#ab-notice').isHidden(), true, 'a notice over a link that played as it was');
+  // A link asking for what can't be done still opens, and says so over the call box, or over the end card.
+  for (const [hash, said] of [
+    ['#ab.nobody.R.1p.SL6', 'There’s no pitcher called “nobody” here, so this is the league-average righty.'],
+    ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.FF6.FF6.FF6', 'The link had 3 more pitches after the at-bat ended; they were left out.'],
+    ['#ab.rogers.R.9.SI16.FF3.SI2', 'Tyler Rogers doesn’t throw a four-seamer, so the link’s last 2 pitches were left out.'],
+    ['#ab.average.R.9.FF6.SL40', 'The link’s pitch 2 is called to a spot that isn’t on the grid, so that pitch was left out.'],
+  ]) {
+    await page.goto('about:blank');
+    await page.goto(base + hash);
+    await idle();
+    assert.equal(await page.locator('#ab-notice').textContent(), said, hash);
+    assert.equal(await page.locator('#ab-notice').isVisible(), true, `${hash}: the notice is hidden`);
+  }
+  await page.locator('#ab-pitcher').selectOption('sale');
+  assert.equal(await page.locator('#ab-notice').isHidden(), true, 'the link’s notice is still there for a new at-bat');
+  await page.goto('about:blank');
+  await page.goto(base + '#' + link);
+  await idle();
   // Where the clipboard is allowed, Copy link copies it and says so.
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.locator('#ab-copy').click();

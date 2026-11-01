@@ -76,6 +76,7 @@ export function setupAtBat({ dark = false } = {}) {
   }
 
   // ---------------------------------------------------------------- an at-bat
+  const who = () => (S.pitcher.key === 'average' ? 'the league-average righty' : S.pitcher.name);
   // A new at-bat. Picking another pitcher or batter starts one too, so `say` tells a screen reader who's up now.
   function fresh({ keepCalls = false, say = false } = {}) {
     S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: S.seed });
@@ -96,8 +97,8 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-hint').textContent = '';
     buildCall();
     drawState();
-    const who = S.pitcher.key === 'average' ? 'the league-average righty' : S.pitcher.name;
-    if (say) $('ab-live').textContent = `New at-bat: ${who} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
+    $('ab-notice').textContent = '';
+    if (say) $('ab-live').textContent = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
   }
 
   function pitch() {
@@ -269,6 +270,8 @@ export function setupAtBat({ dark = false } = {}) {
       field.select();
     }
   }
+  // A link that asks for what can't be done still opens, and says so above the call box: a pitcher who isn't here
+  // (the league-average righty pitches instead), or pitches left out after the at-bat ended or from one he can't throw.
   function load(hash) {
     const m = /^ab\.(\w+)\.([RL])\.([0-9a-z]+)((?:\.[A-Z]{2}\d{1,2})*)$/.exec(hash);
     if (!m) return false;
@@ -276,12 +279,26 @@ export function setupAtBat({ dark = false } = {}) {
     S.batter = m[2];
     S.seed = parseInt(m[3], 36) >>> 0;
     fresh();
+    const said = [];
+    if (S.pitcher.key !== m[1]) said.push(`There’s no pitcher called “${m[1]}” here, so this is the league-average righty.`);
     const calls = m[4].split('.').filter(Boolean).map(t => ({ code: t.slice(0, 2), spot: SPOTS[Number(t.slice(2))] }));
-    for (const c of calls) {
+    let i = 0;
+    for (; i < calls.length; i++) {
+      const c = calls[i];
       if (S.ab.result || !c.spot || !S.pitcher.pitches.some(p => p.code === c.code)) break;
       throwCall(S.ab, c);
       S.calls.push(c);
     }
+    const left = calls.length - i, c = calls[i];
+    if (left && S.ab.result) said.push(`The link had ${left === 1 ? 'one more pitch' : `${left} more pitches`} after the at-bat ended; ${left === 1 ? 'it was' : 'they were'} left out.`);
+    else if (left) {
+      const name = NAME[c.code];
+      const reason = !name ? `The link’s pitch ${i + 1} isn’t a pitch Arsenal knows`
+        : c.spot ? `${who()[0].toUpperCase()}${who().slice(1)} doesn’t throw ${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}`
+        : `The link’s pitch ${i + 1} is called to a spot that isn’t on the grid`;
+      said.push(`${reason}, so ${left === 1 ? 'that pitch was' : `the link’s last ${left} pitches were`} left out.`);
+    }
+    $('ab-notice').textContent = said.join(' ');
     // The last pitch is thrown again, so the count and the log show where things stood before it.
     const last = S.ab.pitches.at(-1);
     if (last) { S.pending = last; S.busy = true; }

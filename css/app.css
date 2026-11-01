@@ -409,6 +409,9 @@ p { margin: 0; }
 .throw[aria-disabled="true"]:active { transform: none; }
 .plain[aria-disabled="true"] { opacity: .45; cursor: default; border-color: var(--line-strong); }
 .small { font-size: 13px; color: var(--muted); }
+/* What a link asked for that couldn't be done: a pitcher not here, or pitches left out. */
+.notice { font-size: 14px; color: var(--ink-2); background: var(--paper); border-radius: 10px; padding: 10px 12px; }
+.notice:empty { display: none; }
 
 .last:empty { display: none; }
 .last .res { font: 700 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
