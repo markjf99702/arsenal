@@ -274,20 +274,29 @@ await arrived();
 assert.ok(await page.evaluate(() => window.arsenal.stage.flights[0].release.x > 0), 'a lefty releases on the first-base side');
 await page.locator('#hand [data-v="R"]').click();
 
-// The card, the table and the chart give each pitch the same share of all pitches.
+// The card, the table and the chart give each pitch the same share of all pitches and the same speed, with the same
+// places: the changeup's 86.0 mph, not 86, and the cutter's 8.0%, not 8%.
 {
   const shares = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).map(code => {
     window.arsenal.pick(code);
-    const card = [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Thrown').querySelector('b').textContent;
-    const table = document.querySelector(`.lineup tbody tr[data-code="${code}"] td:nth-child(2) .val`).textContent;
+    const stat = name => [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === name).querySelector('b').textContent;
+    const row = document.querySelector(`.lineup tbody tr[data-code="${code}"]`);
     const dot = document.querySelector('.move-chart .dot.on');
     dot.dispatchEvent(new FocusEvent('focus'));
-    const tip = /([\d.]+%) of pitches/.exec(document.getElementById('tip').textContent)?.[1];
+    const tip = /([\d.]+ mph) · ([\d.]+%) of pitches/.exec(document.getElementById('tip').textContent);
     dot.dispatchEvent(new FocusEvent('blur'));
-    return { code, card, table, tip };
+    return {
+      code, card: stat('Thrown'), table: row.querySelector('td:nth-child(2) .val').textContent, tip: tip?.[2],
+      speed: { card: stat('Speed'), table: `${row.querySelector('td:nth-child(3) .val').textContent} mph`, tip: tip?.[1] },
+    };
   }));
   assert.equal(shares.length, 13);
-  for (const s of shares) assert.ok(s.card === s.table && s.card === s.tip, `${s.code}: ${s.card} on the card, ${s.table} in the table, ${s.tip} in the chart`);
+  for (const s of shares) {
+    assert.ok(s.card === s.table && s.card === s.tip, `${s.code}: ${s.card} on the card, ${s.table} in the table, ${s.tip} in the chart`);
+    assert.ok(s.speed.card === s.speed.table && s.speed.card === s.speed.tip, `${s.code}: ${s.speed.card} on the card, ${s.speed.table} in the table, ${s.speed.tip} in the chart`);
+  }
+  const by = Object.fromEntries(shares.map(s => [s.code, s]));
+  assert.deepEqual([by.CH.speed.table, by.FC.table], ['86.0 mph', '8.0%']);
 }
 
 // The chart's dots say which way each pitch moves in words, without minus signs, for the eye and the ear.

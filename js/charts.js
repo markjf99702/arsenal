@@ -8,8 +8,12 @@ const el = (tag, attrs = {}, parent) => {
   if (parent) parent.appendChild(e);
   return e;
 };
-// Rounded like the card rounds. toFixed shows the sinker's 16.65% as 16.6, because of how 16.65 is stored.
+// Rounded like the card rounds. toFixed shows the sinker's 16.65% as 16.6, because of how 16.65 is stored, so it's
+// rounded first. Speeds and shares keep their places ("86.0", "8.0"), as the card's speed does; shares under 1% get two.
 const fmt = (v, d = 1) => String(Math.round(v * 10 ** d) / 10 ** d);
+const fixed = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toFixed(d);
+export const shareText = share => fixed(share, share < 1 ? 2 : 1);
+const mphText = mph => fixed(mph);
 const famName = Object.fromEntries(FAMILIES.map(f => [f.id, f.name]));
 
 // Where each name would rather sit beside its dot; the placer tries the others if that spot is taken.
@@ -76,7 +80,7 @@ function drawMovement(host, W, { onPick, tooltip }) {
     label.textContent = p.short;
     taken.push({ x: cx - r - 2, y: cy - r - 2, w: 2 * r + 4, h: 2 * r + 4 });
     placed.push({ p, label, cx, cy, r });
-    const show = () => tooltip.show(g, `<b>${p.name}</b><br>${rise} in ${up}, ${arm} in ${side} side<br>${fmt(p.n.mph)} mph · ${fmt(p.n.share, p.n.share < 1 ? 2 : 1)}% of pitches`);
+    const show = () => tooltip.show(g, `<b>${p.name}</b><br>${rise} in ${up}, ${arm} in ${side} side<br>${mphText(p.n.mph)} mph · ${shareText(p.n.share)}% of pitches`);
     g.addEventListener('pointerenter', show);
     g.addEventListener('focus', show);
     g.addEventListener('pointerleave', () => tooltip.hide());
@@ -128,15 +132,15 @@ export function lineupTable(host, { onPick }) {
     const tr = document.createElement('tr');
     tr.className = `fam-${p.fam}`;
     tr.dataset.code = p.code;
-    const share = n.share < 1 ? fmt(n.share, 2) : fmt(n.share, 1);
+    const share = shareText(n.share);
     // No bar when the average is one pitcher's (the knuckleball's): there's no range of pitchers to show.
     const range = n.low == null
-      ? { said: `${fmt(n.mph)} mph on average`, bar: '' }
-      : { said: `${fmt(n.mph)} mph on average; most between ${fmt(n.low)} and ${fmt(n.high)}`, bar: `<span class="span" style="left:${pos(n.low)}%;width:${Math.max(0.8, pos(n.high) - pos(n.low))}%"></span>` };
+      ? { said: `${mphText(n.mph)} mph on average`, bar: '' }
+      : { said: `${mphText(n.mph)} mph on average; most between ${mphText(n.low)} and ${mphText(n.high)}`, bar: `<span class="span" style="left:${pos(n.low)}%;width:${Math.max(0.8, pos(n.high) - pos(n.low))}%"></span>` };
     tr.innerHTML = `
       <th scope="row"><button type="button"><span class="key" aria-hidden="true"></span>${p.short}</button></th>
       <td><div class="cell"><span class="bar"><span style="width:${Math.max(0.6, (n.share / maxShare) * 100)}%"></span></span><span class="val">${share}%</span></div></td>
-      <td><div class="cell"><span class="range" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${fmt(n.mph)}</span></div></td>
+      <td><div class="cell"><span class="range" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${mphText(n.mph)}</span></div></td>
       <td class="num">${n.whiff == null ? '–' : Math.round(n.whiff)}</td>`;
     tr.querySelector('button').addEventListener('click', () => onPick(p));
     body.appendChild(tr);

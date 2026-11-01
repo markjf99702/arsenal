@@ -4,7 +4,7 @@ import { TOTAL, SEASON } from './numbers.js';
 import { Stage } from './stage.js';
 import { SpinPanel, SLOW, tilt } from './spin.js';
 import { drawGrip } from './grip.js';
-import { movementChart, lineupTable, famName } from './charts.js';
+import { movementChart, lineupTable, famName, shareText } from './charts.js';
 import { DECIDE, throwPitch } from './flight.js';
 import { setupAtBat } from './atbat-ui.js';
 
@@ -113,7 +113,7 @@ function renderCard() {
   $('c-fam').innerHTML = `<span class="key" aria-hidden="true"></span>${FAM_SINGULAR[p.fam]} <span class="code">${p.code}</span>`;
   $('c-name').innerHTML = `${p.name}${p.aka ? ` <small>or ${p.aka}</small>` : ''}`;
   $('c-line').textContent = p.line;
-  const share = n.share < 1 ? fmt(n.share, 2) : fmt(n.share, 1);
+  const share = shareText(n.share);
   $('c-stats').innerHTML = [
     stat('Speed', `${n.mph.toFixed(1)} mph`, n.low ? `most ${Math.round(n.low)}–${Math.round(n.high)}` : ''),
     stat('Spin', `${fmt(n.rpm, 0)} rpm`, p.code === 'KN' ? 'barely turning' : `${Math.round(n.rpm / 60)} turns a second`),
