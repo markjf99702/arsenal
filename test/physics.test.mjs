@@ -21,6 +21,13 @@ test('every pitch reaches the plate where it was aimed', () => {
   }
 });
 
+// Where each pitch is thrown comes from Statcast too (tools/statcast.mjs): where a right-hander's pitch of that kind
+// crossed the plate on average to right-handed batters. None is typed into js/pitches.js.
+test('every pitch is aimed where Statcast’s crossed the plate', async () => {
+  for (const p of PITCHES) assert.deepEqual(p.target, p.n.aim, `${p.code} is aimed at ${p.target}, Statcast's crossed at ${p.n.aim}`);
+  assert.doesNotMatch(await readFile(new URL('../js/pitches.js', import.meta.url), 'utf8'), /target: \[/, 'an aim typed into js/pitches.js');
+});
+
 test('the gap to the no-spin ghost is the Statcast movement', () => {
   for (const p of steady) {
     const f = throwPitch(p, { hand: 'R', rng: () => 0.5 });

@@ -1,8 +1,11 @@
-// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20.
+// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20, the aim points on 2026-11-01.
 // Every pitch of the 2026 regular season, by pitch type. Averages weight each pitcher by how many they threw.
 // The knuckleball's count only pitchers who threw at least 100 of them, which leaves out position players' lobs.
 // rise and arm are spin-induced movement in inches (arm < 0 means toward the glove side); drop includes gravity.
-// low and high: the middle 80% of pitches by speed, or null when the average comes from one pitcher.
+// low and high: the middle 80% of pitchers by their average speed, each counted by how many he threw, or null when the
+// average comes from one pitcher.
+// aim: where a right-hander's pitch crossed the plate on average to right-handed batters, [plate_x, plate_z] in feet from
+// the catcher's view (x to his right, z up). The explorer throws each pitch there.
 export const SEASON = 2026;
 export const TOTAL = 713311;
 export const NUMBERS = {
@@ -29,7 +32,8 @@ export const NUMBERS = {
       name: "Mason Miller",
       mph: 101.4,
       pitches: 555
-    }
+    },
+    aim: [0.17, 2.77]
   },
   SI: {
     pitches: 118806,
@@ -54,7 +58,8 @@ export const NUMBERS = {
       name: "Edgardo Henriquez",
       mph: 100.9,
       pitches: 241
-    }
+    },
+    aim: [-0.17, 2.33]
   },
   FC: {
     pitches: 57245,
@@ -79,7 +84,8 @@ export const NUMBERS = {
       name: "Camilo Doval",
       mph: 98.8,
       pitches: 275
-    }
+    },
+    aim: [0.47, 2.29]
   },
   SL: {
     pitches: 93541,
@@ -104,7 +110,8 @@ export const NUMBERS = {
       name: "Jacob Misiorowski",
       mph: 91.9,
       pitches: 286
-    }
+    },
+    aim: [0.53, 1.83]
   },
   ST: {
     pitches: 59341,
@@ -129,7 +136,8 @@ export const NUMBERS = {
       name: "Max Meyer",
       mph: 89,
       pitches: 533
-    }
+    },
+    aim: [0.66, 1.92]
   },
   CU: {
     pitches: 45416,
@@ -154,7 +162,8 @@ export const NUMBERS = {
       name: "Jacob Misiorowski",
       mph: 88,
       pitches: 283
-    }
+    },
+    aim: [0.37, 1.72]
   },
   KC: {
     pitches: 11687,
@@ -179,7 +188,8 @@ export const NUMBERS = {
       name: "Trevor Megill",
       mph: 88,
       pitches: 309
-    }
+    },
+    aim: [0.51, 1.58]
   },
   SV: {
     pitches: 3218,
@@ -204,7 +214,8 @@ export const NUMBERS = {
       name: "Cionel Pérez",
       mph: 85.6,
       pitches: 261
-    }
+    },
+    aim: [0.63, 1.62]
   },
   CS: {
     pitches: 136,
@@ -225,7 +236,8 @@ export const NUMBERS = {
       name: "Seth Lugo",
       pitches: 64
     },
-    hardest: null
+    hardest: null,
+    aim: [0.52, 2.13]
   },
   CH: {
     pitches: 79833,
@@ -250,7 +262,8 @@ export const NUMBERS = {
       name: "Edward Cabrera",
       mph: 93.1,
       pitches: 414
-    }
+    },
+    aim: [-0.07, 1.67]
   },
   FS: {
     pitches: 23077,
@@ -275,7 +288,8 @@ export const NUMBERS = {
       name: "Jhoan Duran",
       mph: 97.6,
       pitches: 445
-    }
+    },
+    aim: [0, 1.56]
   },
   FO: {
     pitches: 456,
@@ -300,7 +314,8 @@ export const NUMBERS = {
       name: "Kodai Senga",
       mph: 83.3,
       pitches: 302
-    }
+    },
+    aim: [-0.12, 1.5]
   },
   KN: {
     pitches: 310,
@@ -325,7 +340,8 @@ export const NUMBERS = {
       name: "Matt Waldron",
       mph: 80.5,
       pitches: 208
-    }
+    },
+    aim: [0.22, 2.11]
   },
   EP: {
     pitches: 1076,
@@ -346,6 +362,7 @@ export const NUMBERS = {
       name: "Tyler Tolbert",
       pitches: 106
     },
-    hardest: null
+    hardest: null,
+    aim: [0.1, 2.99]
   }
 };

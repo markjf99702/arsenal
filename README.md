@@ -30,7 +30,7 @@
 
 Every number is from Statcast, through Baseball Savant's search, for the 2026 regular season: 713,311 pitches. Averages weight each pitcher by how many of that pitch he threw. The knuckleball's count only the pitchers who threw at least 100 (in 2026, Matt Waldron alone), which leaves out position players' lobs; how often it was thrown, and by whom, still counts everyone. "Spin moves it" is the movement from spin alone (Statcast's induced vertical break and horizontal break); "Drops" is the total drop from release, gravity included. `node tools/statcast.mjs 2027` fetches a new season into `js/numbers.js`; the words in `js/pitches.js` quote a few of the 2026 figures, so read them over after a refresh.
 
-The flight is a constant-acceleration model, like the one Statcast fits to each pitch: the speed, movement and release come from the data, and the aim is worked out so the pitch lands where that kind of pitch usually does. The tests check that the model's total drop comes out within 12% of Statcast's (or 3 inches, whichever is more) for every pitch.
+The flight is a constant-acceleration model, like the one Statcast fits to each pitch: the speed, movement and release come from the data, and so does where it's thrown: each pitch lands where a right-hander's pitch of that kind crossed the plate on average to right-handed batters in 2026 (Statcast's plate_x and plate_z; the knuckleball's from Waldron's alone), mirrored for a left-hander. `node tools/statcast.mjs --aim` fetches only those aim points. The tests check that the model's total drop comes out within 12% of Statcast's (or 3 inches, whichever is more) for every pitch.
 
 ## The hitter
 
@@ -58,7 +58,7 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 
 ### Files
 
-- `js/pitches.js`: the thirteen pitches: names, grips, how each works, where it's aimed. `js/numbers.js`: the Statcast numbers, made by `tools/statcast.mjs`.
+- `js/pitches.js`: the thirteen pitches: names, grips, how each works. `js/numbers.js`: the Statcast numbers, where each pitch is aimed among them, made by `tools/statcast.mjs`.
 - `js/flight.js`: the flight model and the three cameras with their scenery. `js/stage.js`: the animation.
 - `js/ball.js`: the baseball, drawn from the real seam curve with 108 stitches. `js/grip.js`: the grips. `js/spin.js`: the spin panel and tilt.
 - `js/charts.js`: the movement chart and the table. `js/app.js`: the page. `js/math3.js`: small 3D helpers.
