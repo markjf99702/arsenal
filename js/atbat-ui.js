@@ -10,6 +10,8 @@ import { COUNTS } from './league.js';
 const $ = id => document.getElementById(id);
 const pct = v => `${Math.round(v * 100)}%`;
 const SHORT = code => BY_CODE[code]?.short || NAME[code];
+const lower = s => s[0].toLowerCase() + s.slice(1);
+const plural = (n, one) => `${n} ${one}${n === 1 ? '' : one.endsWith('h') ? 'es' : 's'}`;
 // How each ending goes in a scorebook. A strikeout looking is the same K, drawn backwards.
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
@@ -158,6 +160,8 @@ export function setupAtBat({ dark = false } = {}) {
     S.asked = 0;
     waiting();
     $('ab-hint').textContent = '';
+    // A link's notice was about what it replayed; from here on the at-bat is this one.
+    $('ab-notice').textContent = '';
     fly(rec);
   }
 
@@ -176,6 +180,7 @@ export function setupAtBat({ dark = false } = {}) {
     S.busy = false;
     stage.set({ marks: marks(S.ab.pitches) });
     drawState();
+    say();
     $('ab-chart').replaceChildren();
     if (!S.ab.result) return;
     // The result card takes the pitch controls' place; if that's behind the picture, bring it out. Focus was in the
@@ -192,6 +197,16 @@ export function setupAtBat({ dark = false } = {}) {
 
   function marks(ps) {
     return ps.map(p => ({ x: p.plate[0], z: p.plate[1], n: p.n, kind: markKind(p.result) }));
+  }
+
+  // What a screen reader hears as a pitch lands: which pitch, where it was called (and crossed, if somewhere else), what
+  // happened and the count, then why, so even three fouls in a row are three new lines. At the end, how it ended and
+  // the scout's note.
+  function say() {
+    const ab = S.ab, last = ab.pitches.at(-1);
+    $('ab-live').textContent = ab.result
+      ? `${ENDING[ab.result]} on a ${last.before.balls}-${last.before.strikes} pitch. ${note(ab)}`
+      : `Pitch ${last.n}, ${NAME[last.code]}, ${calledLine(last, ab.batter)}: ${lower(resultWord(last))}. ${last.after.balls} and ${last.after.strikes}. ${why(last, ab.pitches.at(-2), ab.batter)}`;
   }
 
   // ---------------------------------------------------------------- drawing
@@ -241,14 +256,14 @@ export function setupAtBat({ dark = false } = {}) {
     const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
     // Once it's over, the count gives way to the scorebook's mark for how it ended, and the count it ended on.
     const ended = over && `${last.before.balls}-${last.before.strikes}`, on = over && `on a ${ended} pitch`;
+    // The count is read as "1 ball, 2 strikes", not "1-2, B, S".
     $('ab-count').innerHTML = over
       ? `<span class="ct${ab.result === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[ab.result]}">${SCOREBOOK[ab.result]}</span><span class="on">${on}</span>`
-      : `<span class="ct">${balls}-${strikes}</span><span class="dots"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots"><b>S</b>${dots(strikes, 2, 's')}</span>`;
+      : `<span class="sr">${plural(balls, 'ball')}, ${plural(strikes, 'strike')}</span><span class="ct" aria-hidden="true">${balls}-${strikes}</span><span class="dots" aria-hidden="true"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots" aria-hidden="true"><b>S</b>${dots(strikes, 2, 's')}</span>`;
     if (last) {
       // Once it's over the end card has the headline, so this only says why the last pitch went how it did.
       const head = over ? '<p class="lbl">Last pitch</p>' : `<p class="res res-${markKind(last.result)}">${resultWord(last)}</p>`;
       $('ab-last').innerHTML = `${head}<p>${why(last, shown.at(-2), ab.batter)}</p>`;
-      $('ab-live').textContent = over ? `${ENDING[ab.result]} ${on}.` : `${resultWord(last)}. The count is ${balls} and ${strikes}.`;
     } else {
       // Before the first pitch there's nothing to say: how to play is at the top of the call box.
       $('ab-last').replaceChildren();
@@ -368,7 +383,11 @@ export function setupAtBat({ dark = false } = {}) {
         : `The link’s pitch ${i + 1} is called to a spot that isn’t on the grid`;
       said.push(`${reason}, so ${left === 1 ? 'that pitch was' : `the link’s last ${left} pitches were`} left out.`);
     }
+    // First, what this is: a screen reader hears it rather than the result of the pitch before the one thrown again.
+    const n = S.ab.pitches.length;
+    if (n) said.unshift(`A shared at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
+    $('ab-live').textContent = '';
     // The last pitch is thrown again, so the count and the log show where things stood before it.
     const last = S.ab.pitches.at(-1);
     if (last) { S.pending = last; S.busy = true; }

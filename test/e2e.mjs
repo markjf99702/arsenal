@@ -592,18 +592,20 @@ assert.match(await heading(), /^Forkball/i);
   await page.goto(base + '#' + link);
   await idle();
   assert.equal(await page.locator('#ab-log').innerText(), log, 'the link replayed a different at-bat');
-  assert.equal(await page.locator('#ab-notice').isHidden(), true, 'a notice over a link that played as it was');
-  // A link asking for what can't be done still opens, and says so over the call box, or over the end card.
-  for (const [hash, said] of [
-    ['#ab.nobody.R.1p.SL6', 'There’s no pitcher called “nobody” here, so this is the league-average righty.'],
-    ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.FF6.FF6.FF6', 'The link had 3 more pitches after the at-bat ended; they were left out.'],
-    ['#ab.rogers.R.9.SI16.FF3.SI2', 'Tyler Rogers doesn’t throw a four-seamer, so the link’s last 2 pitches were left out.'],
-    ['#ab.average.R.9.FF6.SL40', 'The link’s pitch 2 is called to a spot that isn’t on the grid, so that pitch was left out.'],
+  // Over the call box it says what this is, and that's all it says for a link that played as it was.
+  assert.equal(await page.locator('#ab-notice').textContent(), `A shared at-bat: the league-average righty to a right-handed batter, ${m.n} pitches.`, 'the notice over a link that played as it was');
+  // A link asking for what can't be done still opens, and says so over the call box, or over the end card, after what
+  // it is.
+  for (const [hash, shared, said] of [
+    ['#ab.nobody.R.1p.SL6', 'the league-average righty to a right-handed batter, 1 pitch', 'There’s no pitcher called “nobody” here, so this is the league-average righty.'],
+    ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.FF6.FF6.FF6', 'the league-average righty to a right-handed batter, 6 pitches', 'The link had 3 more pitches after the at-bat ended; they were left out.'],
+    ['#ab.rogers.R.9.SI16.FF3.SI2', 'Tyler Rogers to a right-handed batter, 1 pitch', 'Tyler Rogers doesn’t throw a four-seamer, so the link’s last 2 pitches were left out.'],
+    ['#ab.average.R.9.FF6.SL40', 'the league-average righty to a right-handed batter, 1 pitch', 'The link’s pitch 2 is called to a spot that isn’t on the grid, so that pitch was left out.'],
   ]) {
     await page.goto('about:blank');
     await page.goto(base + hash);
     await idle();
-    assert.equal(await page.locator('#ab-notice').textContent(), said, hash);
+    assert.equal(await page.locator('#ab-notice').textContent(), `A shared at-bat: ${shared}. ${said}`, hash);
     assert.equal(await page.locator('#ab-notice').isVisible(), true, `${hash}: the notice is hidden`);
   }
   await page.locator('#ab-pitcher').selectOption('sale');
@@ -708,6 +710,25 @@ assert.match(await heading(), /^Forkball/i);
   assert.deepEqual(problems.slice(before), [], 'problems asking the catcher');
 }
 
+// A screen reader hears a line of its own for each pitch as it lands: which pitch, the spot called and where it crossed
+// (as in the log), what happened and the count, then why. Three fouls down the middle are three different lines, two of them in the same count, where it used to
+// hear "Foul. The count is 0 and 2." twice.
+{
+  await page.goto('about:blank');
+  await page.goto(base + '#ab.average.R.2');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const heard = [];
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.arsenal.atBat.throw('FF', '00'));
+    await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+    heard.push(await page.evaluate(() => ({ live: document.getElementById('ab-live').textContent, why: document.querySelector('#ab-last p:last-child').textContent })));
+  }
+  assert.deepEqual(heard.map(h => h.live.replace(` ${h.why}`, '')), ['Pitch 1, four-seamer, called down the middle, crossed down in the zone: foul. 0 and 1.', 'Pitch 2, four-seamer, called down the middle, crossed away, at the belt: foul. 0 and 2.', 'Pitch 3, four-seamer, called down the middle, crossed up and in: foul. 0 and 2.'], 'what a screen reader hears for three fouls');
+  assert.ok(heard.every(h => h.why.length > 20 && h.live.endsWith(` ${h.why}`)), `the why isn't heard: ${heard.map(h => h.live).join(' | ')}`);
+  assert.equal(new Set(heard.map(h => h.live)).size, 3, 'a screen reader heard the same line twice');
+  assert.equal(await page.locator('#ab-count .sr').textContent(), '0 balls, 2 strikes');
+}
+
 // Pitch to a hitter on a phone, tapped the way a thumb would. The readout over the picture says what each pitch did,
 // and a shared link shows the count and the pitches before the one it throws again.
 const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
@@ -758,7 +779,8 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   const ended = await ph.evaluate(() => ({ picture: document.getElementById('ab-flight').getBoundingClientRect().bottom, card: document.getElementById('ab-end').getBoundingClientRect().top }));
   assert.ok(ended.card >= ended.picture && ended.card < height - 150, `${at}, the result card starts at ${Math.round(ended.card)}px, under a picture ending at ${Math.round(ended.picture)}px`);
 
-  // A link: while its last pitch is thrown again, the count and the log are from before it.
+  // A link: while its last pitch is thrown again, the count and the log are from before it. A screen reader isn't told
+  // what the pitch before it did, out of the blue: it hears what this is, and the count is read as words.
   await ph.goto('about:blank');
   await ph.goto(base + STRIKEOUT);
   const replay = await ph.evaluate(() => {
@@ -766,10 +788,14 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     return {
       busy, count: document.querySelector('#ab-count .ct').textContent, log: document.querySelectorAll('#ab-log li').length,
       ro: document.getElementById('ab-ro').textContent, asked: window.askNow(),
+      heard: { live: document.getElementById('ab-live').textContent, notice: document.getElementById('ab-notice').textContent },
+      count2: { said: document.querySelector('#ab-count .sr').textContent, hidden: [...document.querySelectorAll('#ab-count .ct, #ab-count .dots')].every(e => e.getAttribute('aria-hidden') === 'true') },
       want: { count: `${last.before.balls}-${last.before.strikes}`, log: ab.pitches.length - 1, ro: `Pitch ${last.n} · ${last.mph.toFixed(1)} mph` },
     };
   });
   assert.ok(replay.busy, `${at}, the link's last pitch had landed before it could be checked`);
+  assert.deepEqual(replay.heard, { live: '', notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.' }, `${at}, what a screen reader is told as a link opens`);
+  assert.deepEqual(replay.count2, { said: '2 balls, 2 strikes', hidden: true }, `${at}, the count as a screen reader reads it`);
   assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 80.3 mph' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
   assert.equal(replay.ro, 'Pitch 6 · 80.3\u00a0mph curveball', `${at}, while the link's last pitch flies`);
@@ -782,12 +808,14 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   // reader hears too, not a count of 2 and 2 after strike three. A strikeout looking is a backwards K; a walk is BB.
   const ending = () => ph.evaluate(() => {
     const ct = document.querySelector('#ab-count .ct');
-    return { mark: ct.textContent, label: ct.getAttribute('aria-label'), flipped: getComputedStyle(ct).transform === 'matrix(-1, 0, 0, 1, 0, 0)', on: document.querySelector('#ab-count .on')?.textContent, heard: document.getElementById('ab-live').textContent };
+    // What's heard is how it ended, then the scout's note (here NOTE).
+    const note = document.getElementById('ab-note').textContent;
+    return { mark: ct.textContent, label: ct.getAttribute('aria-label'), flipped: getComputedStyle(ct).transform === 'matrix(-1, 0, 0, 1, 0, 0)', on: document.querySelector('#ab-count .on')?.textContent, heard: note.length > 20 && document.getElementById('ab-live').textContent.replace(note, 'NOTE') };
   });
-  assert.deepEqual(await ending(), { mark: 'K', label: 'Strikeout swinging', flipped: false, on: 'on a 2-2 pitch', heard: 'Strikeout swinging on a 2-2 pitch.' }, `${at}, at the end of the strikeout`);
+  assert.deepEqual(await ending(), { mark: 'K', label: 'Strikeout swinging', flipped: false, on: 'on a 2-2 pitch', heard: 'Strikeout swinging on a 2-2 pitch. NOTE' }, `${at}, at the end of the strikeout`);
   for (const [link, want] of [
-    ['#ab.average.R.2.FF8.FF6.SL16.FF7.CU13', { mark: 'K', label: 'Strikeout looking', flipped: true, on: 'on a 1-2 pitch', heard: 'Strikeout looking on a 1-2 pitch.' }],
-    ['#ab.average.R.3a.FF8.FF6.SL16.FF7', { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch.' }],
+    ['#ab.average.R.2.FF8.FF6.SL16.FF7.CU13', { mark: 'K', label: 'Strikeout looking', flipped: true, on: 'on a 1-2 pitch', heard: 'Strikeout looking on a 1-2 pitch. NOTE' }],
+    ['#ab.average.R.3a.FF8.FF6.SL16.FF7', { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch. NOTE' }],
   ]) {
     await ph.goto('about:blank');
     await ph.goto(base + link);
