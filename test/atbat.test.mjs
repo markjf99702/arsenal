@@ -5,7 +5,7 @@ import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, sp
 import { COUNTS, TYPES } from '../js/league.js';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
-import { why, note } from '../js/atbat-words.js';
+import { why, note, boxAt, calledLine } from '../js/atbat-words.js';
 
 const RESULTS = new Set(['ball', 'called', 'whiff', 'foul', 'tip', 'inplay', 'hbp']);
 const ENDS = new Set(['K', 'KL', 'BB', 'HBP', 'out', '1B', '2B', '3B', 'HR']);
@@ -75,6 +75,26 @@ test('the at-bat’s words read cleanly over thousands of at-bats', () => {
   for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why] of READS_BADLY) {
     assert.doesNotMatch(text, re, `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}, ${what}: ${why}: ${text}`);
   }
+});
+
+// An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), played the way the page plays it.
+function replay(link) {
+  const [, key, batter, seed, ...calls] = link.replace(/^#/, '').split('.');
+  const ab = startAtBat({ pitcher: pitcherByKey(key), batter, seed: parseInt(seed, 36) >>> 0 });
+  for (const c of calls) if (!ab.result) throwCall(ab, { code: c.slice(0, 2), spot: SPOTS[Number(c.slice(2))] });
+  return ab;
+}
+
+test('the log says where a pitch crossed when it went to another box than the one called', () => {
+  for (const ab of PLAYED) for (const p of ab.pitches) {
+    const box = boxAt(p.plate, ab.batter), line = calledLine(p, ab.batter);
+    assert.equal(box.zone, p.inZone, `seed ${ab.seed}, pitch ${p.n}: crossed in ${box.id}, in the zone ${p.inZone}`);
+    assert.equal(line.startsWith('called '), box.id !== p.spot.id, `seed ${ab.seed}, pitch ${p.n}: ${line}`);
+  }
+  // Misiorowski's curve, called in the dirt, hung in the zone and went out.
+  assert.equal(calledLine(replay('#ab.misiorowski.R.m.FF13.SL19.CU22').pitches[2], 'R'), 'called in the dirt, crossed down in the zone');
+  // The README's strikeout: the curve to the dirt box crossed in it, so the log names the call alone.
+  assert.equal(calledLine(replay('#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22').pitches[5], 'R'), 'in the dirt');
 });
 
 // The lab: 8,000 at-bats with the pitcher choosing for himself, measured the way Statcast measures the league.

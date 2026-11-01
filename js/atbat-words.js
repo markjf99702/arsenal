@@ -1,6 +1,6 @@
 // What happened on each pitch of an at-bat, and why, in words. Everything here reads the model's own record of
 // the pitch (js/atbat.js): what the hitter was looking for, whether he picked it up, where he swung and when.
-import { ZONE } from './atbat.js';
+import { ZONE, SPOTS, spotName } from './atbat.js';
 
 export const NAME = { FF: 'four-seamer', SI: 'sinker', FC: 'cutter', SL: 'slider', ST: 'sweeper', CU: 'curveball', KC: 'knuckle curve', SV: 'slurve', CH: 'changeup', FS: 'splitter', FO: 'forkball', KN: 'knuckleball', EP: 'eephus' };
 const the = code => `the ${NAME[code] || code}`;
@@ -23,6 +23,30 @@ export function resultWord(p) {
 }
 
 export const ENDING = { K: 'Strikeout swinging', KL: 'Strikeout looking', BB: 'Walk', HBP: 'Hit by pitch', out: 'Out in play', '1B': 'Single', '2B': 'Double', '3B': 'Triple', HR: 'Home run' };
+
+// A ball's radius, in feet. A pitch whose middle is lower than that at the front of the plate has bounced.
+const BALL_R = 1.45 / 12;
+export const bounced = p => p.plate[1] < BALL_R;
+
+// The box of the 5 x 5 grid a pitch crossed in, from the hitter's side: the zone in thirds, and the ring around it.
+export function boxAt([x, z], batter) {
+  const third = (v, lo, hi) => (v < lo ? -2 : v > hi ? 2 : Math.min(1, Math.floor((3 * (v - lo)) / (hi - lo)) - 1));
+  const c = third(batter === 'R' ? x : -x, -ZONE.half, ZONE.half), r = third(z, ZONE.bottom, ZONE.top);
+  return SPOTS.find(s => s.c === c && s.r === r);
+}
+// Where a pitch crossed, in the spots' words. The bottom row is called "in the dirt"; one that got there without
+// bouncing crossed "low".
+export function crossedAt(p, batter) {
+  if (bounced(p)) return 'in the dirt';
+  const box = boxAt(p.plate, batter);
+  return box.r === -2 ? spotName(box).replace('in the dirt', 'low') : spotName(box);
+}
+// The spot called and, when the pitch crossed in another box, where: "called in the dirt, crossed down in the zone".
+export function calledLine(p, batter) {
+  const called = spotName(p.spot);
+  if (boxAt(p.plate, batter).id === p.spot.id) return called;
+  return `called ${called}, ${bounced(p) ? 'bounced in front of the plate' : `crossed ${crossedAt(p, batter)}`}`;
+}
 
 // Where a pitch missed the zone, from the hitter's side: "3 inches below the zone", "5 inches off the plate away".
 export function missed(p, batter) {

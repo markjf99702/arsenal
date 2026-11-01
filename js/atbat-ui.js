@@ -1,7 +1,7 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
 import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotName } from './atbat.js';
-import { resultWord, why, note, ENDING, NAME } from './atbat-words.js';
+import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
 import { markKind } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
@@ -180,7 +180,8 @@ export function setupAtBat({ dark = false } = {}) {
     } else {
       $('ab-last').innerHTML = `<p class="res">Your call</p><p>Pick a pitch and a spot, then throw it. Strikes and swings are red, balls green, balls in play blue.</p>`;
     }
-    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${spotName(p.spot)} · ${p.mph.toFixed(1)} mph</span></li>`).join('');
+    // Each pitch, the spot called and, if it went to another box, where it crossed.
+    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${p.mph.toFixed(1)} mph</span></li>`).join('');
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     // Once it's over, the hundred throws look back at the last pitch.
