@@ -30,12 +30,14 @@ export function spotXZ(spot, batter) {
   return [batter === 'R' ? away : -away, ROWS[spot.r]];
 }
 
+// What the catcher calls each spot. The two sides read alike: "in" and "away" are in the zone, "off the plate inside"
+// and "off the plate away" are past its edge. The bottom row is "in the dirt", the call for a pitch to bounce; where
+// one really went is in its why (js/atbat-words.js) and in the log.
 export function spotName(spot) {
   if (spot.c === 0 && spot.r === 0) return 'down the middle';
   const v = { 2: 'high', 1: 'up', 0: '', '-1': 'down', '-2': 'in the dirt' }[spot.r];
-  const h = { '-2': 'inside', '-1': 'in', 0: '', 1: 'away', 2: 'off the plate away' }[spot.c];
+  const h = { '-2': 'off the plate inside', '-1': 'in', 0: '', 1: 'away', 2: 'off the plate away' }[spot.c];
   if (spot.r === 2 && spot.c === 0) return 'high, above the zone';
-  if (spot.c === -2 && spot.r === 0) return 'inside, off the plate';
   if (!v) return spot.c === -1 ? 'in, at the belt' : spot.c === 1 ? 'away, at the belt' : h;
   if (!h) return spot.r === 1 ? 'up in the zone' : spot.r === -1 ? 'down in the zone' : v;
   return `${v} and ${h}`;

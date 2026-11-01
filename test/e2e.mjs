@@ -474,7 +474,7 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ab-throw', 'focus after Next hitter');
   await page.locator('#ab-pitcher').selectOption('rogers');
   assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
-  assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and inside');
+  assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate inside');
   await page.locator('#ab-batter [data-v="L"]').click();
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
   // The new pitcher's pitches and the turned grid pick too.

@@ -1,7 +1,7 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, AVERAGE, pitcherByKey } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey } from '../js/atbat.js';
 import { COUNTS, TYPES } from '../js/league.js';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
@@ -19,6 +19,17 @@ test('every pitcher can throw every pitch to every spot, to either side of the p
     assert.ok(RESULTS.has(r.result), `${what}: ${r.result}`);
     for (const v of [...r.plate, ...r.atDecide, r.missBy, r.early]) assert.ok(Number.isFinite(v), `${what}: a number went bad`);
     assert.ok(r.plate[1] > -1 && r.plate[1] < 7, `${what}: crossed the plate at ${r.plate[1].toFixed(2)} ft`);
+  }
+});
+
+test('each of the 25 spots has its own name, and the two sides read alike', () => {
+  assert.equal(new Set(SPOTS.map(spotName)).size, 25);
+  for (const spot of SPOTS) {
+    const name = spotName(spot);
+    // Past the plate's edge on either side is "off the plate inside" or "off the plate away"; in the zone it's "in" or
+    // "away", so "up and in" (a strike) never sits beside an "up and inside" (a ball).
+    assert.equal(/off the plate (inside|away)/.test(name), Math.abs(spot.c) === 2, `${spot.id}: ${name}`);
+    assert.doesNotMatch(name.replace('off the plate inside', ''), /inside/, `${spot.id}: ${name}`);
   }
 });
 
