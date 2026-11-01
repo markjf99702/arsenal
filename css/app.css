@@ -182,6 +182,13 @@ p { margin: 0; }
 .seg button { border: 0; background: transparent; padding: 7px 11px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+/* The pill clips its buttons, so a ring outside one would be cut down to slivers: it's drawn just inside it instead,
+   standing off a pressed button's dark fill by a ring of the page's colour. The end buttons have the pill's rounded
+   ends of their own, so the ring follows them round rather than being cut square. */
+.seg button:first-child { border-radius: 999px 0 0 999px; }
+.seg button:last-child { border-radius: 0 999px 999px 0; }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: inset 0 0 0 4px var(--card); }
+.seg button[aria-pressed="true"]:focus-visible { box-shadow: inset 0 0 0 4px var(--paper), inset 0 0 0 6px var(--ink); }
 /* The small things to tap reach further than they look: padding, given back by an equal negative margin, so nothing moves. */
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; padding: 11.5px 0; margin: -11.5px 0; }
 .check input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
@@ -217,11 +224,9 @@ p { margin: 0; }
 .seg.mini { justify-self: center; margin-top: -2px; max-width: 100%; min-width: 0; }
 .seg.mini button { font-size: 12.5px; padding: 5px 9px; position: relative; }
 /* Padding would grow the dark pressed button, so these reach 8px above and below it with a see-through layer instead.
-   For that the pill clips only sideways (where a label too long for a narrow phone is cut off, as before), so the
-   rounded ends are the end buttons' own. */
+   For that the pill clips only sideways (where a label too long for a narrow phone is cut off, as before), and the
+   rounded ends are the end buttons' own, as on every pill. */
 .seg.mini button::after { content: ''; position: absolute; inset: -8px 0; }
-.seg.mini button:first-child { border-radius: 999px 0 0 999px; }
-.seg.mini button:last-child { border-radius: 0 999px 999px 0; }
 @supports (overflow: clip) { .seg.mini { overflow: visible; overflow-x: clip; } }
 @media (max-width: 480px) { .seg.mini { justify-self: stretch; } .seg.mini button { flex: 1; padding: 5px 2px; font-size: 12px; } }
 /* Up to 370px wide "From behind" and "From the side" don't fit side by side, so there they're "Behind" and "Side". */

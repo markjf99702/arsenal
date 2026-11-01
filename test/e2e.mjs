@@ -117,6 +117,26 @@ for (const colorScheme of ['light', 'dark']) {
 }
 await page.emulateMedia({ colorScheme: 'light' });
 
+// A segmented button's focus ring is drawn inside it: the pill clips its buttons, so a ring outside one is cut down to
+// slivers. The end buttons are rounded like the pill, so the ring follows its ends round. Every pill: the camera, speed,
+// hand and spin view, and the at-bat's batter and speed.
+{
+  await page.keyboard.press('Shift'); // a key, so focus is shown as the keyboard's
+  const cut = await page.evaluate(() => {
+    const cut = [...document.querySelectorAll('.seg button')].map(b => {
+      b.focus({ preventScroll: true });
+      const cs = getComputedStyle(b), row = b.parentElement;
+      const inside = b.matches(':focus-visible') && cs.outlineStyle === 'solid' && parseFloat(cs.outlineWidth) >= 2 && parseFloat(cs.outlineOffset) <= -parseFloat(cs.outlineWidth);
+      const rounded = (b !== row.firstElementChild || parseFloat(cs.borderTopLeftRadius) > 0) && (b !== row.lastElementChild || parseFloat(cs.borderTopRightRadius) > 0);
+      return inside && rounded ? null : `${row.getAttribute('aria-label')}, ${b.textContent}: a ${cs.outlineWidth} ring at ${cs.outlineOffset}${rounded ? '' : ', square at the pill’s end'}`;
+    }).filter(Boolean);
+    document.activeElement.blur();
+    scrollTo(0, 0);
+    return cut;
+  });
+  assert.deepEqual(cut, [], 'focus rings cut off by their pill');
+}
+
 // The at-bat's results in words (big, bold headings: large text) read clearly on the page and the cards in both
 // palettes, the dark one whether it comes from the system or from a host's data-theme: at least 3 to 1, as WCAG AA asks.
 for (const [colorScheme, theme] of [['light', null], ['dark', null], ['light', 'dark']]) {
