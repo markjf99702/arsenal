@@ -95,6 +95,19 @@ for (const colorScheme of ['light', 'dark']) {
 }
 await page.emulateMedia({ colorScheme: 'light' });
 
+// The lede's link to Pitch to a hitter is in the page's own colours rather than the browser's blue: its ink, underlined
+// in its red, in either palette.
+for (const colorScheme of ['light', 'dark']) {
+  await page.emulateMedia({ colorScheme });
+  const link = await page.evaluate(() => {
+    const a = getComputedStyle(document.querySelector('.lede a'));
+    const as = v => { const i = document.body.appendChild(document.createElement('i')); i.style.color = v; const c = getComputedStyle(i).color; i.remove(); return c; };
+    return { color: a.color === as('var(--ink)') || a.color, line: a.textDecorationColor === as('var(--accent)') || a.textDecorationColor };
+  });
+  assert.deepEqual(link, { color: true, line: true }, `${colorScheme}: the lede's link`);
+}
+await page.emulateMedia({ colorScheme: 'light' });
+
 // The at-bat's results in words (big, bold headings: large text) read clearly on the page and the cards in both
 // palettes, the dark one whether it comes from the system or from a host's data-theme: at least 3 to 1, as WCAG AA asks.
 for (const [colorScheme, theme] of [['light', null], ['dark', null], ['light', 'dark']]) {
