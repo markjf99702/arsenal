@@ -129,7 +129,9 @@ export function setupAtBat({ dark = false } = {}) {
     if (calling) $('ab-result').focus({ preventScroll: true });
   }
 
-  const pitchLine = p => `${p.mph.toFixed(1)} mph ${SHORT(p.code).toLowerCase()}`;
+  // A no-break space keeps "mph" with its number wherever a line wraps, as on the card.
+  const speed = p => `${p.mph.toFixed(1)}\u00a0mph`;
+  const pitchLine = p => `${speed(p)} ${NAME[p.code]}`;
   // The line under the count: what's coming or what happened, then the pitch. On a phone they're two short lines.
   const readout = (what = '', pitch = '') => { $('ab-ro').innerHTML = what && `${what}<span class="sep"> · </span><span>${pitch}</span>`; };
 
@@ -181,7 +183,7 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-last').innerHTML = `<p class="res">Your call</p><p>Pick a pitch and a spot, then throw it. Strikes and swings are red, balls green, balls in play blue.</p>`;
     }
     // Each pitch, the spot called and, if it went to another box, where it crossed.
-    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${p.mph.toFixed(1)} mph</span></li>`).join('');
+    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${speed(p)}</span></li>`).join('');
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     // Once it's over, the hundred throws look back at the last pitch.

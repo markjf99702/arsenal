@@ -530,7 +530,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await idle();
   assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
-  assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8 mph four-seam', `${at}, the readout doesn't say what the pitch did`);
+  assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
 
   // Strike three thrown with the button low: the result card takes the controls' place, out from behind the picture.
   await ph.goto('about:blank');
@@ -558,10 +558,12 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.ok(replay.busy, `${at}, the link's last pitch had landed before it could be checked`);
   assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 80.3 mph' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
-  assert.equal(replay.ro, 'Pitch 6 · 80.3 mph curve', `${at}, while the link's last pitch flies`);
+  assert.equal(replay.ro, 'Pitch 6 · 80.3\u00a0mph curveball', `${at}, while the link's last pitch flies`);
   assert.deepEqual(replay.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the link's last pitch flies`);
   await idle();
   assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()} · 6 pitches`);
+  // "mph" stays with its number (a no-break space) when a log line wraps on a phone.
+  assert.equal((await ph.locator('#ab-log').textContent()).match(/\d\u00a0mph/g)?.length, 6, `${at}, the log's speeds can wrap before "mph"`);
   // Once it's over, the count gives way to the scorebook's mark and the count it ended on, and that's what a screen
   // reader hears too, not a count of 2 and 2 after strike three. A strikeout looking is a backwards K; a walk is BB.
   const ending = () => ph.evaluate(() => {
