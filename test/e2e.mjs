@@ -929,8 +929,8 @@ for (const width of [320, 360]) {
   }));
   assert.deepEqual(wrapped, [], `at ${width}px these numbers on the card wrap onto two lines`);
   assert.equal(await narrow.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the page scrolls sideways at ${width}px`);
-  // The spin view's two labels don't fit side by side here, so the pill cuts one off, but a pressed "From the side" stays
-  // inside the pill's rounded end: just past its top corner is the card, not the pressed button.
+  // The spin view's buttons are "Behind" and "Side" here, as "From behind" and "From the side" don't fit side by side,
+  // and a pressed "Side" stays inside the pill's rounded end: just past its top corner is the card, not the pressed button.
   await narrow.locator('#spinview [data-v="side"]').click();
   await narrow.evaluate(() => document.getElementById('spinview').scrollIntoView({ block: 'center' }));
   const pill = await narrow.locator('#spinview').boundingBox();
@@ -943,7 +943,28 @@ for (const width of [320, 360]) {
     const seen = [...ctx.getImageData(shot.width - 3, 2, 1, 1).data].slice(0, 3);
     return { seen, apart: Math.max(...seen.map((v, i) => Math.abs(v - card[i]))) };
   }, corner.toString('base64'));
-  assert.ok(past.apart <= 12, `at ${width}px a pressed "From the side" shows past the pill's rounded end: rgb(${past.seen})`);
+  assert.ok(past.apart <= 12, `at ${width}px a pressed "Side" shows past the pill's rounded end: rgb(${past.seen})`);
+  // Each label fits its button, inside the pill, and the clock's numbers and "to the plate" are at least 11px, however
+  // small the panel.
+  const spinText = await narrow.evaluate(async () => {
+    const pill = document.getElementById('spinview').getBoundingClientRect();
+    const cut = [...document.querySelectorAll('#spinview button')].filter(b => {
+      const text = document.createRange();
+      text.selectNodeContents([...b.children].find(s => getComputedStyle(s).display !== 'none') || b);
+      const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+      return text.getBoundingClientRect().width > r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.5 || r.right > pill.right + 0.5;
+    }).map(b => b.textContent);
+    const ctx = document.getElementById('spin').getContext('2d'), sizes = {};
+    ctx.fillText = function (text, ...rest) {
+      sizes[text] = Number(/([\d.]+)px/.exec(this.font)[1]) / Math.min(2, devicePixelRatio);
+      return CanvasRenderingContext2D.prototype.fillText.call(this, text, ...rest);
+    };
+    const frames = n => new Promise(r => { const f = () => (n-- > 0 ? requestAnimationFrame(f) : r()); f(); });
+    for (const v of ['behind', 'side']) { document.querySelector(`#spinview [data-v="${v}"]`).click(); await frames(3); }
+    delete ctx.fillText;
+    return { cut, small: Object.entries(sizes).filter(([, px]) => px < 11).map(([t, px]) => `${t}: ${px}px`), drawn: Object.keys(sizes).length };
+  });
+  assert.deepEqual(spinText, { cut: [], small: [], drawn: 5 }, `at ${width}px, the spin view's labels cut off, or its clock's words too small`);
   await narrowCtx.close();
 }
 
@@ -978,6 +999,31 @@ assert.match(await calm.locator('#landed').textContent(), /^Eephus, 0\.\d\d seco
   assert.ok(await calm.evaluate(() => window.spinDraws) > idle, 'the still spin panel was not drawn again for the side view');
   const inked = await calm.evaluate(() => { const c = document.getElementById('spin'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
   assert.ok(inked > 1000, 'the still spin panel is blank');
+}
+// The cutter's, slider's and sweeper's spin axes point mostly at you (bullet spin), so the near end of the axis is over
+// the ball. It's dark there on the dark page as on the light one: the ball is cream on both, and the dark page's ink is
+// nearly as pale. (The end is the last dot drawn.)
+{
+  await calm.locator('#spinview [data-v="behind"]').click();
+  const pale = [];
+  for (const colorScheme of ['light', 'dark']) {
+    await calm.emulateMedia({ colorScheme });
+    pale.push(...await calm.evaluate(async scheme => {
+      const ctx = document.getElementById('spin').getContext('2d'), out = [];
+      let end;
+      ctx.arc = function (x, y, ...rest) { end = [x, y]; return CanvasRenderingContext2D.prototype.arc.call(this, x, y, ...rest); };
+      for (const code of ['FC', 'SL', 'ST']) {
+        window.arsenal.pick(code);
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const [r, g, b] = ctx.getImageData(Math.round(end[0]), Math.round(end[1]), 1, 1).data;
+        const light = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+        if (light > 80) out.push(`${scheme} ${code}: rgb(${r}, ${g}, ${b})`);
+      }
+      delete ctx.arc;
+      return out;
+    }, colorScheme));
+  }
+  assert.deepEqual(pale, [], 'the end of the spin axis is pale over the ball');
 }
 await calmCtx.close();
 

@@ -3,6 +3,11 @@ import { drawBall, orient, spun, FOUR, TWO, DOT } from './ball.js';
 import { cross, norm, add, scale } from './math3.js';
 
 export const SLOW = 40; // shown this many times slower than real
+// The ball is the same cream on the light page and the dark one, so the axis is drawn over it in a fixed dark ink, and
+// the end of the axis is ringed in the ball's cream to stand out from the seams.
+const OVER_BALL = '#1b2230', CREAM = '#fbf7ee';
+// The smallest the clock's numbers and "to the plate" are drawn, in CSS pixels.
+const SMALLEST = 11;
 
 const LOCAL = { four: FOUR, two: TWO, dot: DOT };
 // Views of a world direction: x right, y up, z toward the viewer.
@@ -67,6 +72,7 @@ export class SpinPanel {
   resize() {
     const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.dpr = dpr;
     this.canvas.width = Math.max(1, Math.round(r.width * dpr));
     this.canvas.height = Math.max(1, Math.round(r.height * dpr));
     this.dirty = true; // setting the size clears the canvas
@@ -95,18 +101,22 @@ export class SpinPanel {
     const angle = (this.spin.rps / SLOW) * 2 * Math.PI * secs;
     const lw = Math.max(1, W / 260);
     const c = this.colors;
+    const px = size => Math.round(Math.max(size, SMALLEST * (this.dpr || 1)));
+    const font = size => `600 ${px(size)}px "Barlow Condensed", system-ui, sans-serif`;
 
     // Clock face (behind view): where the spin pushes the ball.
     if (this.view === 'behind') {
       ctx.strokeStyle = c.ring; ctx.lineWidth = lw;
       ctx.beginPath(); ctx.arc(cx, cy, R * 1.36, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = c.muted;
-      ctx.font = `600 ${Math.round(R * 0.17)}px "Barlow Condensed", system-ui, sans-serif`;
+      ctx.font = font(R * 0.17);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // On a small panel the numbers are bigger than R would make them, so they come in a little to stay on it.
+      const out = Math.min(R * 1.58, Math.min(W, H) / 2 - px(R * 0.17) * 0.5);
       for (let h = 1; h <= 12; h++) {
         const a = (h / 12) * Math.PI * 2;
         const x = cx + Math.sin(a) * R * 1.36, y = cy - Math.cos(a) * R * 1.36;
-        if (h % 3 === 0) ctx.fillText(String(h), cx + Math.sin(a) * R * 1.58, cy - Math.cos(a) * R * 1.58);
+        if (h % 3 === 0) ctx.fillText(String(h), cx + Math.sin(a) * out, cy - Math.cos(a) * out);
         ctx.beginPath(); ctx.arc(x, y, lw * (h % 3 === 0 ? 2 : 1.2), 0, Math.PI * 2); ctx.fill();
       }
       const t = tilt(pitch, this.hand);
@@ -124,27 +134,34 @@ export class SpinPanel {
         ctx.closePath(); ctx.fill();
       }
     } else {
-      // Side view: an arrow for the direction of flight.
+      // Side view: an arrow for the direction of flight, a little lower where its words are bigger than R would make
+      // them, so they stay clear of the ball.
       ctx.strokeStyle = c.muted; ctx.fillStyle = c.muted; ctx.lineWidth = lw * 1.5;
-      const y = cy + R * 1.38;
+      const y = cy + R * 1.38 + (px(R * 0.16) - R * 0.16) * 0.5;
       ctx.beginPath(); ctx.moveTo(cx - R * 0.9, y); ctx.lineTo(cx + R * 0.9, y); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(cx + R * 1.05, y); ctx.lineTo(cx + R * 0.82, y - R * 0.1); ctx.lineTo(cx + R * 0.82, y + R * 0.1); ctx.closePath(); ctx.fill();
-      ctx.font = `600 ${Math.round(R * 0.16)}px "Barlow Condensed", system-ui, sans-serif`;
+      ctx.font = font(R * 0.16);
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.fillText('to the plate', cx, y - R * 0.08);
     }
 
-    // The axis: behind the ball first, then the ball, then the near half.
+    // The axis: behind the ball first, then the ball, then the near half. A point t along the axis from the middle of
+    // the ball is drawn at at(t): the near half comes out of the ball at t = R and ends at L, and is over the ball until
+    // it reaches the ball's edge on screen, at t = edge. A pitch with bullet spin has its axis pointing at you, so its
+    // near half is over the ball all the way to its end.
     const ax = axisV, L = R * 1.5;
-    const end = s => [cx + ax[0] * L * s, cy - ax[1] * L * s];
-    const far = ax[2] >= 0 ? -1 : 1;
-    ctx.strokeStyle = c.ink; ctx.lineWidth = lw * 1.8; ctx.lineCap = "round";
+    const near = ax[2] >= 0 ? 1 : -1;
+    const at = t => [cx + ax[0] * t, cy - ax[1] * t];
+    const along = Math.hypot(ax[0], ax[1]), edge = along > 0 ? R / along : Infinity;
+    ctx.strokeStyle = c.ink; ctx.lineWidth = lw * 1.8; ctx.lineCap = 'round';
     ctx.setLineDash([lw * 3, lw * 3]);
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(...end(far)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(...at(-near * L)); ctx.stroke();
     ctx.setLineDash([]);
     drawBall(ctx, cx, cy, R, spun(M0, axisV, angle));
-    ctx.beginPath(); ctx.moveTo(cx + ax[0] * R * -far, cy - ax[1] * R * -far); ctx.lineTo(...end(-far)); ctx.stroke();
-    ctx.fillStyle = c.ink;
-    ctx.beginPath(); ctx.arc(...end(-far), lw * 2.6, 0, Math.PI * 2); ctx.fill();
+    const line = (from, to, color) => { ctx.strokeStyle = color; ctx.beginPath(); ctx.moveTo(...at(near * from)); ctx.lineTo(...at(near * to)); ctx.stroke(); };
+    line(R, Math.min(L, edge), OVER_BALL);
+    if (edge < L) line(edge, L, c.ink);
+    ctx.fillStyle = edge > L ? OVER_BALL : c.ink; ctx.strokeStyle = CREAM; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(...at(near * L), lw * 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 }
