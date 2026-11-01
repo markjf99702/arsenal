@@ -9,8 +9,8 @@ const el = (tag, attrs = {}, parent) => {
   return e;
 };
 // Rounded like the card rounds. toFixed shows the sinker's 16.65% as 16.6, because of how 16.65 is stored, so it's
-// rounded first. Speeds and shares keep their places ("86.0", "8.0"), as the card's speed does; shares under 1% get two.
-const fmt = (v, d = 1) => String(Math.round(v * 10 ** d) / 10 ** d);
+// rounded first. Speeds, shares and inches keep their places ("86.0", "8.0", "1.0 in"), as on the card; shares under 1%
+// get two.
 const fixed = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toFixed(d);
 export const shareText = share => fixed(share, share < 1 ? 2 : 1);
 const mphText = mph => fixed(mph);
@@ -68,9 +68,9 @@ function drawMovement(host, W, { onPick, tooltip }) {
   for (const p of items) {
     const r = Math.max(4.5, Math.min(24, Math.sqrt(p.n.share) * 4.3 * k));
     // Which way spin moves it, in words: "10.3 in down" rather than "-10.3 in down".
-    const rise = fmt(Math.abs(p.n.rise)), arm = fmt(Math.abs(p.n.arm));
+    const rise = fixed(Math.abs(p.n.rise)), arm = fixed(Math.abs(p.n.arm));
     const up = p.n.rise >= 0 ? 'up' : 'down', side = p.n.arm >= 0 ? 'arm' : 'glove';
-    const inches = s => `${s} inch${s === '1' ? '' : 'es'}`;
+    const inches = s => `${s} inches`; // "1.0 inches", like any number with a decimal place
     const g = el('g', { class: `dot fam-${p.fam}`, tabindex: '0', role: 'button', 'aria-label': `${p.name}: ${inches(rise)} ${up}, ${inches(arm)} to the ${side} side` }, dots);
     const cx = x(p.n.arm), cy = y(p.n.rise);
     el('circle', { cx, cy, r: r + 9, class: 'hit' }, g);

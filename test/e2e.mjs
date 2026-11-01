@@ -423,6 +423,28 @@ await page.locator('#hand [data-v="R"]').click();
   assert.deepEqual([by.CH.speed.table, by.FC.table], ['86.0 mph', '8.0%']);
 }
 
+// Inches and mph keep their one decimal place everywhere, as the speed does: the sweeper moves "↑ 1.0 in" and its
+// hardest thrower averaged 89.0 mph, the cutter "↑ 8.0 in", the splitter 11.0 inches to the arm side.
+{
+  const cards = await page.evaluate(() => Object.fromEntries(['ST', 'FC', 'FS', 'KC'].map(code => {
+    window.arsenal.pick(code);
+    const box = [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Spin moves it');
+    const dot = document.querySelector('.move-chart .dot.on');
+    dot.dispatchEvent(new FocusEvent('focus'));
+    const tip = document.getElementById('tip').textContent;
+    dot.dispatchEvent(new FocusEvent('blur'));
+    return [code, { moves: box.querySelector('dd').textContent.replace(/\s+/g, ' '), hardest: [...document.querySelectorAll('#c-facts li')].map(li => li.textContent).find(t => t.startsWith('Hardest')) || '', dot: dot.getAttribute('aria-label'), tip }];
+  })));
+  assert.match(cards.ST.moves, /↑ 1\.0 in/);
+  assert.equal(cards.ST.hardest, 'Hardest on average: Max Meyer, 89.0 mph.');
+  assert.match(cards.ST.dot, /: 1\.0 inches up, 13\.6 inches to the glove side$/);
+  assert.match(cards.ST.tip, /1\.0 in up, 13\.6 in glove side/);
+  assert.match(cards.FC.moves, /↑ 8\.0 in/);
+  assert.match(cards.FS.moves, /arm side 11\.0 in/);
+  assert.match(cards.KC.moves, /↓ 10\.0 in/);
+  assert.equal(cards.KC.hardest, 'Hardest on average: Trevor Megill, 88.0 mph.');
+}
+
 // The chart's dots say which way each pitch moves in words, without minus signs, for the eye and the ear.
 {
   const dots = await page.evaluate(() => [...document.querySelectorAll('.move-chart .dot')].map(g => {

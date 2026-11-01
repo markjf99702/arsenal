@@ -9,7 +9,9 @@ import { DECIDE, throwPitch } from './flight.js';
 import { setupAtBat } from './atbat-ui.js';
 
 const $ = id => document.getElementById(id);
-const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d });
+// Inches and mph keep their one decimal place ("↑ 1.0 in", "89.0 mph"), as the speed does; rpm (fmt(v, 0)) has none and
+// a thousands comma.
+const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const MAIN = '#ffd23f', PAIR = '#7fd3ff';
 const FAM_SINGULAR = { fast: 'Fastball', break: 'Breaking ball', off: 'Off-speed pitch', odd: 'Oddity' };
 
