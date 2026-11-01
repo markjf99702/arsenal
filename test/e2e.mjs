@@ -359,14 +359,18 @@ assert.match(await heading(), /^Slider/i);
 assert.equal(await page.locator('#tip').isHidden(), true, 'the tooltip stayed open after picking a dot with Enter');
 // Picked with the keyboard further down the page, from the table or with previous and next, the page goes up to the
 // pitch and focus goes with it, to its name, rather than staying down the page out of sight.
+// (Each starts once the page has stopped scrolling: Chromium can drop a smooth scroll begun while the page is still
+// gliding from the last one and has just been jumped by a focus, which this isn't about.)
+const settled = async () => { for (let y = -1, now; (now = await page.evaluate(() => scrollY)) !== y; y = now) await page.waitForTimeout(300); };
 for (const [from, name] of [[page.locator('.lineup tbody tr', { hasText: 'Sweeper' }).locator('button'), /^Sweeper/i], [page.locator('#next'), /^Curveball/i]]) {
+  await settled();
   await from.focus();
   await page.keyboard.press('Enter');
   assert.match(await heading(), name);
-  const focus = () => page.evaluate(() => { const a = document.activeElement, r = a.getBoundingClientRect(); return `${a.id || a.textContent} at ${Math.round(r.top)}px`; });
-  await until(() => page.evaluate(() => { const r = document.activeElement.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), 3000,
-    `after picking ${name.source.slice(1)} with the keyboard, focus is out of sight: ${await focus()}`);
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'c-name', `focus after picking ${name.source.slice(1)} with the keyboard`);
+  const focus = () => page.evaluate(() => { const a = document.activeElement, r = a.getBoundingClientRect(); return { id: a.id || a.textContent, seen: r.top >= 0 && r.bottom <= innerHeight }; });
+  let now;
+  for (const end = Date.now() + 3000; !(now = await focus()).seen && Date.now() < end;) await page.waitForTimeout(100);
+  assert.deepEqual(now, { id: 'c-name', seen: true }, `focus after picking ${name.source.slice(1)} with the keyboard`);
 }
 
 await page.locator('.lineup tbody tr', { hasText: 'Splitter' }).locator('button').click();
