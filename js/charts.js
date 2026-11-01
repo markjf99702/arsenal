@@ -120,12 +120,14 @@ function drawMovement(host, W, { onPick, tooltip }) {
 export function lineupTable(host, { onPick }) {
   const rows = [...PITCHES].sort((a, b) => b.n.share - a.n.share);
   const maxShare = rows[0].n.share;
-  const lo = 35, hi = 105;
-  const pos = v => ((v - lo) / (hi - lo)) * 100;
+  // The speeds run 70 to 100 mph, where every pitch but the eephus is, so the bars between 80 and 95 have room. The
+  // eephus, at 45, sits off the scale at its left end, past a break in the line.
+  const lo = 70, hi = 100;
+  const pos = v => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100));
   const table = document.createElement('table');
   table.className = 'lineup';
   table.innerHTML = `<caption class="sr">Every pitch type in 2026: share of all pitches, speed, and misses per 100 swings</caption>
-    <thead><tr><th scope="col">Pitch</th><th scope="col">Share of pitches</th><th scope="col">Speed, mph <span class="hint">(dot: average · bar: middle 80% of pitches)</span></th><th scope="col" class="num">Misses per<br> 100 swings</th></tr></thead>`;
+    <thead><tr><th scope="col">Pitch</th><th scope="col">Share of pitches</th><th scope="col">Speed, mph <span class="hint">(dot: average · bar: middle 80% of pitchers, by pitches thrown)</span></th><th scope="col" class="num">Misses per<br> 100 swings</th></tr></thead>`;
   const body = document.createElement('tbody');
   for (const p of rows) {
     const n = p.n;
@@ -133,14 +135,17 @@ export function lineupTable(host, { onPick }) {
     tr.className = `fam-${p.fam}`;
     tr.dataset.code = p.code;
     const share = shareText(n.share);
-    // No bar when the average is one pitcher's (the knuckleball's): there's no range of pitchers to show.
-    const range = n.low == null
-      ? { said: `${mphText(n.mph)} mph on average`, bar: '' }
-      : { said: `${mphText(n.mph)} mph on average; most between ${mphText(n.low)} and ${mphText(n.high)}`, bar: `<span class="span" style="left:${pos(n.low)}%;width:${Math.max(0.8, pos(n.high) - pos(n.low))}%"></span>` };
+    // No bar when the average is one pitcher's (the knuckleball's): there's no range of pitchers to show. The range is
+    // over the pitchers' own average speeds, each counted as often as he threw it (tools/statcast.mjs). Off the scale
+    // (the eephus), the dot sits at its left end past a break mark, with no bar.
+    const off = n.mph < lo;
+    const said = `${mphText(n.mph)} mph on average${n.low == null ? '' : `; most pitchers between ${mphText(n.low)} and ${mphText(n.high)}`}`;
+    const bar = n.low == null || off ? '' : `<span class="span" style="left:${pos(n.low)}%;width:${Math.max(0.8, pos(n.high) - pos(n.low))}%"></span>`;
+    const range = { said, bar: off ? '<span class="break"></span>' : bar };
     tr.innerHTML = `
       <th scope="row"><button type="button"><span class="key" aria-hidden="true"></span>${p.short}</button></th>
       <td><div class="cell"><span class="bar"><span style="width:${Math.max(0.6, (n.share / maxShare) * 100)}%"></span></span><span class="val">${share}%</span></div></td>
-      <td><div class="cell"><span class="range" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${mphText(n.mph)}</span></div></td>
+      <td><div class="cell"><span class="range${off ? ' off' : ''}" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${mphText(n.mph)}</span></div></td>
       <td class="num">${n.whiff == null ? '–' : Math.round(n.whiff)}</td>`;
     tr.querySelector('button').addEventListener('click', () => onPick(p));
     body.appendChild(tr);
@@ -148,7 +153,7 @@ export function lineupTable(host, { onPick }) {
   table.appendChild(body);
   // Speed scale under the speed column.
   const foot = document.createElement('tfoot');
-  foot.innerHTML = `<tr><td></td><td></td><td><div class="cell"><span class="scale">${[40, 60, 80, 100].map(v => `<span style="left:${pos(v)}%">${v}</span>`).join('')}</span><span class="val"></span></div></td><td></td></tr>`;
+  foot.innerHTML = `<tr><td></td><td></td><td><div class="cell"><span class="scale">${[70, 80, 90, 100].map(v => `<span style="left:${pos(v)}%">${v}</span>`).join('')}</span><span class="val"></span></div></td><td></td></tr>`;
   table.appendChild(foot);
   host.replaceChildren(table);
   return {

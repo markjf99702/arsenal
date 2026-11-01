@@ -137,7 +137,8 @@ function renderCard() {
   $('c-line').textContent = p.line;
   const share = shareText(n.share);
   $('c-stats').innerHTML = [
-    stat('Speed', `${n.mph.toFixed(1)} mph`, n.low ? `most ${Math.round(n.low)}–${Math.round(n.high)}` : ''),
+    // The range is over pitchers' average speeds (tools/statcast.mjs), not single pitches.
+    stat('Speed', `${n.mph.toFixed(1)} mph`, n.low ? `most pitchers ${Math.round(n.low)}–${Math.round(n.high)}` : ''),
     stat('Spin', `${fmt(n.rpm, 0)} rpm`, p.code === 'KN' ? 'barely turning' : `${Math.round(n.rpm / 60)} turns a second`),
     // A no-break space keeps "in" with its number in the narrow box ("glove side 3.9 in", not "in" on a line alone).
     stat('Spin moves it', `${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}`, `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`),

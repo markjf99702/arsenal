@@ -288,6 +288,8 @@ p { margin: 0; }
 .lineup thead th { text-align: left; font: 600 12px/1.2 var(--display); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 0 6px 6px; vertical-align: bottom; }
 .lineup .hint { display: block; text-transform: none; letter-spacing: 0; font: 400 11.5px/1.2 var(--body); }
 .lineup .num { text-align: right; }
+/* "Misses per" and "100 swings" keep a line each, however much the speed's hint wants the room. */
+.lineup thead th.num { white-space: nowrap; }
 .lineup tbody tr { border-top: 1px solid var(--line); }
 .lineup tbody tr.on { background: color-mix(in srgb, var(--fam) 12%, transparent); }
 .lineup th[scope="row"] { padding: 0; font-weight: 500; white-space: nowrap; }
@@ -301,14 +303,26 @@ p { margin: 0; }
 .lineup .range { flex: 1; height: 14px; position: relative; }
 .lineup .range::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
 .lineup .range .span { position: absolute; top: 4px; height: 6px; background: color-mix(in srgb, var(--fam) 45%, transparent); border-radius: 3px; }
-.lineup .range .avg { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--fam); box-shadow: 0 0 0 2px var(--card); }
+.lineup .range .avg { position: absolute; top: 3px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--fam); box-shadow: 0 0 0 2px var(--card); }
+/* Off the scale (the eephus): the dot at the left end, then a break in the line before the scale starts. */
+.lineup .range.off .avg { margin-left: 0; }
+.lineup .range.off::before { left: 20px; }
+.lineup .range .break { position: absolute; left: 11px; top: 2px; width: 6px; height: 10px; }
+.lineup .range .break::before, .lineup .range .break::after { content: ''; position: absolute; top: 0; height: 10px; border-left: 1.5px solid var(--muted); transform: skewX(-25deg); }
+.lineup .range .break::before { left: 0; }
+.lineup .range .break::after { left: 4px; }
 .lineup tfoot td { padding-top: 2px; }
 .lineup .scale { position: relative; display: block; height: 16px; flex: 1; font-size: 11px; color: var(--muted); }
 .lineup .scale span { position: absolute; transform: translateX(-50%); }
+/* The end numbers sit inside the column, over the ends of the line. */
+.lineup .scale span:first-child { transform: none; }
+.lineup .scale span:last-child { transform: translateX(-100%); }
 @media (max-width: 600px) {
   /* Each pitch becomes two lines: name and misses, then share and speed side by side. */
   .lineup, .lineup thead, .lineup tbody, .lineup tfoot { display: block; }
   .lineup tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto; column-gap: 12px; }
+  /* The misses' column is as wide on every row and under the scale, where it's empty, so the scale lines up with the bars. */
+  .lineup tbody tr, .lineup tfoot tr { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 2em; }
   .lineup thead tr { row-gap: 2px; padding-bottom: 6px; }
   .lineup thead th { padding: 0; }
   .lineup thead th:nth-child(1) { grid-area: 1 / 1 / 2 / 3; }

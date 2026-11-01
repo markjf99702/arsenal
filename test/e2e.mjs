@@ -490,8 +490,29 @@ await page.locator('#hand [data-v="R"]').click();
 // The chart and the table pick pitches too.
 assert.equal(await page.locator('.move-chart .dot').count(), 13);
 assert.equal(await page.locator('.lineup tbody tr').count(), 13);
-// The speed bars are the middle 80% of pitches, which is how tools/statcast.mjs works them out.
-assert.match(await page.locator('.lineup .hint').textContent(), /bar: middle 80% of pitches\)/);
+// The speed bars are the middle 80% of pitchers' average speeds, each counted by how many he threw, which is how
+// tools/statcast.mjs works them out, not of single pitches; the card says "most pitchers" too.
+assert.match(await page.locator('.lineup .hint').textContent(), /bar: middle 80% of pitchers, by pitches thrown\)/);
+// The scale runs 70 to 100 mph, so the bars between 80 and 95 have room; the eephus sits off it at the left end, past a
+// break, still labelled with its speed, and with no bar.
+{
+  const table = await page.evaluate(() => {
+    const row = code => document.querySelector(`.lineup tbody tr[data-code="${code}"]`);
+    const width = el => el.getBoundingClientRect().width;
+    const ep = row('EP'), ff = row('FF');
+    return {
+      scale: [...document.querySelectorAll('.lineup .scale span')].map(s => s.textContent),
+      eephus: { val: ep.querySelector('td:nth-child(3) .val').textContent, bars: ep.querySelectorAll('.range .span').length, breaks: ep.querySelectorAll('.range .break').length, atLeft: ep.querySelector('.range .avg').getBoundingClientRect().left - ep.querySelector('.range').getBoundingClientRect().left },
+      dot: width(ff.querySelector('.range .avg')),
+      // How much of the four-seamer's bar shows either side of its dot.
+      shows: (width(ff.querySelector('.range .span')) - width(ff.querySelector('.range .avg'))) / 2,
+    };
+  });
+  assert.deepEqual(table.scale, ['70', '80', '90', '100']);
+  assert.deepEqual({ ...table.eephus, atLeft: table.eephus.atLeft < 2 }, { val: '45.3', bars: 0, breaks: 1, atLeft: true });
+  assert.equal(table.dot, 8);
+  assert.ok(table.shows >= 6, `the four-seamer's bar shows ${table.shows.toFixed(1)}px either side of its dot`);
+}
 await page.locator('.move-chart .dot', { hasText: 'Curve' }).first().click();
 assert.match(await heading(), /^Curveball/i);
 // A dot picked with a tap or with Enter doesn't leave its tooltip open over the chart.
