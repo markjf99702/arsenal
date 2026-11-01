@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey } from '../js/atbat.js';
-import { COUNTS, TYPES } from '../js/league.js';
+import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
+import { readFile } from 'node:fs/promises';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME } from '../js/atbat-words.js';
@@ -31,6 +32,14 @@ test('each of the 25 spots has its own name, and the two sides read alike', () =
     assert.equal(/off the plate (inside|away)/.test(name), Math.abs(spot.c) === 2, `${spot.id}: ${name}`);
     assert.doesNotMatch(name.replace('off the plate inside', ''), /inside/, `${spot.id}: ${name}`);
   }
+});
+
+// js/league.js is written by tools/league.mjs, so a line changed by hand in one has to match the other, or the next
+// refresh puts the old one back.
+test('each real pitcher’s line is the one tools/league.mjs writes', async () => {
+  const tool = await readFile(new URL('../tools/league.mjs', import.meta.url), 'utf8');
+  const lines = Object.fromEntries([...tool.matchAll(/\[\d+, '(\w+)', '([^']*)'\]/g)].map(m => [m[1], m[2]]));
+  assert.deepEqual(REAL.map(p => [p.key, p.line]), REAL.map(p => [p.key, lines[p.key]]));
 });
 
 test('the same seed and the same calls replay the same at-bat', () => {

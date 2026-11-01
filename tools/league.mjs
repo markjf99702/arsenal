@@ -15,7 +15,7 @@ const FASTBALLS = ['FF', 'SI', 'FC'];
 const PITCHERS = [
   [694973, 'skenes', 'Six pitches, most of them hard.'],
   [694819, 'misiorowski', 'A four-seamer at 100 mph, and a curve at 88.'],
-  [592332, 'gausman', 'Four-seamer and splitter, out of the same tunnel.'],
+  [592332, 'gausman', 'Four-seamer and splitter that look alike until late.'],
   [650911, 'sanchez', 'A lefty’s sinker and changeup.'],
   [519242, 'sale', 'A lefty’s slider that sweeps a foot.'],
   [605400, 'nola', 'Lives on the knuckle curve.'],

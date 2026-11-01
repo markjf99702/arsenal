@@ -350,7 +350,7 @@ export const PITCHERS = [
  },
  {
   "key": "gausman",
-  "line": "Four-seamer and splitter, out of the same tunnel.",
+  "line": "Four-seamer and splitter that look alike until late.",
   "name": "Kevin Gausman",
   "hand": "R",
   "pitches": [
