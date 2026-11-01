@@ -248,7 +248,13 @@ function pick(p, { scroll = false, push = true } = {}) {
   chart.select(p.code);
   table.select(p.code);
   if (push) address();
-  if (scroll) $('pitch').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  // Picked further down the page (the chart, the table, or previous and next at the foot of the card), the page goes up
+  // to the pitch, and so does focus: to its name, which a screen reader then reads, and the next Tab goes on into the card
+  // rather than back down the table out of sight. A chip in the picker is already in view, and keeps focus.
+  if (scroll) {
+    $('pitch').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    $('c-name').focus({ preventScroll: true });
+  }
   throwNow();
 }
 
