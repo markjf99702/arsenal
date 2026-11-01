@@ -243,7 +243,7 @@ export function setupAtBat({ dark = false } = {}) {
       : `${S.pitcher.name}, ${spotName(spot)}, in a ${view.balls}-${view.strikes} count${before ? `, right after the ${NAME[before.code]}` : ''}`;
     $('ab-chart').innerHTML = `<p class="small">${caption}: what happens out of 100 throws of each pitch.</p>
       <ul class="legend-row">${ORDER.map(([k, l]) => `<li><i class="sg-${k}"></i>${l}</li>`).join('')}</ul>
-      <p class="small">Blues went the pitcher's way, oranges the hitter's.</p>
+      <p class="small">Blues went the pitcher’s way, oranges the hitter’s.</p>
       <ol class="hundred-bars">${rows}</ol>`;
     // Into view, below the picture on a phone (its scroll margin), so the tap visibly did something.
     $('ab-chart').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -263,7 +263,7 @@ export function setupAtBat({ dark = false } = {}) {
       field.hidden = true;
       $('ab-copied').textContent = 'Link copied. Whoever opens it sees this exact at-bat.';
     } catch {
-      $('ab-copied').textContent = "Couldn't copy here. Select the link and copy it:";
+      $('ab-copied').textContent = 'Couldn’t copy here. Select the link and copy it:';
       field.value = url;
       field.hidden = false;
       field.focus();

@@ -639,7 +639,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
       inside: end.left >= box.left && end.right <= box.right, sideways: document.documentElement.scrollWidth > innerWidth,
     };
   });
-  assert.deepEqual(copied, { said: "Couldn't copy here. Select the link and copy it:", link: 'https://junkdrawer.works/arsenal/' + STRIKEOUT, shown: true, focused: true, selected: true, inside: true, sideways: false }, `${at}, Copy link with the clipboard refused`);
+  assert.deepEqual(copied, { said: "Couldn’t copy here. Select the link and copy it:", link: 'https://junkdrawer.works/arsenal/' + STRIKEOUT, shown: true, focused: true, selected: true, inside: true, sideways: false }, `${at}, Copy link with the clipboard refused`);
 
   // The hundred throws look back at strike three: what else he could have thrown on that 2-2 pitch, rather than a next
   // pitch from a count of 2 and 3. Tapped low on the screen, the chart comes into view below the picture, and each bar
@@ -657,9 +657,11 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     };
   });
   assert.deepEqual(hundred, {
-    said: ['On that 2-2 pitch, called in the dirt, instead of the curveball: what happens out of 100 throws of each pitch.', "Blues went the pitcher's way, oranges the hitter's."],
+    said: ['On that 2-2 pitch, called in the dirt, instead of the curveball: what happens out of 100 throws of each pitch.', "Blues went the pitcher’s way, oranges the hitter’s."],
     below: true, onScreen: true, empty: 0, starts: 1,
   }, `${at}, the hundred throws at the end of the strikeout`);
+  // Every word on the page, the at-bat's included, uses a typographic apostrophe.
+  assert.deepEqual(await ph.evaluate(() => document.body.innerText.match(/\w'\w/g)), null, `${at}, straight apostrophes on the page`);
 
   // The next hitter starts clean: no readout left from the last one.
   // Scrolled so the end card is behind the picture, it's still there to tap; the pitch controls come back below it.
