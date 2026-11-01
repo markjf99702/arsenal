@@ -34,8 +34,10 @@ export function setupAtBat({ dark = false } = {}) {
 
   // ---------------------------------------------------------------- controls
   $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}</option>`).join('');
-  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); fresh({ say: true }); });
-  seg('ab-batter', v => { S.batter = v; fresh({ say: true }); });
+  // Another pitcher or batter faces a new hitter. The same seed would bring back the same one, guessing the same pitches,
+  // so switching away and back would be a do-over against a hitter you already know.
+  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ say: true }); });
+  seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ say: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
   // Picking a pitch or a spot presses it where it is (drawCall), so focus stays on it.

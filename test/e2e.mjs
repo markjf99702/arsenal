@@ -535,6 +535,19 @@ assert.match(await heading(), /^Forkball/i);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the page scrolls sideways at ${width}px`);
   }
   await page.setViewportSize({ width: 390, height: 844 });
+  // Another batter or pitcher is a new hitter: switching away and back doesn't bring back the one just faced, guessing
+  // the same pitches. (A link still replays its own hitter: the README strikeout below.)
+  {
+    const seed = () => page.evaluate(() => window.arsenal.atBat.state.seed);
+    const seeds = [await seed()];
+    await page.locator('#ab-batter [data-v="R"]').click();
+    await page.locator('#ab-batter [data-v="L"]').click();
+    seeds.push(await seed());
+    await page.locator('#ab-pitcher').selectOption('sale');
+    await page.locator('#ab-pitcher').selectOption('rogers');
+    seeds.push(await seed());
+    assert.equal(new Set(seeds).size, 3, `the same hitter came back after switching the batter or the pitcher and back: ${seeds.join(', ')}`);
+  }
   assert.deepEqual(problems.slice(before), [], 'problems while pitching to a hitter');
 }
 
