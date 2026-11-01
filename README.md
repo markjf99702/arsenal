@@ -11,7 +11,7 @@
   &nbsp;
   <img src="docs/phone-card.png" alt="The slider: 86.3 mph, 2,434 rpm, drops 2 feet 11 inches; a drawing of the grip with the fingers off centre along a seam, and the ball spinning with a clock showing a 9:45 tilt" width="250">
   &nbsp;
-  <img src="docs/phone-atbat.png" alt="Pitching to a hitter: six pitches marked where they crossed the plate, red for strikes and green for balls, ending in a strikeout swinging on a curveball in the dirt; the scout's note says it was 6 mph slower than the slider before it" width="250">
+  <img src="docs/phone-atbat.png" alt="Pitching to a hitter: six pitches marked where they crossed the plate, red for strikes and green for balls; the readout says K on a 2-2 pitch, a strikeout swinging on a curveball in the dirt, and the scout's note says it was 6 mph slower than the slider before it" width="250">
 </p>
 
 ## How it works
