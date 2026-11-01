@@ -1,5 +1,6 @@
 // Renders the README screenshots (docs/*.png) and the link preview (og.png):  node tools/screenshots.mjs
-// Math.random is seeded, so the pitches land in the same places every run.
+// Math.random is seeded, so the pitches land in the same places every run, and performance.now is stopped, so the
+// spinning ball on the card (js/spin.js turns it by that clock) holds one pose: two runs give the same files.
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -31,6 +32,7 @@ async function open(viewport, deviceScaleFactor, hash = '', colorScheme = 'light
   await page.addInitScript(seed => {
     let a = seed; // mulberry32
     Math.random = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    performance.now = () => 0; // the throws run on the animation frames' own clock, so they still fly
   }, SEED);
   await page.goto(base + hash);
   await page.evaluate(() => document.fonts.ready);
