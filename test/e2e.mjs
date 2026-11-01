@@ -95,6 +95,30 @@ for (const colorScheme of ['light', 'dark']) {
 }
 await page.emulateMedia({ colorScheme: 'light' });
 
+// The at-bat's results in words (big, bold headings: large text) read clearly on the page and the cards in both
+// palettes, the dark one whether it comes from the system or from a host's data-theme: at least 3 to 1, as WCAG AA asks.
+for (const [colorScheme, theme] of [['light', null], ['dark', null], ['light', 'dark']]) {
+  await page.emulateMedia({ colorScheme });
+  const low = await page.evaluate(theme => {
+    if (theme) document.documentElement.dataset.theme = theme;
+    const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const lum = hex => {
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const low = [];
+    for (const res of ['--res-strike', '--res-ball', '--res-play']) for (const on of ['--paper', '--card']) {
+      const r = ratio(token(res), token(on));
+      if (!(r >= 3)) low.push(`${res} on ${on}: ${r.toFixed(2)} to 1`);
+    }
+    delete document.documentElement.dataset.theme;
+    return low;
+  }, theme);
+  assert.deepEqual(low, [], `${theme ? 'data-theme ' + theme : colorScheme}: result colours too faint`);
+}
+await page.emulateMedia({ colorScheme: 'light' });
+
 // A finger off the ball in the grip drawing is the same skin tone on the dark page as on the light one, rather than
 // the see-through skin over the dark page. The spot is on the four-seamer's ring finger, beside the ball.
 {

@@ -25,6 +25,8 @@
   --odd: #e87ba4;
   /* What happens on a pitch: the pitcher's outcomes in blues (darkest is best for him), the hitter's in oranges */
   --o-whiff: #184f95; --o-called: #2a78d6; --o-foul: #6da7ec; --o-out: #b7d3f6; --o-ball: #f5b48e; --o-hit: #d95926;
+  /* An at-bat's results in words, like its marks: strikes red, balls green, balls in play blue */
+  --res-strike: #c23b33; --res-ball: #23804b; --res-play: #2f66b8;
   --display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
   --body: Barlow, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
@@ -44,6 +46,7 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
     --fast: #c98500;
     --o-whiff: #86b6ef; --o-called: #3987e5; --o-foul: #256abf; --o-out: #1c4f8a; --o-ball: #a85a2c; --o-hit: #f08a52;
+    --res-strike: #f0736b; --res-ball: #4cbf7d; --res-play: #78a8f0;
     --break: #3987e5;
     --off: #008300;
     --odd: #d55181;
@@ -64,6 +67,7 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
   --fast: #c98500;
   --o-whiff: #86b6ef; --o-called: #3987e5; --o-foul: #256abf; --o-out: #1c4f8a; --o-ball: #a85a2c; --o-hit: #f08a52;
+  --res-strike: #f0736b; --res-ball: #4cbf7d; --res-play: #78a8f0;
   --break: #3987e5;
   --off: #008300;
   --odd: #d55181;
@@ -402,9 +406,9 @@ p { margin: 0; }
 .small { font-size: 13px; color: var(--muted); }
 
 .last .res { font: 700 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
-.last .res-strike { color: #c23b33; }
-.last .res-ball { color: #23804b; }
-.last .res-play { color: #2f66b8; }
+.last .res-strike { color: var(--res-strike); }
+.last .res-ball { color: var(--res-ball); }
+.last .res-play { color: var(--res-play); }
 .last p { color: var(--ink-2); }
 .log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--ink-2); }
 .log li { display: flex; gap: 8px; align-items: baseline; }
@@ -426,8 +430,8 @@ p { margin: 0; }
 /* Focus comes here when the at-bat ends from the pitch controls, which go. */
 .end-result:focus { outline: none; }
 .end-result:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
-.end-result.won { color: #2f66b8; }
-.end-result.lost { color: #c23b33; }
+.end-result.won { color: var(--res-play); }
+.end-result.lost { color: var(--res-strike); }
 .hundred { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
 .hundred .plain { justify-self: start; }
 .legend-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--ink-2); }
