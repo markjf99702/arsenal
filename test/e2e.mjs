@@ -137,6 +137,53 @@ await page.emulateMedia({ colorScheme: 'light' });
   assert.deepEqual(cut, [], 'focus rings cut off by their pill');
 }
 
+// Hover looks are only for a pointer that hovers: on a touch screen the last thing tapped kept its hover look.
+{
+  const loose = await page.evaluate(() => {
+    const out = [];
+    const walk = (rules, hovers) => {
+      for (const r of rules) {
+        if (r instanceof CSSMediaRule) walk(r.cssRules, hovers || /\(hover:\s*hover\)/.test(r.conditionText));
+        else if (r.selectorText?.includes(':hover') && !hovers) out.push(r.selectorText);
+      }
+    };
+    for (const s of document.styleSheets) walk(s.cssRules, false);
+    return out;
+  });
+  assert.deepEqual(loose, [], 'hover looks that stay on what was tapped on a touch screen');
+}
+
+// The strike zone on the at-bat's grid of spots is one framed shape, and the dashed ring of spots outside it is plain
+// against the page too: both at least 3 to 1 in either palette, as WCAG 2.2 asks of what shows a control (SC 1.4.11).
+// The frame is in the gap round the nine, on every side, and not between them.
+for (const colorScheme of ['light', 'dark']) {
+  await page.emulateMedia({ colorScheme });
+  await page.evaluate(() => document.getElementById('ab-spots').scrollIntoView({ block: 'end' }));
+  const png = (await page.screenshot({ clip: await page.locator('#ab-spots').boundingBox(), scale: 'css' })).toString('base64');
+  const zone = await page.evaluate(async png => {
+    const shot = await createImageBitmap(new Blob([Uint8Array.from(atob(png), c => c.charCodeAt(0))], { type: 'image/png' }));
+    const ctx = Object.assign(document.createElement('canvas'), { width: shot.width, height: shot.height }).getContext('2d');
+    ctx.drawImage(shot, 0, 0);
+    const grid = document.getElementById('ab-spots'), g = grid.getBoundingClientRect(), r = i => grid.children[i].getBoundingClientRect();
+    const at = (x, y) => [...ctx.getImageData(Math.floor(x - g.left), Math.floor(y - g.top), 1, 1).data].slice(0, 3);
+    const rgb = c => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const paper = rgb(getComputedStyle(grid).backgroundColor), against = c => Math.round(ratio(c, paper) * 10) / 10;
+    // The nine are spots 6-8, 11-13 and 16-18, the middle one 12. Each side of the frame is looked at halfway along.
+    const tl = r(6), mid = r(12), br = r(18), x = mid.left + mid.width / 2, y = mid.top + mid.height / 2;
+    const frame = { left: at(tl.left - 1.5, y), right: at(br.right + 1.5, y), top: at(x, tl.top - 1.5), bottom: at(x, br.bottom + 1.5) };
+    return {
+      frame: Object.fromEntries(Object.entries(frame).map(([k, c]) => [k, against(c) >= 3 || against(c)])),
+      between: against(at(mid.left - 1.5, y)) < 1.2 || against(at(mid.left - 1.5, y)),
+      ring: against(rgb(getComputedStyle(grid.children[0]).borderTopColor)) >= 3 || against(rgb(getComputedStyle(grid.children[0]).borderTopColor)),
+    };
+  }, png);
+  assert.deepEqual(zone, { frame: { left: true, right: true, top: true, bottom: true }, between: true, ring: true }, `${colorScheme}: the strike zone on the grid, against the page`);
+}
+await page.emulateMedia({ colorScheme: 'light' });
+await page.evaluate(() => scrollTo(0, 0));
+
 // The at-bat's results in words (big, bold headings: large text) read clearly on the page and the cards in both
 // palettes, the dark one whether it comes from the system or from a host's data-theme: at least 3 to 1, as WCAG AA asks.
 for (const [colorScheme, theme] of [['light', null], ['dark', null], ['light', 'dark']]) {

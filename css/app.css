@@ -105,7 +105,8 @@ p { margin: 0; }
 /* The way into Pitch to a hitter: in the page's ink, underlined in its red, the same once visited. */
 .lede a { color: var(--ink); text-decoration: underline 2px var(--accent); text-underline-offset: 3px; }
 .lede a:visited { color: var(--ink); }
-.lede a:hover { color: var(--accent); }
+/* Hover only where something hovers: on a touch screen the last thing tapped would keep its hover look. */
+@media (hover: hover) { .lede a:hover { color: var(--accent); } }
 .lede a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 
 /* ---------------------------------------------------------------- picker */
@@ -120,7 +121,7 @@ p { margin: 0; }
   padding: 6px 13px; font-weight: 500; font-size: 15px; cursor: pointer; white-space: nowrap;
   transition: background .15s, border-color .15s;
 }
-.chip:hover, .ab-chip:hover { border-color: var(--fam); }
+@media (hover: hover) { .chip:hover, .ab-chip:hover { border-color: var(--fam); } }
 .chip[aria-pressed="true"], .ab-chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .chip:focus-visible, .ab-chip:focus-visible, button:focus-visible, select:focus-visible, .dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -241,7 +242,7 @@ p { margin: 0; }
 .facts li::before { content: ''; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--fam); }
 .next { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
 .next button { border: 0; background: none; padding: 14px 0; margin: -10px 0; font: 600 16px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; }
-.next button:hover { color: var(--accent); }
+@media (hover: hover) { .next button:hover { color: var(--accent); } }
 
 /* ---------------------------------------------------------------- all pitches */
 .all { max-width: 1200px; margin: 40px auto 0; display: grid; gap: 10px; }
@@ -266,7 +267,8 @@ p { margin: 0; }
 .dot.on .sel { opacity: 1; }
 .dot .name { fill: var(--ink-2); font: 600 14px var(--display); letter-spacing: .02em; paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
 .dot.on .name { fill: var(--ink); }
-.dot:hover .mark, .dot:focus-visible .mark { fill-opacity: 1; stroke: var(--ink); }
+.dot:focus-visible .mark { fill-opacity: 1; stroke: var(--ink); }
+@media (hover: hover) { .dot:hover .mark { fill-opacity: 1; stroke: var(--ink); } }
 
 .lineup-wrap { overflow-x: auto; }
 .lineup { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -277,7 +279,7 @@ p { margin: 0; }
 .lineup tbody tr.on { background: color-mix(in srgb, var(--fam) 12%, transparent); }
 .lineup th[scope="row"] { padding: 0; font-weight: 500; white-space: nowrap; }
 .lineup th button { border: 0; background: none; padding: 7px 6px; cursor: pointer; font-weight: 600; text-align: left; width: 100%; }
-.lineup th button:hover { color: var(--accent); }
+@media (hover: hover) { .lineup th button:hover { color: var(--accent); } }
 .lineup td { padding: 5px 6px; vertical-align: middle; }
 .lineup .cell { display: flex; align-items: center; gap: 6px; min-width: 110px; }
 .lineup .bar { flex: 1; height: 10px; position: relative; }
@@ -329,7 +331,8 @@ p { margin: 0; }
   text-align: center; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line);
 }
 .jd-foot a { color: inherit; text-decoration: none; }
-.jd-foot a:hover, .jd-foot a:focus-visible { text-decoration: underline; }
+.jd-foot a:focus-visible { text-decoration: underline; }
+@media (hover: hover) { .jd-foot a:hover { text-decoration: underline; } }
 
 @media (max-width: 640px) {
   .mark { font-size: 34px; }
@@ -418,17 +421,20 @@ p { margin: 0; }
 .ab-chips .ab-chip small { color: var(--muted); font-size: 12.5px; margin-left: 2px; }
 .ab-chips .ab-chip[aria-pressed="true"] small { color: inherit; opacity: .8; }
 .spots-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.spots { display: grid; grid-template-columns: repeat(5, 40px); grid-template-rows: repeat(5, 40px); gap: 3px; padding: 4px; border-radius: 10px; background: var(--paper); }
-.spot { border: 1px dashed var(--line-strong); background: transparent; border-radius: 6px; cursor: pointer; padding: 0; position: relative; }
+.spots { display: grid; grid-template-columns: repeat(5, 40px); grid-template-rows: repeat(5, 40px); gap: 3px; padding: 4px; border-radius: 10px; background: var(--paper); position: relative; }
+/* The strike zone is one framed shape, the nine spots inside it, as plain to see as the zone on the picture. The frame
+   sits in the gap round them. The ring of spots outside it is dashed, in grey that's plain against the page too. */
+.spots::before { content: ''; position: absolute; grid-area: 2 / 2 / 5 / 5; inset: -2.5px; border: 2px solid var(--ink-2); border-radius: 8px; pointer-events: none; }
+.spot { border: 1px dashed var(--muted); background: transparent; border-radius: 6px; cursor: pointer; padding: 0; position: relative; }
 .spot.in { border: 1px solid var(--line-strong); background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.spot:hover { border-color: var(--ink-2); }
+@media (hover: hover) { .spot:hover { border-color: var(--ink-2); } }
 .spot[aria-pressed="true"]::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: #fbf7ee; box-shadow: 0 0 0 2px #c8202f, 0 1px 3px rgba(0, 0, 0, .35); }
 .spots-wrap .side { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); max-width: 9em; }
 .spots-wrap .side.left { order: -1; text-align: right; }
 .choice { font-weight: 600; }
 .call-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .plain { border: 1px solid var(--line-strong); background: var(--card); border-radius: 999px; padding: 9px 14px; font-size: 14px; font-weight: 500; cursor: pointer; }
-.plain:hover { border-color: var(--ink-2); }
+@media (hover: hover) { .plain:hover { border-color: var(--ink-2); } }
 .throw:disabled, .throw[aria-disabled="true"] { opacity: .45; cursor: default; }
 .throw[aria-disabled="true"]:active { transform: none; }
 .plain[aria-disabled="true"] { opacity: .45; cursor: default; border-color: var(--line-strong); }
