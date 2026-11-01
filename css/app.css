@@ -498,7 +498,8 @@ p { margin: 0; }
   border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px;
 }
 .link-field:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.end-result { font: 700 30px/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
+/* A heading of its own (so a screen reader can jump to how it ended), in the look it had as words. */
+.bat-call .end-result { font: 700 30px/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
 /* Focus comes here when the at-bat ends from the pitch controls, which go. */
 .end-result:focus { outline: none; }
 .end-result:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }

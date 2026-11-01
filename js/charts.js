@@ -42,9 +42,12 @@ function drawMovement(host, W, { onPick, tooltip }) {
   const k = Math.min(1, W / 560);
   const x = v => m.l + ((v + 18) / 36) * (W - m.l - m.r);
   const y = v => m.t + ((20 - v) / 34) * (H - m.t - m.b);
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'move-chart', role: 'img', 'aria-labelledby': 'move-title move-desc' });
+  // A group of the dots, each a button with its words, named by the chart's heading and described by the words under
+  // it. (As an img, its dots would be presentational; and the grid's numbers and the axes' words, which the description
+  // already explains, would be read out one by one, so they're hidden.)
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'move-chart', role: 'group', 'aria-labelledby': 'move-title', 'aria-describedby': 'move-desc' });
   host.replaceChildren(svg);
-  const grid = el('g', { class: 'grid' }, svg);
+  const grid = el('g', { class: 'grid', 'aria-hidden': 'true' }, svg);
   for (let v = -18; v <= 18; v += 6) {
     el('line', { x1: x(v), x2: x(v), y1: m.t, y2: H - m.b, class: v === 0 ? 'zero' : '' }, grid);
     el('text', { x: x(v), y: H - m.b + 16, class: 'tick', 'text-anchor': 'middle' }, grid).textContent = v === 0 ? '0' : `${Math.abs(v)}`;
@@ -53,12 +56,13 @@ function drawMovement(host, W, { onPick, tooltip }) {
     el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: v === 0 ? 'zero' : '' }, grid);
     el('text', { x: m.l - 8, y: y(v) + 4, class: 'tick', 'text-anchor': 'end' }, grid).textContent = `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}`;
   }
-  el('text', { x: W - m.r, y: H - 8, class: 'axis', 'text-anchor': 'end' }, svg).textContent = 'Arm side, inches →';
-  el('text', { x: m.l, y: H - 8, class: 'axis', 'text-anchor': 'start' }, svg).textContent = '← Glove side';
+  const axes = el('g', { 'aria-hidden': 'true' }, svg);
+  el('text', { x: W - m.r, y: H - 8, class: 'axis', 'text-anchor': 'end' }, axes).textContent = 'Arm side, inches →';
+  el('text', { x: m.l, y: H - 8, class: 'axis', 'text-anchor': 'start' }, axes).textContent = '← Glove side';
   // The vertical axis, written up the left edge: drops below zero, holds up above it.
   const y0 = y(0);
-  el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'start', transform: `translate(14 ${y0 - 8}) rotate(-90)` }, svg).textContent = 'Holds up →';
-  el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'end', transform: `translate(14 ${y0 + 8}) rotate(-90)` }, svg).textContent = '← Drops';
+  el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'start', transform: `translate(14 ${y0 - 8}) rotate(-90)` }, axes).textContent = 'Holds up →';
+  el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'end', transform: `translate(14 ${y0 + 8}) rotate(-90)` }, axes).textContent = '← Drops';
 
   const dots = el('g', {}, svg);
   const items = [...PITCHES].sort((a, b) => b.n.share - a.n.share);
@@ -145,7 +149,7 @@ export function lineupTable(host, { onPick }) {
     tr.innerHTML = `
       <th scope="row"><button type="button"><span class="key" aria-hidden="true"></span>${p.short}</button></th>
       <td><div class="cell"><span class="bar"><span style="width:${Math.max(0.6, (n.share / maxShare) * 100)}%"></span></span><span class="val">${share}%</span></div></td>
-      <td><div class="cell"><span class="range${off ? ' off' : ''}" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${mphText(n.mph)}</span></div></td>
+      <td><div class="cell"><span class="range${off ? ' off' : ''}" role="img" aria-label="${range.said}">${range.bar}<span class="avg" style="left:${pos(n.mph)}%"></span></span><span class="val">${mphText(n.mph)}</span></div></td>
       <td class="num">${n.whiff == null ? '–' : Math.round(n.whiff)}</td>`;
     tr.querySelector('button').addEventListener('click', () => onPick(p));
     body.appendChild(tr);

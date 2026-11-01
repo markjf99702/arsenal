@@ -109,6 +109,8 @@ $('flight').parentElement.id = 'frame';
 const cue = document.createElement('div');
 cue.className = 'cue';
 cue.textContent = 'Swing or take? Decide now.';
+// It flashes up for the eye at the decision point; read out of context, it would only puzzle.
+cue.setAttribute('aria-hidden', 'true');
 $('frame').appendChild(cue);
 
 // ---------------------------------------------------------------- the card
@@ -140,8 +142,9 @@ function renderCard() {
     // The range is over pitchers' average speeds (tools/statcast.mjs), not single pitches.
     stat('Speed', `${n.mph.toFixed(1)} mph`, n.low ? `most pitchers ${Math.round(n.low)}–${Math.round(n.high)}` : ''),
     stat('Spin', `${fmt(n.rpm, 0)} rpm`, p.code === 'KN' ? 'barely turning' : `${Math.round(n.rpm / 60)} turns a second`),
+    // The arrow is for the eye: a screen reader hears "15.6 inches up", not "upwards arrow 15.6 in".
     // A no-break space keeps "in" with its number in the narrow box ("glove side 3.9 in", not "in" on a line alone).
-    stat('Spin moves it', `${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}`, `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`),
+    stat('Spin moves it', `<span aria-hidden="true">${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}</span><span class="sr">${fmt(Math.abs(n.rise))} inches ${n.rise >= 0 ? 'up' : 'down'}</span>`, `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`),
     stat('Drops', feetInches(n.drop), 'counting gravity'),
     stat('Thrown', `${share}%`, `${n.pitches.toLocaleString('en-US')} pitches`),
     stat('Misses', n.whiff == null ? '–' : `${Math.round(n.whiff)}`, 'per 100 swings'),

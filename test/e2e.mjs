@@ -88,6 +88,23 @@ assert.match(await page.locator('#ro-time').innerText(), /s to the plate/);
 assert.equal(await page.locator('#legend > span:last-child').innerText(), 'Decide', 'the decision point is not labelled on a phone');
 assert.equal(await page.locator('#legend .ring').isVisible(), true, 'the decision point is not labelled on a phone');
 
+// What a screen reader finds in the explorer. The movement chart is a group of its dots, named by its heading, without
+// every number on its grid and the axes' words read out (as an img its dots would be presentational, ARIA 1.2). The
+// "Swing or take?" cue, which only flashes up for the eye, isn't read out of context. The card's movement is "15.6
+// inches up", not "upwards arrow 15.6 in". The table's speed range is an image with its words, since ARIA 1.2 doesn't
+// allow a label on a plain span.
+{
+  const move = await page.locator('#move').ariaSnapshot(), frame = await page.locator('.stage .frame').ariaSnapshot();
+  const stats = await page.locator('#c-stats').ariaSnapshot(), row = await page.locator('.lineup tbody tr[data-code="FF"]').ariaSnapshot();
+  assert.match(move, /^- group "How each one moves":\n/, move.slice(0, 200));
+  assert.doesNotMatch(move, /- text:/, 'the movement chart reads out its grid and axes');
+  assert.equal((move.match(/- 'button "/g) || []).length, 13, 'the movement chart\'s dots');
+  assert.doesNotMatch(frame, /Swing or take/, 'the decision cue is read out of context');
+  assert.match(stats, /definition: 15\.6 inches up arm side 7\.8\s?in/, stats);
+  assert.doesNotMatch(stats, /↑|↓/, stats);
+  assert.match(row, /img "94\.8 mph on average; most pitchers between 92\.0 and 97\.6"/, row);
+}
+
 // Grey text reads clearly on the page and on the cards, in both palettes: at least 4.5 to 1, as WCAG AA asks.
 for (const colorScheme of ['light', 'dark']) {
   await page.emulateMedia({ colorScheme });
@@ -682,6 +699,9 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.locator('#ab-end').isHidden(), false, 'no result card at the end of the at-bat');
   assert.equal(await page.locator('#ab-callbox').isHidden(), true, 'the pitch controls are still there after the at-bat ended');
   assert.match(await page.locator('#ab-result').innerText(), /^(strikeout swinging|strikeout looking|walk|hit by pitch|out in play|single|double|triple|home run)$/i);
+  // How it ended is a heading, so a screen reader can jump to it once the call box (and its headings) are gone, and it
+  // looks as it did.
+  assert.deepEqual(await page.locator('#ab-result').evaluate(e => [e.tagName, getComputedStyle(e).fontSize]), ['H3', '30px']);
   assert.ok((await page.locator('#ab-note').innerText()).length > 20, 'no scout\'s note');
   assert.equal(await page.locator('#ab-log li').count(), m.n);
   assert.equal(m.marks, m.n, 'not every pitch is marked where it crossed the plate');
