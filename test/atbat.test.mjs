@@ -236,3 +236,22 @@ test('a hundred of each from here: every pitch in the arsenal, every outcome cou
   // A splitter in the dirt is missed far more often than a four-seamer there.
   assert.ok(t.FS.whiff > t.FF.whiff, `splitter ${t.FS.whiff} misses, four-seamer ${t.FF.whiff}`);
 });
+
+// The page throws each pitch 400 times, a slice of 100 at a time, and shows it per 100: at 100 throws a pitch's misses
+// per 100 wander by about 8 either way from chart to chart, enough to put the wrong pitch on top. Paul Skenes to a
+// right-handed batter, 1-2 after a four-seamer up and in, down and off the plate away: over 20,000 throws the slider is
+// missed most, 30 times in 100 to the sweeper's 24.
+test('four hundred throws of each put the same pitch on top whatever the seed', () => {
+  const ab = startAtBat({ pitcher: pitcherByKey('skenes'), batter: 'R', seed: 12345 });
+  throwCall(ab, { code: 'FF', spot: spotById('1m1') });
+  ab.balls = 1; ab.strikes = 2;
+  const spot = spotById('m12'), top = t => Object.keys(t).sort((a, b) => t[b].whiff - t[a].whiff)[0];
+  assert.equal(top(whatIf(ab, spot, 20000, 99)), 'SL');
+  const tops = [1, 2, 3, 4, 5, 6, 7, 8].map(seed => top(whatIf(ab, spot, 400, seed)));
+  assert.deepEqual(tops, Array(8).fill('SL'), 'the pitch missed most in eight charts');
+  // Thrown in four slices of 100, as the page does it, it comes out the same as 400 at once.
+  const whole = whatIf(ab, spot, 400, 9), slices = [0, 100, 200, 300].map(from => whatIf(ab, spot, 100, 9, from));
+  for (const [code, v] of Object.entries(whole)) for (const k of ['ball', 'called', 'whiff', 'foul', 'out', 'hit', 'hbp']) {
+    assert.equal(slices.reduce((s, t) => s + t[code][k], 0), v[k], `${code} ${k}`);
+  }
+});

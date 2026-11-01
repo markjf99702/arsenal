@@ -100,7 +100,7 @@ export function setupAtBat({ dark = false } = {}) {
   $('ab-copy').addEventListener('click', copyLink);
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
-  $('ab-run').addEventListener('click', () => { if (!S.busy) hundred(); });
+  $('ab-run').addEventListener('click', () => { if (!S.busy && !S.charting) hundred(); });
 
   function seg(id, on) {
     const box = $(id);
@@ -129,6 +129,7 @@ export function setupAtBat({ dark = false } = {}) {
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
     S.busy = false;
     S.pending = null;
+    stopChart();
     // The pitcher's name, set apart from his line (which can have a colon of its own: "A submariner: an 83 mph sinker").
     const name = document.createElement('b');
     name.textContent = `${S.pitcher.name}.`;
@@ -156,6 +157,7 @@ export function setupAtBat({ dark = false } = {}) {
     const rec = throwCall(S.ab, call);
     S.calls.push(call);
     stamp();
+    stopChart();
     S.busy = true;
     S.pending = rec;
     S.asked = 0;
@@ -276,7 +278,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     // Once it's over, the hundred throws look back at the last pitch.
-    $('ab-run').textContent = over ? `What else could he have thrown on that ${ended} pitch?` : 'Throw each of his pitches 100 times from here';
+    $('ab-run').textContent = over ? `What else could he have thrown on that ${ended} pitch?` : 'Throw each of his pitches 400 times from here';
     waiting();
     if (over) {
       $('ab-result').textContent = ENDING[ab.result];
@@ -294,40 +296,113 @@ export function setupAtBat({ dark = false } = {}) {
     }
   }
 
-  // While a pitch is in the air, Throw and the buttons that would give it away wait (see the listeners above). They're
-  // marked rather than disabled, so the one with focus keeps it.
+  // While a pitch is in the air, Throw and the buttons that would give it away wait (see the listeners above), and while
+  // the hundred throws are being thrown, so does their button. They're marked rather than disabled, so the one with focus
+  // keeps it.
   function waiting() {
     $('ab-throw').setAttribute('aria-disabled', String(S.busy || !!S.ab.result));
-    for (const id of ['ab-suggest', 'ab-run']) $(id).setAttribute('aria-disabled', String(S.busy));
+    $('ab-suggest').setAttribute('aria-disabled', String(S.busy));
+    $('ab-run').setAttribute('aria-disabled', String(S.busy || !!S.charting));
   }
 
-  // ---------------------------------------------------------------- a hundred of each
+  // ---------------------------------------------------------------- the hundred throws
   // From the count and spot as they stand, before the next pitch. Once the at-bat is over there's no next pitch, so it
   // looks back at the last one instead: the same count, the same spot and the pitch before it, with every pitch he
   // could have thrown there. (whatIf reads only the pitcher, the batter, the knobs, the count and the pitch before.)
+  // Each pitch is thrown 400 times and shown per 100: at 100 throws a pitch's misses wander by about 8 either way from
+  // one chart to the next, enough to put the wrong pitch on top. They're thrown a slice of 100 at a time, one slice a
+  // frame, so the page keeps moving and the bars fill as they go; with reduced motion they're drawn once, full.
+  const SLICES = 4, PER = 100;
+  // The outcomes as the bars draw them, the pitcher's first: the key, the legend's word, and what one and many are called.
+  const OUTCOMES = [
+    ['whiff', 'Swinging strike', 'swinging strike', 'swinging strikes'], ['called', 'Called strike', 'called strike', 'called strikes'],
+    ['foul', 'Foul', 'foul', 'fouls'], ['out', 'Out in play', 'out in play', 'outs in play'], ['ball', 'Ball', 'ball', 'balls'], ['hit', 'Hit', 'hit', 'hits'],
+  ];
+  const KEYS = ['whiff', 'called', 'foul', 'out', 'ball', 'hbp', 'hit'];
+  const counted = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  // Out of 400 into per 100, rounded so each pitch's parts still add up to 100: each part rounded down, and what's left
+  // given to the parts that lost the most to rounding.
+  function per100(v) {
+    const exact = KEYS.map(k => (v[k] * PER) / (SLICES * PER)), out = exact.map(Math.floor);
+    const order = exact.map((x, i) => [x - out[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+    for (let left = PER - out.reduce((s, x) => s + x, 0), j = 0; left > 0; left--, j++) out[order[j][1]]++;
+    return Object.fromEntries(KEYS.map((k, i) => [k, out[i]]));
+  }
+  // What matters from this count: strikeouts with two strikes, walks with three balls, otherwise strikes and balls.
+  // A pitch that hits him isn't a ball or a walk: it's said apart, beside them, when there are any. (On the bar it's in
+  // the ball's piece.)
+  function summary(v, balls, strikes) {
+    const hbp = v.hbp ? [counted(v.hbp, 'hit batter', 'hit batters')] : [];
+    const parts = strikes === 2 && balls === 3 ? [counted(v.whiff + v.called, 'strikeout', 'strikeouts'), counted(v.ball, 'walk', 'walks'), ...hbp]
+      : strikes === 2 ? [counted(v.whiff + v.called, 'strikeout', 'strikeouts')]
+      : balls === 3 ? [counted(v.ball, 'walk', 'walks'), ...hbp]
+      : [counted(v.whiff + v.called + v.foul, 'strike', 'strikes'), counted(v.ball, 'ball', 'balls'), ...hbp];
+    return [...parts, counted(v.hit, 'hit', 'hits')].join(' · ');
+  }
+  let charts = 0, charting = 0;
+  // A chart still being thrown stops when the at-bat moves on, and goes rather than stay half full.
+  const stopChart = () => { if (S.charting) $('ab-chart').replaceChildren(); charting = 0; S.charting = false; };
   function hundred() {
     const ab = S.ab, last = ab.pitches.at(-1);
-    const view = ab.result ? { ...ab, balls: last.before.balls, strikes: last.before.strikes, pitches: ab.pitches.slice(0, -1) } : ab;
+    // A copy of where things stand, so a slice thrown a frame later is thrown from the same place.
+    const view = ab.result ? { ...ab, balls: last.before.balls, strikes: last.before.strikes, pitches: ab.pitches.slice(0, -1) } : { ...ab, pitches: ab.pitches.slice() };
     const spot = ab.result ? last.spot : S.spot;
-    const t = whatIf(view, spot, 100, (S.seed ^ (view.pitches.length * 2654435761)) >>> 0);
-    const ORDER = [['whiff', 'Swinging strike'], ['called', 'Called strike'], ['foul', 'Foul'], ['out', 'Out in play'], ['ball', 'Ball'], ['hit', 'Hit']];
-    const rows = S.pitcher.pitches.map(p => {
-      const v = t[p.code];
-      v.ball += v.hbp;
-      // Only the outcomes that happened, so every bar starts at the same place and ends on a real piece.
-      const segs = ORDER.filter(([k]) => v[k] > 0).map(([k, l]) => `<span class="sg sg-${k}" style="flex-grow:${v[k]}" title="${v[k]} ${l.toLowerCase()}"></span>`).join('');
-      return `<li><span class="nm">${SHORT(p.code)}</span><span class="bar" role="img" aria-label="${ORDER.map(([k, l]) => `${v[k]} ${l.toLowerCase()}`).join(', ')}">${segs}</span><span class="sum">${v.whiff} miss${v.whiff === 1 ? '' : 'es'} · ${v.hit} hit${v.hit === 1 ? '' : 's'}</span></li>`;
-    }).join('');
+    const seed = (S.seed ^ (view.pitches.length * 2654435761)) >>> 0;
     const before = view.pitches.at(-1);
-    const caption = ab.result
+    const caption = `${ab.result
       ? `On that ${view.balls}-${view.strikes} pitch, called ${spotName(spot)}, instead of the ${NAME[last.code]}`
-      : `${S.pitcher.name}, ${spotName(spot)}, in a ${view.balls}-${view.strikes} count${before ? `, right after the ${NAME[before.code]}` : ''}`;
-    $('ab-chart').innerHTML = `<p class="small">${caption}: what happens out of 100 throws of each pitch.</p>
-      <ul class="legend-row">${ORDER.map(([k, l]) => `<li><i class="sg-${k}"></i>${l}</li>`).join('')}</ul>
+      : `${S.pitcher.name}, ${spotName(spot)}, in a ${view.balls}-${view.strikes} count${before ? `, right after the ${NAME[before.code]}` : ''}`}: what happens per 100 throws of each pitch (${SLICES * PER} thrown).`;
+    const pitches = S.pitcher.pitches;
+    const sum = Object.fromEntries(pitches.map(p => [p.code, Object.fromEntries(KEYS.map(k => [k, 0]))]));
+    $('ab-chart').innerHTML = `<h3 class="cap" id="ab-chart-title">${caption}</h3>
+      <ul class="legend-row">${OUTCOMES.map(([k, l]) => `<li><i class="sg-${k}"></i>${l}</li>`).join('')}</ul>
       <p class="small">Blues went the pitcher’s way, oranges the hitter’s.</p>
-      <ol class="hundred-bars">${rows}</ol>`;
+      <ol class="hundred-bars" aria-busy="true">${pitches.map(p => `<li><span class="nm">${SHORT(p.code)}</span><span class="bar"></span><span class="sum"></span></li>`).join('')}</ol>`;
+    const rows = [...$('ab-chart').querySelectorAll('.hundred-bars li')];
     // Into view, below the picture on a phone (its scroll margin), so the tap visibly did something.
     $('ab-chart').scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const id = charting = ++charts;
+    S.charting = true;
+    waiting();
+    let thrown = 0;
+    const slice = () => {
+      if (charting !== id) return;
+      const t = whatIf(view, spot, PER, seed, thrown * PER);
+      for (const p of pitches) for (const k of KEYS) sum[p.code][k] += t[p.code][k];
+      thrown++;
+      if (!still || thrown === SLICES) draw(rows, pitches, sum, thrown, view);
+      if (thrown < SLICES) { requestAnimationFrame(slice); return; }
+      charting = 0;
+      S.charting = false;
+      waiting();
+      $('ab-chart').querySelector('.hundred-bars').removeAttribute('aria-busy');
+      // A screen reader hears what the chart is, once it's all there.
+      $('ab-live').textContent = caption;
+    };
+    slice();
+  }
+  // The bars after `thrown` slices: while they fill, each piece is its share of the 400 and the rest of the bar waits
+  // empty; once all are in, the pieces are per 100, with their numbers in them where there's room, and the line under
+  // each bar says what matters from this count.
+  function draw(rows, pitches, sum, thrown, view) {
+    const done = thrown === SLICES;
+    pitches.forEach((p, i) => {
+      const raw = sum[p.code], v = done ? per100(raw) : raw;
+      const piece = { ...v, ball: v.ball + v.hbp };
+      // Only the outcomes that happened, so every bar starts at the same place and ends on a real piece.
+      const segs = OUTCOMES.filter(([k]) => piece[k] > 0).map(([k, , one, many]) => `<span class="sg sg-${k}" style="flex-grow:${piece[k]}" title="${counted(piece[k], one, many)}">${done && piece[k] >= 8 ? piece[k] : ''}</span>`).join('');
+      const bar = rows[i].querySelector('.bar');
+      bar.innerHTML = segs + (done ? '' : `<i class="rest" style="flex-grow:${(SLICES - thrown) * PER}"></i>`);
+      if (!done) return;
+      // To a screen reader, what's drawn, in the order it's drawn, leaving out what didn't happen; a pitch that hit him
+      // is said apart from the balls it's drawn with.
+      const said = OUTCOMES.flatMap(([k, , one, many]) => (k === 'ball' ? [[v.ball, one, many], [v.hbp, 'hit batter', 'hit batters']] : [[v[k], one, many]]))
+        .filter(([n]) => n > 0).map(x => counted(...x));
+      bar.setAttribute('role', 'img');
+      bar.setAttribute('aria-label', said.join(', '));
+      rows[i].querySelector('.sum').textContent = summary(v, view.balls, view.strikes);
+    });
   }
 
   // ---------------------------------------------------------------- links

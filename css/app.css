@@ -25,6 +25,10 @@
   --odd: #e87ba4;
   /* What happens on a pitch: the pitcher's outcomes in blues (darkest is best for him), the hitter's in oranges */
   --o-whiff: #184f95; --o-called: #2a78d6; --o-foul: #6da7ec; --o-out: #b7d3f6; --o-ball: #f5b48e; --o-hit: #d95926;
+  /* The numbers printed on those, white or dark, whichever reads at 4.5 to 1 on each (black where the ink falls short) */
+  --o-whiff-on: #fff; --o-called-on: #000; --o-foul-on: #1b2230; --o-out-on: #1b2230; --o-ball-on: #1b2230; --o-hit-on: #000;
+  /* The palest get a darker edge of their own colour, so they stand off the card at 3 to 1 */
+  --o-foul-edge: color-mix(in srgb, var(--o-foul) 50%, #1b2230); --o-out-edge: color-mix(in srgb, var(--o-out) 50%, #1b2230); --o-ball-edge: color-mix(in srgb, var(--o-ball) 50%, #1b2230);
   /* An at-bat's results in words, like its marks: strikes red, balls green, balls in play blue */
   --res-strike: #c23b33; --res-ball: #23804b; --res-play: #2f66b8;
   --display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
@@ -46,6 +50,9 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
     --fast: #c98500;
     --o-whiff: #86b6ef; --o-called: #3987e5; --o-foul: #256abf; --o-out: #1c4f8a; --o-ball: #a85a2c; --o-hit: #f08a52;
+    --o-whiff-on: #1b2230; --o-called-on: #000; --o-foul-on: #fff; --o-out-on: #fff; --o-ball-on: #fff; --o-hit-on: #1b2230;
+    /* In the dark the out's blue is the one too close to the card, so it gets a paler edge */
+    --o-foul-edge: transparent; --o-out-edge: color-mix(in srgb, var(--o-out) 50%, #ece7dc); --o-ball-edge: transparent;
     --res-strike: #f0736b; --res-ball: #4cbf7d; --res-play: #78a8f0;
     --break: #3987e5;
     --off: #008300;
@@ -67,6 +74,8 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .25);
   --fast: #c98500;
   --o-whiff: #86b6ef; --o-called: #3987e5; --o-foul: #256abf; --o-out: #1c4f8a; --o-ball: #a85a2c; --o-hit: #f08a52;
+  --o-whiff-on: #1b2230; --o-called-on: #000; --o-foul-on: #fff; --o-out-on: #fff; --o-ball-on: #fff; --o-hit-on: #1b2230;
+  --o-foul-edge: transparent; --o-out-edge: color-mix(in srgb, var(--o-out) 50%, #ece7dc); --o-ball-edge: transparent;
   --res-strike: #f0736b; --res-ball: #4cbf7d; --res-play: #78a8f0;
   --break: #3987e5;
   --off: #008300;
@@ -483,13 +492,24 @@ p { margin: 0; }
 .hundred-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .hundred-bars li { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 2px 10px; align-items: center; font-size: 14px; }
 .hundred-bars .nm { font-weight: 600; }
-.hundred-bars .bar { display: flex; gap: 2px; height: 16px; }
+.hundred-bars .bar { display: flex; gap: 2px; height: 18px; }
 .hundred-bars .sum { grid-column: 2; font-size: 12.5px; color: var(--muted); }
-.sg { display: block; min-width: 0; height: 100%; }
+.hundred-bars .rest { display: block; min-width: 0; }
+/* Each piece's number of the 100 sits in it, where it has 8 or more. */
+.sg {
+  display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; overflow: hidden;
+  font: 600 12.5px/1 var(--display); letter-spacing: .02em; font-variant-numeric: tabular-nums;
+}
 .sg:first-child { border-radius: 4px 0 0 4px; }
-.sg:last-child { border-radius: 0 4px 4px 0; }
-.sg-whiff { background: var(--o-whiff); } .sg-called { background: var(--o-called); } .sg-foul { background: var(--o-foul); }
-.sg-out { background: var(--o-out); } .sg-ball { background: var(--o-ball); } .sg-hit { background: var(--o-hit); }
+.sg:last-of-type { border-radius: 0 4px 4px 0; }
+.sg:first-child:last-of-type { border-radius: 4px; }
+.sg-whiff { background: var(--o-whiff); color: var(--o-whiff-on); } .sg-called { background: var(--o-called); color: var(--o-called-on); }
+.sg-foul { background: var(--o-foul); color: var(--o-foul-on); box-shadow: inset 0 0 0 1px var(--o-foul-edge, transparent); }
+.sg-out { background: var(--o-out); color: var(--o-out-on); box-shadow: inset 0 0 0 1px var(--o-out-edge, transparent); }
+.sg-ball { background: var(--o-ball); color: var(--o-ball-on); box-shadow: inset 0 0 0 1px var(--o-ball-edge, transparent); }
+.sg-hit { background: var(--o-hit); color: var(--o-hit-on); }
+/* The chart's caption is its heading, in the look of the small print round it. */
+.bat-call .hundred .cap { font: 400 13px/1.5 var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); }
 @media (max-width: 640px) {
   .bat-head h2 { font-size: 30px; }
   .bat-call { padding: 14px; }

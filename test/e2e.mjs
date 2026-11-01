@@ -567,9 +567,9 @@ assert.match(await heading(), /^Forkball/i);
   let m = await model();
   if (!m.result) assert.equal((await page.locator('#ab-count .ct').innerText()), `${m.balls}-${m.strikes}`);
   for (let i = 0; i < 20 && !(await model()).result; i++) {
-    // A hundred of each, from the count as it stands: never a count past the end, like 4-1 or 2-3.
+    // The hundred throws, from the count as it stands: never a count past the end, like 4-1 or 2-3.
     await page.locator('#ab-run').click();
-    assert.match(await page.locator('#ab-chart > p').first().textContent(), /^League-average righty, .+, in a [0-3]-[0-2] count(, right after the [a-z -]+)?: what happens out of 100 throws of each pitch\.$/);
+    assert.match(await page.locator('#ab-chart > h3').textContent(), /^League-average righty, .+, in a [0-3]-[0-2] count(, right after the [a-z -]+)?: what happens per 100 throws of each pitch \(400 thrown\)\.$/);
     await page.locator('#ab-suggest').click();
     assert.match(await page.locator('#ab-hint').innerText(), /^A typical call in a \d-\d count: /);
     await page.locator('#ab-throw').click();
@@ -624,11 +624,11 @@ assert.match(await heading(), /^Forkball/i);
   const endedOn = await page.evaluate(() => { const l = window.arsenal.atBat.state.ab.pitches.at(-1); return `${l.before.balls}-${l.before.strikes}`; });
   assert.equal(await page.locator('#ab-run').textContent(), `What else could he have thrown on that ${endedOn} pitch?`);
   await page.locator('#ab-run').click();
-  assert.match(await page.locator('#ab-chart > p').first().textContent(), new RegExp(`^On that ${endedOn} pitch, called .+, instead of the [a-z -]+: what happens out of 100 throws of each pitch\\.$`));
+  assert.match(await page.locator('#ab-chart > h3').textContent(), new RegExp(`^On that ${endedOn} pitch, called .+, instead of the [a-z -]+: what happens per 100 throws of each pitch \\(400 thrown\\)\\.$`));
   assert.equal(await page.locator('#ab-chart .hundred-bars li').count(), await page.evaluate(() => window.arsenal.atBat.state.pitcher.pitches.length));
   // Another pitcher, and a left-handed batter: the grid turns round so his inside is on the right.
   await page.locator('#ab-next').click();
-  assert.equal(await page.locator('#ab-run').textContent(), 'Throw each of his pitches 100 times from here');
+  assert.equal(await page.locator('#ab-run').textContent(), 'Throw each of his pitches 400 times from here');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ab-throw', 'focus after Next hitter');
   await page.locator('#ab-pitcher').selectOption('rogers');
   assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
@@ -855,23 +855,57 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
 
   // The hundred throws look back at strike three: what else he could have thrown on that 2-2 pitch, rather than a next
   // pitch from a count of 2 and 3. Tapped low on the screen, the chart comes into view below the picture, and each bar
-  // has only the outcomes that happened, so they all start at the same place.
+  // has only the outcomes that happened, so they all start at the same place. Each pitch is thrown 400 times, a slice a
+  // frame, and shown per 100: the button waits while they're thrown, and once they're in, each bar's pieces add up to
+  // 100, the line under it says what matters with two strikes, and a screen reader hears the caption.
   assert.equal(await ph.locator('#ab-run').textContent(), 'What else could he have thrown on that 2-2 pitch?');
   await ph.evaluate(() => scrollBy(0, document.getElementById('ab-run').getBoundingClientRect().bottom - (innerHeight - 20)));
   await ph.locator('#ab-run').tap();
+  const filling = await ph.evaluate(() => ({ waits: document.getElementById('ab-run').getAttribute('aria-disabled'), busy: document.querySelector('.hundred-bars').getAttribute('aria-busy') }));
+  await ph.waitForFunction(() => !document.querySelector('.hundred-bars').hasAttribute('aria-busy'));
   for (let y = -1, now; (now = await ph.evaluate(() => scrollY)) !== y; y = now) await ph.waitForTimeout(250);
   const hundred = await ph.evaluate(() => {
     const c = document.getElementById('ab-chart'), r = c.getBoundingClientRect(), f = document.getElementById('ab-flight').getBoundingClientRect();
+    const bars = [...c.querySelectorAll('.bar')];
     return {
+      waits: document.getElementById('ab-run').getAttribute('aria-disabled'),
+      heading: c.querySelector('h3').textContent, heard: document.getElementById('ab-live').textContent,
       said: [...c.querySelectorAll('p')].map(p => p.textContent), below: r.top >= f.bottom - 1, onScreen: r.top < innerHeight - 150,
       empty: [...c.querySelectorAll('.sg')].filter(s => !(parseFloat(s.style.flexGrow) > 0)).length,
-      starts: new Set([...c.querySelectorAll('.bar')].map(b => Math.round(b.firstElementChild.getBoundingClientRect().left))).size,
+      starts: new Set(bars.map(b => Math.round(b.firstElementChild.getBoundingClientRect().left))).size,
+      hundreds: bars.filter(b => [...b.children].reduce((n, s) => n + parseFloat(s.style.flexGrow), 0) !== 100).length,
+      // Its number printed in each piece with 8 or more, and only those.
+      numbered: [...c.querySelectorAll('.sg')].filter(s => (s.textContent === '') !== (parseFloat(s.style.flexGrow) < 8) || (s.textContent && s.textContent !== s.style.flexGrow)).length,
+      sums: [...c.querySelectorAll('.sum')].map(s => s.textContent).filter(t => !/^\d+ strikeouts? · \d+ hits?$/.test(t)),
+      labels: bars.map(b => b.getAttribute('aria-label')).filter(l => !/^(\d+ (swinging strikes?|called strikes?|fouls?|outs? in play|balls?|hit batters?|hits?)(, |$))+$/.test(l) || /\b0 /.test(l)),
     };
   });
+  assert.deepEqual(filling, { waits: 'true', busy: 'true' }, `${at}, while the hundred throws are thrown`);
+  const caption = 'On that 2-2 pitch, called in the dirt, instead of the curveball: what happens per 100 throws of each pitch (400 thrown).';
   assert.deepEqual(hundred, {
-    said: ['On that 2-2 pitch, called in the dirt, instead of the curveball: what happens out of 100 throws of each pitch.', "Blues went the pitcher’s way, oranges the hitter’s."],
-    below: true, onScreen: true, empty: 0, starts: 1,
+    waits: 'false', heading: caption, heard: caption, said: ["Blues went the pitcher’s way, oranges the hitter’s."],
+    below: true, onScreen: true, empty: 0, starts: 1, hundreds: 0, numbered: 0, sums: [], labels: [],
   }, `${at}, the hundred throws at the end of the strikeout`);
+  // The numbers in the pieces read at 4.5 to 1 on their colour, in either palette, and the palest pieces' edges stand
+  // off the card at 3 to 1 (WCAG 2.2, SC 1.4.3 and 1.4.11).
+  for (const colorScheme of ['light', 'dark']) {
+    await ph.emulateMedia({ colorScheme });
+    const low = await ph.evaluate(() => {
+      const rgb = c => { const m = c.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/); return m ? m.slice(1, 4).map(v => Number(v) * 255) : c.match(/[\d.]+/g).slice(0, 3).map(Number); };
+      const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
+      const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+      const card = rgb(getComputedStyle(document.querySelector('.bat-call')).backgroundColor), low = [];
+      for (const k of ['whiff', 'called', 'foul', 'out', 'ball', 'hit']) {
+        const cs = getComputedStyle(document.querySelector(`#ab-chart .legend-row .sg-${k}`)), fill = rgb(cs.backgroundColor);
+        const text = ratio(rgb(cs.color), fill), edge = cs.boxShadow === 'none' || /transparent|rgba\(0, 0, 0, 0\)/.test(cs.boxShadow) ? fill : rgb(cs.boxShadow);
+        if (text < 4.5) low.push(`${k}: its number at ${text.toFixed(2)}`);
+        if (ratio(edge, card) < 3) low.push(`${k}: ${ratio(edge, card).toFixed(2)} against the card`);
+      }
+      return low;
+    });
+    assert.deepEqual(low, [], `${at}, ${colorScheme}: the hundred throws' colours`);
+  }
+  await ph.emulateMedia({ colorScheme: 'light' });
   // Every word on the page, the at-bat's included, uses a typographic apostrophe.
   assert.deepEqual(await ph.evaluate(() => document.body.innerText.match(/\w'\w/g)), null, `${at}, straight apostrophes on the page`);
 

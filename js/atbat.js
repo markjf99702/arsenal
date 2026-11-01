@@ -283,13 +283,16 @@ export function autoAtBat(options) {
   return ab;
 }
 
-// Throw `spot` with every pitch in the arsenal `runs` times from where this at-bat stands now.
-export function whatIf(ab, spot, runs = 100, seed = 1) {
+// Throw `spot` with every pitch in the arsenal `runs` times from where this at-bat stands now: throws `from` to
+// `from + runs` of them, so a chart can be thrown a slice at a time and come out the same as all at once. Every pitch's
+// i-th throw starts from the same random draws (for how far it misses the spot, what the hitter guesses, and the rest),
+// so what tells two pitches apart is the pitches more than their luck.
+export function whatIf(ab, spot, runs = 100, seed = 1, from = 0) {
   const out = {};
   for (const entry of ab.pitcher.pitches) {
     const tally = { ball: 0, called: 0, whiff: 0, foul: 0, out: 0, hit: 0, hbp: 0, runs };
-    for (let i = 0; i < runs; i++) {
-      const copy = startAtBat({ pitcher: ab.pitcher, batter: ab.batter, seed: (seed * 7919 + i * 104729 + entry.code.charCodeAt(0)) >>> 0, params: ab.params });
+    for (let i = from; i < from + runs; i++) {
+      const copy = startAtBat({ pitcher: ab.pitcher, batter: ab.batter, seed: (seed * 7919 + i * 104729) >>> 0, params: ab.params });
       copy.balls = ab.balls; copy.strikes = ab.strikes;
       copy.pitches = ab.pitches.length ? [ab.pitches.at(-1)] : [];
       const r = throwCall(copy, { code: entry.code, spot });
