@@ -8,6 +8,7 @@ const the = code => `the ${NAME[code] || code}`;
 const inches = ft => { const n = Math.max(1, Math.round(Math.abs(ft) * 12)); return n === 1 ? 'an inch' : `${n} inches`; };
 const ms = s => `${Math.round(Math.abs(s) * 1000)}\u00a0ms`;
 const mph = v => `${v}\u00a0mph`;
+const cap = s => s[0].toUpperCase() + s.slice(1);
 
 export function resultWord(p) {
   const three = p.after.strikes === 3, four = p.after.balls === 4;
@@ -62,46 +63,73 @@ export function missed(p, batter) {
   return parts.join(' and ') || 'just off the edge';
 }
 
-// One or two sentences on why the pitch went the way it did.
+// Which way a pitch missed its spot, from the hitter's side: "up", "inside", "down and away".
+function direction([dx, dz], batter) {
+  const inside = batter === 'R' ? dx < 0 : dx > 0;
+  const v = Math.abs(dz) >= Math.abs(dx) / 2 ? (dz > 0 ? 'up' : 'down') : '';
+  const h = Math.abs(dx) >= Math.abs(dz) / 2 ? (inside ? 'in' : 'away') : '';
+  return v && h ? `${v} and ${h}` : v || (inside ? 'inside' : 'away');
+}
+// The ring around the zone in the spots' words: off the plate on either side, high above it, in the dirt below.
+const ring = spot => (Math.abs(spot.c) === 2 ? 'off the plate' : spot.r === 2 ? 'high' : 'in the dirt');
+// Where it missed the zone, or that it bounced: "it was 3 inches below the zone", "it bounced in front of the plate".
+const offBy = (p, batter, verb) => (bounced(p) ? 'it bounced in front of the plate' : `it ${verb} ${missed(p, batter)}`);
+
+// A few sentences on why the pitch went the way it did: where it went against the call, what he was looking for and
+// whether he recognised it, then what he did.
 export function why(p, prev, batter) {
   const out = [];
+  // Called off the plate and caught the zone, or missed the spot by more than 8 inches. (Hit by a pitch says it below.)
+  const off = [p.plate[0] - p.aim[0], p.plate[1] - p.aim[1]], by = Math.hypot(off[0], off[1]);
+  let caught = false;
+  if (p.result !== 'hbp') {
+    if (!p.spot.zone && p.inZone) { out.push(`It was meant to be ${ring(p.spot)} and caught the zone.`); caught = true; }
+    else if (Math.round(by * 12) > 8) out.push(`It missed the spot by ${inches(by)}, ${direction(off, batter)}.`);
+  }
   const same = p.sat.code === p.code;
-  out.push(same ? `He was sitting on ${the(p.code)}.` : `He was looking for ${the(p.sat.code)}.`);
+  out.push(`He was looking for ${the(p.sat.code)}${same ? ', and got it' : ''}.`);
   if (!same) {
     const slower = prev ? Math.round(prev.mph - p.mph) : 0;
     const speed = slower >= 5 ? ` It was ${mph(slower)} slower than the last pitch.` : slower <= -5 ? ` It was ${mph(-slower)} harder than the last pitch.` : '';
-    if (p.picked) out.push((p.tunnel != null && p.tunnel > 0.5 ? 'It came out on a different line from the last pitch, and he picked it up.' : 'He picked it up anyway.') + speed);
-    else if (p.tunnel != null) out.push(`At the decision point it was ${inches(p.tunnel)} from where the last pitch had been, and he didn't pick it up.${speed}`);
-    else out.push(`He didn't pick it up in time.${speed}`);
+    if (p.picked) out.push((p.tunnel != null && p.tunnel > 0.5 ? 'It came out on a different line from the last pitch, and he recognised it.' : 'He recognised it anyway.') + speed);
+    else if (p.tunnel != null) out.push(`At the decision point it was ${inches(p.tunnel)} from where the last pitch had been, and he didn’t recognise it in time.${speed}`);
+    else out.push(`He didn’t recognise it in time.${speed}`);
   }
   if (!p.swing) {
     if (p.result === 'hbp') out.push('It got away inside.');
-    else if (p.result === 'ball' && !p.inZone) out.push(`He laid off: it missed ${missed(p, batter)}.`);
+    else if (p.result === 'ball' && !p.inZone) out.push(`He laid off: ${offBy(p, batter, 'was')}.`);
     else if (p.result === 'ball') out.push('It caught the edge, but the umpire called it a ball.');
-    else if (!p.inZone) out.push(`It missed ${missed(p, batter)}, but the umpire gave the pitcher the strike.`);
+    else if (!p.inZone) out.push(`${cap(offBy(p, batter, 'was'))}, but the umpire gave the pitcher the strike.`);
     else {
       const thoughtBall = Math.abs(p.judged[0]) > ZONE.half || p.judged[1] < ZONE.bottom || p.judged[1] > ZONE.top;
-      out.push(thoughtBall ? 'He thought it would miss, and it caught the zone.' : 'He took it, and it was a strike.');
+      out.push(!thoughtBall ? 'He took it, and it was a strike.' : caught ? 'He thought it would miss, and took it.' : 'He thought it would miss, and it caught the zone.');
     }
     return out.join(' ');
   }
-  if (!p.inZone) out.push(`He chased: it finished ${missed(p, batter)}.`);
-  if (p.result === 'whiff' || p.result === 'tip') {
+  if (!p.inZone) out.push(`He chased: ${offBy(p, batter, 'finished')}.`);
+  if (p.result === 'tip') {
+    // A foul tip is contact: off the bat straight into the catcher's glove, and held (OBR, Definitions of Terms).
+    out.push('He got a piece of it, and the catcher held on.');
+  } else if (p.result === 'whiff') {
     const v = p.miss[1], t = p.early;
     const where = Math.abs(v) >= 0.12 ? `He swung ${inches(v)} ${v < 0 ? 'over' : 'under'} it` : Math.abs(p.miss[0]) >= 0.2 ? `He swung ${inches(p.miss[0])} ${(batter === 'R') === (p.miss[0] > 0) ? 'inside of' : 'outside of'} it` : '';
     const when = t > 0.008 ? `${ms(t)} out in front` : t < -0.008 ? `${ms(t)} late` : '';
     if (where && when) out.push(`${where}, ${when}.`);
     else if (where) out.push(`${where}.`);
     else if (when) out.push(`He was ${when}.`);
+    // Nothing wrong with his swing: out of the zone he knew what it was and went after it anyway; in it, it beat him.
+    else if (!p.inZone && p.picked) out.push(`He saw ${the(p.code)} and swung at it anyway.`);
     else out.push('He was on it, and it still beat him.');
   } else if (p.result === 'foul') {
     out.push(p.before.strikes === 2 ? 'He fought it off to stay alive.' : 'He got a piece of it.');
   } else if (p.result === 'inplay') {
     const s = p.contact;
+    // Weak contact by when he swung, as in the note: early, late or on time.
+    const weak = p.early > 0.008 ? 'He was out in front and rolled it over: an easy out.' : p.early < -0.008 ? 'It got in on him: weak contact, an easy out.' : 'He got it off the end of the bat: weak contact, an easy out.';
     out.push({
       HR: 'He squared it up.', '3B': 'He hit it into the gap and kept running.', '2B': 'He hit it hard, into the gap.',
       '1B': s > 0.6 ? 'He lined it into the outfield.' : 'He found a hole.',
-      out: s > 0.75 ? 'He hit it hard, but right at someone.' : s < 0.3 ? 'He got it off the end of the bat: weak contact, an easy out.' : 'He put it in play, and they made the play.',
+      out: s > 0.75 ? 'He hit it hard, but right at someone.' : s < 0.3 ? weak : 'He put it in play, and they made the play.',
     }[p.play]);
   }
   return out.join(' ');
@@ -112,7 +140,6 @@ export function why(p, prev, batter) {
 const WORDS = ['none', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const few = n => (n <= 1 ? WORDS[n] : String(n));
 const all = n => WORDS[n] ?? String(n);
-const cap = s => s[0].toUpperCase() + s.slice(1);
 // A spot's name inside a sentence: one with a comma of its own ("in, at the belt") gets one after it too.
 const spotThen = name => (name.includes(',') ? `${name},` : name);
 const MIDDLE = [0, (ZONE.top + ZONE.bottom) / 2];

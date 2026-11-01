@@ -5,7 +5,7 @@ import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, sp
 import { COUNTS, TYPES } from '../js/league.js';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
-import { why, note, boxAt, calledLine } from '../js/atbat-words.js';
+import { why, note, boxAt, calledLine, bounced, NAME } from '../js/atbat-words.js';
 
 const RESULTS = new Set(['ball', 'called', 'whiff', 'foul', 'tip', 'inplay', 'hbp']);
 const ENDS = new Set(['K', 'KL', 'BB', 'HBP', 'out', '1B', '2B', '3B', 'HR']);
@@ -72,7 +72,8 @@ const READS_BADLY = [
   [/\d (ms|mph)\b/, 'a unit that can start a line on its own'],
   [/\b(chased|missed|swung at|chasing) [01]\b/, 'a count of 0 or 1 as a digit', 'note'],
   [/(\d+) of the \1 pitches/, '"4 of the 4"', 'note'],
-  [/'/, 'a straight apostrophe', 'note'],
+  [/'/, 'a straight apostrophe'],
+  [/sitting on|pick(ed)? it up/, 'jargon the page doesn’t explain'],
 ];
 test('the at-bat’s words read cleanly over thousands of at-bats', () => {
   for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why, only] of READS_BADLY) {
@@ -113,6 +114,29 @@ test('the scout’s note says what decided the at-bat', () => {
   assert.equal(k.result, 'K');
   assert.equal(k.pitches.length, 6);
   assert.equal(note(k), 'The curveball was 6\u00a0mph slower than the slider before it, and his timing was set for the faster one. 6 pitches: he swung at 3 and missed 2, chasing one out of the zone.');
+});
+
+test('each pitch’s why says where it went, what he was looking for, and what he did', () => {
+  for (const ab of PLAYED) ab.pitches.forEach((p, i) => {
+    const text = why(p, ab.pitches[i - 1], ab.batter), at = `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}, pitch ${p.n}: ${text}`;
+    const by = Math.hypot(p.plate[0] - p.aim[0], p.plate[1] - p.aim[1]);
+    // Where it went against the call comes first: called off the plate and caught the zone, or a miss over 8 inches.
+    if (p.result !== 'hbp' && !p.spot.zone && p.inZone) assert.match(text, /^It was meant to be (off the plate|high|in the dirt) and caught the zone\. /, at);
+    else if (p.result !== 'hbp' && Math.round(by * 12) > 8) assert.match(text, /^It missed the spot by \d+ inches, (up|down|inside|away|(up|down) and (in|away))\. /, at);
+    else assert.match(text, /^He was looking for/, at);
+    // Always what he was looking for, and "got it" when he guessed right.
+    assert.ok(text.includes(`He was looking for the ${NAME[p.sat.code]}${p.sat.code === p.code ? ', and got it.' : '.'}`), at);
+    // A foul tip is contact: a piece of it, held by the catcher, never a swing over or under it.
+    if (p.result === 'tip') {
+      assert.match(text, /He got a piece of it, and the catcher held on\.$/, at);
+      assert.doesNotMatch(text, /He swung|beat him|out in front|late\./, at);
+    }
+    // Under a ball's height at the plate, it bounced: not "so many inches below the zone".
+    if (bounced(p)) assert.match(text, /bounced in front of the plate/, at);
+    if (bounced(p)) assert.doesNotMatch(text, /below the zone/, at);
+    // He swung at it knowing what it was only when he recognised it.
+    if (/swung at it anyway/.test(text)) assert.ok(p.picked && !p.inZone && p.result === 'whiff', at);
+  });
 });
 
 // An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), played the way the page plays it.
