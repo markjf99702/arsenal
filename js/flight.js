@@ -80,15 +80,16 @@ export function apex(f) {
 
 // ---------------------------------------------------------------- cameras
 
-// Behind the plate at a crouching umpire's eye height, looking out at the mound.
-export function catcherCamera(W, H, { lift = 0 } = {}) {
+// Behind the plate at a crouching umpire's eye height, looking out at the mound. `lift` tilts it up (degrees), and
+// `zoom` under 1 widens the view (the at-bat's, js/tracker.js).
+export function catcherCamera(W, H, { lift = 0, zoom = 1 } = {}) {
   const eye = [0, -9.5, 4.3];
   const pitch = (4.6 - lift) * (Math.PI / 180);
   const fwd = [0, Math.cos(pitch), -Math.sin(pitch)];
   const up = [0, Math.sin(pitch), Math.cos(pitch)];
   const right = [1, 0, 0];
   const hfov = W / H > 1.2 ? 31 : 29;
-  const F = W / 2 / Math.tan((hfov * Math.PI) / 360);
+  const F = (zoom * W) / 2 / Math.tan((hfov * Math.PI) / 360);
   const cy = H * 0.5;
   const toCam = P => { const d = [P[0] - eye[0], P[1] - eye[1], P[2] - eye[2]]; return [dot(d, right), dot(d, up), dot(d, fwd)]; };
   const fromCam = ([X, Y, Z]) => [W / 2 + (F * X) / Z, cy - (F * Y) / Z];

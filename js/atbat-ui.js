@@ -15,8 +15,8 @@ const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B
 export function setupAtBat({ dark = false } = {}) {
   const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1 };
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
-  // Tilted down a little from the explorer's view, so pitches in the dirt stay in the picture.
-  stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', dark, tilt: -3.2 });
+  // Framed for the at-bat (atBatCamera): from the pitcher's hand down to a pitch in the dirt.
+  stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', dark, atBat: true });
 
   // ---------------------------------------------------------------- controls
   $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}</option>`).join('');

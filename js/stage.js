@@ -4,7 +4,7 @@ import {
   drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
-import { drawBatter, drawMarks } from './tracker.js';
+import { drawBatter, drawMarks, atBatCamera } from './tracker.js';
 
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
@@ -99,8 +99,11 @@ export class Stage {
     let cam;
     if (this.opts.view === 'side') cam = sideCamera(W, H, { top, dpr: this.dpr || 1 });
     else if (this.opts.view === 'top') cam = topCamera(W, H);
-    // Tilt up for a high lob so it stays in frame.
-    else cam = catcherCamera(W, H, { lift: Math.max(0, Math.min(10, (top - 8) * 1.6)) + (this.opts.tilt || 0) });
+    else {
+      // Tilt up for a high lob so it stays in frame. The at-bat's view is fitted to the canvas, so its marks fit too.
+      const lift = Math.max(0, Math.min(10, (top - 8) * 1.6));
+      cam = this.opts.atBat ? atBatCamera(W, H, { dpr: this.dpr || 1, lift }) : catcherCamera(W, H, { lift });
+    }
     cam.dpr = this.dpr || 1;
     return cam;
   }

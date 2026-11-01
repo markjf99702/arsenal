@@ -3,8 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
-import { throwPitch, sideCamera, PLATE_Y, G } from '../js/flight.js';
+import { throwPitch, sideCamera, catcherCamera, PLATE_Y, G } from '../js/flight.js';
 import { tilt } from '../js/spin.js';
+import { atBatCamera, markRadius, GROUND, HIGH_RELEASE } from '../js/tracker.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
 
@@ -59,6 +60,26 @@ test('from the side, only a lob above the usual 7.5 feet gives up height to the 
     const crest = lob.project([0, 30, 8.7 - 0.8]).y / dpr;
     assert.ok(crest > 85, `the top of a lob's arc is ${crest.toFixed(0)}px down, inside the readout`);
   }
+});
+
+test('the at-bat view marks a pitch that crosses at the ground and shows the highest release, on every screen', () => {
+  // Its canvas in CSS pixels: a phone before and after the shorter frame, the narrowest phone, a computer, a tablet.
+  for (const [w, h] of [[358, 322], [358, 235], [288, 189], [650, 447], [736, 506]]) {
+    for (const dpr of [1, 2]) {
+      const W = w * dpr, H = h * dpr, cam = atBatCamera(W, H, { dpr });
+      const at = `${W}x${H}`;
+      const ground = cam.project(GROUND).y + markRadius(cam);
+      assert.ok(ground <= H, `${at}: a pitch at the ground is marked down to ${ground.toFixed(0)}, past the bottom edge`);
+      for (const x of [-3, 0, 3]) {
+        const hand = cam.project([x, HIGH_RELEASE[1], HIGH_RELEASE[2]]).y;
+        assert.ok(hand >= H * 0.04, `${at}: a 7-foot release is ${hand.toFixed(0)}px from the top`);
+      }
+    }
+  }
+  // A squarer canvas fits by tilting alone, at the explorer's zoom; a wide one pulls back only as far as it has to.
+  assert.equal(atBatCamera(716, 716, { dpr: 2 }).F, catcherCamera(716, 716).F);
+  const wide = atBatCamera(1300, 894, { dpr: 2 }).F / catcherCamera(1300, 894).F;
+  assert.ok(wide > 0.78 && wide < 0.86, `the computer's at-bat view is ${wide.toFixed(2)} of the explorer's`);
 });
 
 test('a knuckleball never goes the same way twice', () => {
