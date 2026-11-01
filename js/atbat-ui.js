@@ -268,8 +268,10 @@ export function setupAtBat({ dark = false } = {}) {
       // Before the first pitch there's nothing to say: how to play is at the top of the call box.
       $('ab-last').replaceChildren();
     }
-    // Each pitch, the spot called and, if it went to another box, where it crossed.
-    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${speed(p)}</span></li>`).join('');
+    // Each pitch: the count it was thrown in, as on a broadcast's pitch list ("on 0-1" to a screen reader), what happened,
+    // the spot called and, if it went to another box, where it crossed. The count keeps its dot, so a line that wraps
+    // doesn't start with one.
+    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><span class="at"><span class="sr">on </span>${p.before.balls}-${p.before.strikes}</span>\u00a0· <b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${speed(p)}</span></li>`).join('');
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     // Once it's over, the hundred throws look back at the last pitch.

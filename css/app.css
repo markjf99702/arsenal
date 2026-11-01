@@ -461,6 +461,7 @@ p { margin: 0; }
 .log .k-ball .n { background: #2f9e5f; }
 .log .k-play .n { background: #3a78d4; }
 .log b { color: var(--ink); font-weight: 600; }
+.log .at { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .end { display: grid; gap: 10px; padding: 14px; border-radius: 12px; background: var(--paper); }
 /* Nothing in it, not even a link that won't fit, makes it wider than the call box. */
 .end > * { min-width: 0; }

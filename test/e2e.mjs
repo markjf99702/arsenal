@@ -804,6 +804,14 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()} · 6 pitches`);
   // "mph" stays with its number (a no-break space) when a log line wraps on a phone.
   assert.equal((await ph.locator('#ab-log').textContent()).match(/\d\u00a0mph/g)?.length, 6, `${at}, the log's speeds can wrap before "mph"`);
+  // Each pitch in the log starts with the count it was thrown in, as on a broadcast's pitch list, "on 0-1" to a screen
+  // reader, on the same line as what happened.
+  const counted = await ph.evaluate(() => [...document.querySelectorAll('#ab-log li')].map((li, i) => {
+    const at = li.querySelector('.at'), b = li.querySelector('b'), p = window.arsenal.atBat.state.ab.pitches[i];
+    const want = `on ${p.before.balls}-${p.before.strikes}`;
+    return at?.textContent === want && Math.abs(at.getBoundingClientRect().top - b.getBoundingClientRect().top) < 2 ? want : `${i + 1}: ${at?.textContent} (${want})`;
+  }));
+  assert.deepEqual(counted, ['on 0-0', 'on 0-1', 'on 1-1', 'on 1-2', 'on 1-2', 'on 2-2'], `${at}, the count on each pitch in the log`);
   // Once it's over, the count gives way to the scorebook's mark and the count it ended on, and that's what a screen
   // reader hears too, not a count of 2 and 2 after strike three. A strikeout looking is a backwards K; a walk is BB.
   const ending = () => ph.evaluate(() => {
