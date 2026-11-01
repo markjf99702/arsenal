@@ -56,6 +56,24 @@ function throwNow() {
   readoutLoop();
 }
 
+// Two pitches thrown together, worked out from throws with no scatter (rng 0.5, no jitter) so every throw says the same:
+// how far apart they are at their decision points, where the hitter has to decide, and at the plate (as he sees them:
+// across and up and down, in inches), and how much later the second gets there, in seconds.
+function apart() {
+  const main = throwPitch(state.pitch, { hand: state.hand, rng: () => 0.5 });
+  const pair = throwPitch(BY_CODE[state.pair], { hand: state.hand, rng: () => 0.5, release: main.release });
+  const gap = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]) * 12;
+  return { decide: Math.round(gap(main.decide, pair.decide)), plate: Math.round(gap(main.end, pair.end)), later: Math.round((pair.T - main.T) * 100) / 100 };
+}
+// "8 inches", "an inch", "1 ft 7 in" (or spelled out for a screen reader: "1 foot 7 inches").
+function distance(n, spoken = false) {
+  if (n < 12) return n === 0 ? 'less than an inch' : n === 1 ? 'an inch' : `${n} inches`;
+  const ft = Math.floor(n / 12), inch = n % 12;
+  if (!spoken) return inch ? `${ft} ft ${inch} in` : `${ft} ft`;
+  return `${ft} ${ft === 1 ? 'foot' : 'feet'}${inch ? ` ${inch} inch${inch === 1 ? '' : 'es'}` : ''}`;
+}
+const lowerName = p => p.short.toLowerCase();
+
 let roRaf = 0;
 function readoutLoop() {
   cancelAnimationFrame(roRaf);
@@ -75,10 +93,12 @@ function readoutLoop() {
       const deciding = s.some(x => t >= x.f.T - DECIDE && t < x.f.T) && state.speed < 1;
       $('frame').classList.toggle('deciding', deciding);
       if (!s.every(x => x.arrived) || t === 0) { roRaf = requestAnimationFrame(tick); return; }
-      // Every ball is in: say it once to a screen reader, since the time above changes every frame.
-      $('landed').textContent = s.length > 1
-        ? s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} seconds`).join(', ')
-        : `${main.f.p.short}, ${main.f.T.toFixed(2)} seconds to the plate`;
+      // Every ball is in: say it once to a screen reader, since the time above changes every frame. Two pitches: how far
+      // apart they were where he has to decide, and at the plate.
+      if (s.length > 1) {
+        const a = apart();
+        $('landed').textContent = `${s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} seconds`).join(', ')}. When the hitter has to decide they’re ${distance(a.decide, true)} apart; at the plate, ${distance(a.plate, true)}.`;
+      } else $('landed').textContent = `${main.f.p.short}, ${main.f.T.toFixed(2)} seconds to the plate`;
     }
   };
   roRaf = requestAnimationFrame(tick);
@@ -180,9 +200,13 @@ $('spinview').addEventListener('click', e => {
   spin.set({ view: b.dataset.v });
   for (const x of $('spinview').querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
 });
-$('ghost').addEventListener('change', e => { state.ghost = e.target.checked; stage.set({ ghost: state.ghost }); legend(); });
+$('ghost').addEventListener('change', e => { state.ghost = e.target.checked; stage.set({ ghost: state.ghost }); legend(); caption(); });
 $('throw').addEventListener('click', throwNow);
-$('pair').addEventListener('change', e => { state.pair = e.target.value || null; legend(); throwNow(); address(); });
+$('pair').addEventListener('change', e => { state.pair = e.target.value || null; legend(); speedReadout(); throwNow(); address(); });
+// The speed over the picture: both pitches' when two are thrown together, "94.8 · 86.0 mph".
+function speedReadout() {
+  $('ro-mph').textContent = [state.pitch, state.pair && BY_CODE[state.pair]].filter(Boolean).map(p => p.n.mph.toFixed(1)).join(' · ');
+}
 
 function pairOptions() {
   const p = state.pitch;
@@ -198,7 +222,9 @@ function pairOptions() {
 function legend() {
   const items = [`<span><i class="ln" style="--c:${MAIN}"></i>${state.pitch.short}</span>`];
   if (state.pair) items.push(`<span><i class="ln" style="--c:${PAIR}"></i>${BY_CODE[state.pair].short}</span>`);
-  if (state.ghost) items.push(`<span><i class="ln dash"></i>No spin</span>`);
+  // With two pitches the ghost is the first one's, and says so; on a phone that's in the caption, so the legend keeps
+  // clear of the two pitches' times.
+  if (state.ghost) items.push(`<span><i class="ln dash"></i>${state.pair ? `<span class="wide">${state.pitch.short}, no spin</span><span class="narrow">No spin</span>` : 'No spin'}</span>`);
   items.push(`<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>`);
   $('legend').innerHTML = items.join('');
 }
@@ -210,7 +236,16 @@ function caption() {
     side: `From the third-base side, pitcher on the left. Heights are stretched ${stretch()}× so the drop is easier to see. The dashed ghost is the same throw with no spin.`,
     top: `From above, pitcher on the left. Distances sideways are stretched ${stretch()}× so the break is easier to see. The dashed ghost is the same throw with no spin.`,
   }[state.view];
-  $('caption').textContent = cap;
+  $('caption').textContent = [cap, pairing()].filter(Boolean).join(' ');
+}
+// Two pitches thrown together: what throwing them together shows. "When the hitter has to decide, the four-seam and the
+// changeup are 8 inches apart; at the plate, 1 ft 7 in. The changeup gets there 0.04 s later. The ghost is the
+// four-seam's."
+function pairing() {
+  if (!state.pair) return '';
+  const a = apart(), one = lowerName(state.pitch), two = lowerName(BY_CODE[state.pair]);
+  const when = a.later === 0 ? 'at the same moment' : `${Math.abs(a.later).toFixed(2)}\u00a0s ${a.later > 0 ? 'later' : 'sooner'}`;
+  return `When the hitter has to decide, the ${one} and the ${two} are ${distance(a.decide)} apart; at the plate, ${distance(a.plate)}. The ${two} gets there ${when}.${state.ghost ? ` The ghost is the ${one}’s.` : ''}`;
 }
 
 // ---------------------------------------------------------------- charts
@@ -241,8 +276,8 @@ function pick(p, { scroll = false, push = true } = {}) {
     const left = chip.offsetLeft - picker.offsetLeft, right = left + chip.offsetWidth;
     if (left < picker.scrollLeft + 8 || right > picker.scrollLeft + picker.clientWidth - 8) picker.scrollTo({ left: Math.max(0, left - 90) });
   }
-  $('ro-mph').textContent = p.n.mph.toFixed(1);
   pairOptions();
+  speedReadout();
   renderCard();
   legend();
   chart.select(p.code);

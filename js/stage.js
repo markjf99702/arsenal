@@ -25,7 +25,22 @@ export class Stage {
     this.resize();
   }
 
+  // Where the page's words sit over the picture: the speed and the time in the top-left corner and the legend in the
+  // top-right, in CSS pixels from its top left (the speed by its words, not its row). Measured whenever something is
+  // set, a pitch is thrown or the picture changes size, so the field's labels can keep clear of them.
+  measure() {
+    const c = this.canvas.getBoundingClientRect(), frame = this.canvas.parentElement;
+    const box = (el, words = false) => {
+      if (!el) return null;
+      let r = el.getBoundingClientRect();
+      if (words) { const range = document.createRange(); range.selectNodeContents(el); r = range.getBoundingClientRect(); }
+      return { left: Math.round(r.left - c.left), right: Math.round(r.right - c.left), top: Math.round(r.top - c.top), bottom: Math.round(r.bottom - c.top) };
+    };
+    this.overlays = { speed: box(frame?.querySelector('.readout .speed'), true), time: box(frame?.querySelector('.readout .time')), legend: box(frame?.querySelector('.legend')) };
+  }
+
   resize() {
+    this.measure();
     const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
@@ -39,6 +54,7 @@ export class Stage {
   set(opts) {
     const before = { ...this.opts };
     Object.assign(this.opts, opts);
+    this.measure();
     if (before.view !== this.opts.view || before.dark !== this.opts.dark) this.bg = null;
     this.draw();
   }
@@ -47,6 +63,7 @@ export class Stage {
   throw(pitch, pairPitch = null) {
     const rng = Math.random;
     const j = () => (rng() + rng() + rng() - 1.5) * 0.28;
+    this.measure();
     const main = throwPitch(pitch, { hand: this.opts.hand, jitter: [j(), j()], rng });
     this.flights = [main];
     if (pairPitch && pairPitch !== pitch) {
@@ -109,7 +126,7 @@ export class Stage {
   }
 
   background(cam, colors) {
-    const key = `${cam.kind}|${cam.W}|${cam.H}|${cam.dpr}|${this.opts.dark}|${cam.F || cam.stretch}|${this.opts.hand}|${this.opts.batter}`;
+    const key = `${cam.kind}|${cam.W}|${cam.H}|${cam.dpr}|${this.opts.dark}|${cam.F || cam.stretch}|${this.opts.hand}|${this.opts.batter}|${cam.kind === 'top' ? JSON.stringify(this.overlays) : ''}`;
     if (this.bg && this.bgKey === key) return this.bg;
     const c = document.createElement('canvas');
     c.width = cam.W; c.height = cam.H;
@@ -118,7 +135,7 @@ export class Stage {
       drawCatcherField(x, cam, colors);
       if (this.opts.batter) drawBatter(x, cam, this.opts.batter, this.opts.dark);
     } else if (cam.kind === 'side') drawSideField(x, cam, colors);
-    else drawTopField(x, cam, colors, this.opts.hand);
+    else drawTopField(x, cam, colors, this.opts.hand, this.overlays);
     this.bg = c; this.bgKey = key;
     return c;
   }

@@ -281,7 +281,9 @@ export function drawSideField(ctx, cam, c) {
   ctx.globalAlpha = 1;
 }
 
-export function drawTopField(ctx, cam, c, hand = 'R') {
+// `clear`: where the page's words sit over the picture, in CSS pixels from its top left (the speed and the time in the
+// top-left corner, the legend in the top-right), so the label up the screen keeps clear of them.
+export function drawTopField(ctx, cam, c, hand = 'R', clear = {}) {
   const { W, H } = cam;
   ctx.fillStyle = c.grassNear; ctx.fillRect(0, 0, W, H);
   const P = (x, y) => cam.project([x, y, 0]);
@@ -313,13 +315,16 @@ export function drawTopField(ctx, cam, c, hand = 'R') {
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   ctx.restore();
   // Which side is which. Up the screen is first base. The top label sits along the top edge, clear of every path,
-  // and starts past the speed readout the page puts in the top-left corner (about 114px wide).
+  // and starts past the speed readout the page puts in the top-left corner (about 114px wide, more with two pitches'
+  // speeds). Where that would run into the legend in the top-right, it goes just under the readout instead.
   const dpr = cam.dpr || 1;
   ctx.fillStyle = 'rgba(255,255,255,.9)';
   ctx.font = `600 ${Math.round(Math.max(12 * dpr, W / 60))}px "Barlow Condensed", system-ui, sans-serif`;
   ctx.textAlign = 'left';
-  const armUp = hand === 'L';
-  ctx.textBaseline = 'top'; ctx.fillText(armUp ? '↑ ARM SIDE' : '↑ GLOVE SIDE', Math.max(W * 0.05, 120 * dpr), 12 * dpr);
+  const armUp = hand === 'L', up = armUp ? '↑ ARM SIDE' : '↑ GLOVE SIDE';
+  let x = Math.max(W * 0.05, 120 * dpr, ((clear.speed?.right ?? 0) + 8) * dpr), y = 12 * dpr;
+  if (clear.legend && x + ctx.measureText(up).width > (clear.legend.left - 8) * dpr) { x = W * 0.05; y = ((clear.time?.bottom ?? 80) + 6) * dpr; }
+  ctx.textBaseline = 'top'; ctx.fillText(up, x, y);
   ctx.textBaseline = 'bottom'; ctx.fillText(armUp ? '↓ GLOVE SIDE' : '↓ ARM SIDE', W * 0.05, H - 10 * dpr);
 }
 

@@ -244,8 +244,9 @@ for (const v of ['side', 'top', 'catcher']) {
 }
 
 // From above, the label for the side up the screen stays clear of the speed in the top-left corner and of the legend
-// in the top-right, for either hand.
-{
+// in the top-right, for either hand, and with a second pitch's speed beside the first.
+for (const pair of ['', 'CH']) {
+  await page.locator('#pair').selectOption(pair);
   await page.evaluate(() => {
     const fill = CanvasRenderingContext2D.prototype.fillText;
     window.topLabels = [];
@@ -259,6 +260,7 @@ for (const v of ['side', 'top', 'catcher']) {
     };
   });
   await page.locator('#view [data-v="top"]').click();
+  await page.evaluate(() => { window.topLabels = []; });
   for (const hand of ['L', 'R']) {
     await page.locator(`#hand [data-v="${hand}"]`).click();
     await arrived();
@@ -273,11 +275,12 @@ for (const v of ['side', 'top', 'catcher']) {
   const apart = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
   assert.deepEqual([...new Set(labels.map(l => l.text))].sort(), ['↑ ARM SIDE', '↑ GLOVE SIDE']);
   for (const l of labels) {
-    assert.ok(apart(l, speed), `from above, "${l.text}" is drawn over the speed`);
-    assert.ok(apart(l, legend), `from above, "${l.text}" is drawn under the legend`);
+    assert.ok(apart(l, speed), `from above${pair ? ', two pitches' : ''}, "${l.text}" is drawn over the speed`);
+    assert.ok(apart(l, legend), `from above${pair ? ', two pitches' : ''}, "${l.text}" is drawn under the legend`);
   }
   await page.locator('#view [data-v="catcher"]').click();
 }
+await page.locator('#pair').selectOption('');
 
 // From the side, the eephus's lob stays under the speed and time in the top-left corner, on its own or with a fastball.
 {
@@ -314,6 +317,15 @@ await arrived();
 const flights = await page.evaluate(() => window.arsenal.stage.flights.map(f => ({ code: f.p.code, x: f.release.x, z: f.release.z })));
 assert.deepEqual(flights.map(f => f.code), ['SL', 'FF']);
 assert.equal(flights[0].x, flights[1].x);
+// The speed over the picture is both pitches', and the caption says what throwing them together shows: how far apart
+// they are where the hitter has to decide and at the plate, which gets there first, and whose the ghost is. A screen
+// reader hears the gap with the times.
+{
+  const paired = await page.evaluate(() => ({ speed: document.getElementById('ro-mph').textContent, caption: document.getElementById('caption').textContent, heard: document.getElementById('landed').textContent }));
+  assert.match(paired.speed, /^86\.3 · 94\.8$/, 'the speed over two pitches thrown together');
+  assert.match(paired.caption, / When the hitter has to decide, the slider and the four-seam are (\d+ inches|an inch|less than an inch) apart; at the plate, (\d+ inches|\d ft( \d+ in)?)\. The four-seam gets there 0\.\d\d\u00a0s sooner\. The ghost is the slider’s\.$/, 'the caption for two pitches thrown together');
+  assert.match(paired.heard, /^Slider 0\.\d\d seconds, Four-seam 0\.\d\d seconds\. When the hitter has to decide they’re (\d+ inches|an inch|less than an inch) apart; at the plate, (\d+ inches|\d (foot|feet)( \d+ inch(es)?)?)\.$/, 'what a screen reader hears for two pitches thrown together');
+}
 
 // The controls stay the same height from pitch to pitch, and the list has room for every partner, even the longest:
 // "Four-seam fastball (usual partner)".
