@@ -361,7 +361,7 @@ p { margin: 0; }
   .bat-stage { display: contents; }
   .bat-stage > .frame { position: sticky; top: 0; z-index: 3; box-shadow: 0 0 0 12px var(--paper); }
   .bat-call { margin-top: 18px; }
-  #ab-callbox, #ab-end, #ab-chart, .bat-call button { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
+  #ab-callbox, #ab-end, #ab-chart, .bat-grid :is(button, select, input, .seg) { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
 }
 .count { display: flex; align-items: center; gap: 12px; }
 .count .ct { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; }

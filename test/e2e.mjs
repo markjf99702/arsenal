@@ -689,6 +689,13 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     });
     assert.deepEqual(box, { rows: 3, oneLine: true, above: true, width: true, align: batter === 'R' ? 'left' : 'right' }, `${at}, the call box for a ${batter === 'R' ? 'right' : 'left'}-handed batter`);
   }
+  // With a keyboard, Shift+Tab back from the pitches reaches the speed buttons, which had scrolled away under the
+  // picture: they come out from behind it, as the call box's buttons do.
+  await ph.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
+  await ph.locator('#ab-pitches .ab-chip').first().focus();
+  await ph.keyboard.press('Shift+Tab');
+  const shifted = await ph.evaluate(() => ({ on: document.activeElement.closest('#ab-speed') ? 'speed' : document.activeElement.textContent, top: document.activeElement.getBoundingClientRect().top, picture: document.getElementById('ab-flight').getBoundingClientRect().bottom }));
+  assert.ok(shifted.on === 'speed' && shifted.top >= shifted.picture, `${at}, Shift+Tab to ${shifted.on} put it at ${Math.round(shifted.top)}px, behind a picture ending at ${Math.round(shifted.picture)}px`);
   assert.equal(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${at}, the page scrolls sideways`);
   await phoneCtx.close();
 }
