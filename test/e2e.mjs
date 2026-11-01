@@ -860,8 +860,18 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   // 100, the line under it says what matters with two strikes, and a screen reader hears the caption.
   assert.equal(await ph.locator('#ab-run').textContent(), 'What else could he have thrown on that 2-2 pitch?');
   await ph.evaluate(() => scrollBy(0, document.getElementById('ab-run').getBoundingClientRect().bottom - (innerHeight - 20)));
+  // What the button and the bars say as the chart appears, before its next frame.
+  await ph.evaluate(() => {
+    const watch = new MutationObserver(() => {
+      const bars = document.querySelector('.hundred-bars');
+      if (!bars) return;
+      window.filling = { waits: document.getElementById('ab-run').getAttribute('aria-disabled'), busy: bars.getAttribute('aria-busy') };
+      watch.disconnect();
+    });
+    watch.observe(document.getElementById('ab-chart'), { childList: true });
+  });
   await ph.locator('#ab-run').tap();
-  const filling = await ph.evaluate(() => ({ waits: document.getElementById('ab-run').getAttribute('aria-disabled'), busy: document.querySelector('.hundred-bars').getAttribute('aria-busy') }));
+  const filling = await ph.evaluate(() => window.filling);
   await ph.waitForFunction(() => !document.querySelector('.hundred-bars').hasAttribute('aria-busy'));
   for (let y = -1, now; (now = await ph.evaluate(() => scrollY)) !== y; y = now) await ph.waitForTimeout(250);
   const hundred = await ph.evaluate(() => {
