@@ -53,12 +53,12 @@ export function setupAtBat({ dark = false } = {}) {
     S.code = S.pitcher.pitches[0].code;
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
     S.busy = false;
+    S.pending = null;
     $('ab-line').textContent = `${S.pitcher.name}: ${S.pitcher.line}`;
     $('ab-pitcher').value = S.pitcher.key;
     for (const b of $('ab-batter').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === S.batter));
     stage.set({ hand: S.pitcher.hand, batter: S.batter, marks: [] });
-    stage.flights = [];
-    stage.draw();
+    stage.clear();
     $('ab-chart').replaceChildren();
     $('ab-hint').textContent = '';
     drawCall();
@@ -74,7 +74,12 @@ export function setupAtBat({ dark = false } = {}) {
     S.pending = rec;
     $('ab-throw').disabled = true;
     $('ab-hint').textContent = '';
-    $('ab-ro').textContent = `Pitch ${rec.n} · ${rec.mph.toFixed(1)} mph ${SHORT(rec.code).toLowerCase()}`;
+    fly(rec);
+  }
+
+  // Throw a pitch that has already happened in the model: the marks so far, and in the readout what's coming.
+  function fly(rec) {
+    $('ab-ro').textContent = `Pitch ${rec.n} · ${pitchLine(rec)}`;
     stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
     stage.show([rec.path]);
   }
@@ -88,6 +93,8 @@ export function setupAtBat({ dark = false } = {}) {
     drawState();
     $('ab-chart').replaceChildren();
   }
+
+  const pitchLine = p => `${p.mph.toFixed(1)} mph ${SHORT(p.code).toLowerCase()}`;
 
   function marks(ps) {
     return ps.map(p => ({ x: p.plate[0], z: p.plate[1], n: p.n, kind: markKind(p.result) }));
@@ -141,7 +148,11 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-result').className = `end-result ${hitterWon(ab.result) ? 'lost' : 'won'}`;
       $('ab-note').textContent = note(ab);
       $('ab-copied').textContent = '';
-      if (!S.pending) $('ab-ro').textContent = `${ENDING[ab.result]} · ${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`;
+    }
+    // While a pitch flies the readout says what's coming (fly); once it's in, what happened.
+    if (!S.pending) {
+      $('ab-ro').textContent = over ? `${ENDING[ab.result]} · ${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`
+        : last ? `${resultWord(last)} · ${pitchLine(last)}` : '';
     }
     drawCall();
   }
@@ -185,9 +196,11 @@ export function setupAtBat({ dark = false } = {}) {
       throwCall(S.ab, c);
       S.calls.push(c);
     }
+    // The last pitch is thrown again, so the count and the log show where things stood before it.
     const last = S.ab.pitches.at(-1);
-    stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
-    if (last) { S.pending = last; S.busy = true; stage.show([last.path]); } else drawState();
+    if (last) { S.pending = last; S.busy = true; }
+    drawState();
+    if (last) fly(last);
     return true;
   }
 

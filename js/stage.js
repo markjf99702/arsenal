@@ -66,6 +66,13 @@ export class Stage {
     this.play();
   }
 
+  // Stop whatever is flying and clear the field (a new at-bat).
+  clear() {
+    cancelAnimationFrame(this.raf);
+    this.flights = [];
+    this.draw();
+  }
+
   play() {
     cancelAnimationFrame(this.raf);
     let last = performance.now();

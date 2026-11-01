@@ -391,6 +391,54 @@ assert.match(await heading(), /^Forkball/i);
   assert.deepEqual(problems.slice(before), [], 'problems while pitching to a hitter');
 }
 
+// Pitch to a hitter on a phone, tapped the way a thumb would. The readout over the picture says what each pitch did,
+// and a shared link shows the count and the pitches before the one it throws again.
+const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
+for (const [width, height] of [[390, 844], [320, 640]]) {
+  const phoneCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  const ph = await phoneCtx.newPage();
+  watch(ph);
+  const idle = () => ph.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const at = `at ${width}px`;
+  await ph.goto(base + STRIKEOUT.replace(/\.FF6.*/, '')); // the same hitter, before the first pitch
+  await ph.evaluate(() => document.fonts.ready);
+  await ph.locator('#ab-pitches .ab-chip', { hasText: 'Four-seam' }).tap();
+  await ph.locator('#ab-spots [aria-label="up and in"]').tap();
+  await ph.locator('#ab-throw').tap();
+  await idle();
+  assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
+  assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8 mph four-seam', `${at}, the readout doesn't say what the pitch did`);
+
+  // A link: while its last pitch is thrown again, the count and the log are from before it.
+  await ph.goto('about:blank');
+  await ph.goto(base + STRIKEOUT);
+  const replay = await ph.evaluate(() => {
+    const { busy, ab } = window.arsenal.atBat.state, last = ab.pitches.at(-1);
+    return {
+      busy, count: document.querySelector('#ab-count .ct').textContent, log: document.querySelectorAll('#ab-log li').length,
+      ro: document.getElementById('ab-ro').textContent,
+      want: { count: `${last.before.balls}-${last.before.strikes}`, log: ab.pitches.length - 1, ro: `Pitch ${last.n} · ${last.mph.toFixed(1)} mph` },
+    };
+  });
+  assert.ok(replay.busy, `${at}, the link's last pitch had landed before it could be checked`);
+  assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 80.3 mph' }, 'the README strikeout plays differently now');
+  assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
+  assert.equal(replay.ro, 'Pitch 6 · 80.3 mph curve', `${at}, while the link's last pitch flies`);
+  await idle();
+  assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()} · 6 pitches`);
+
+  // The next hitter starts clean: no readout left from the last one.
+  await ph.locator('#ab-next').tap();
+  assert.equal(await ph.locator('#ab-ro').textContent(), '', `${at}, the readout still describes the last at-bat`);
+  assert.equal(await ph.locator('#ab-count .ct').textContent(), '0-0');
+  // So does a new pitcher picked while a pitch is in the air.
+  await ph.locator('#ab-throw').tap();
+  await ph.locator('#ab-pitcher').selectOption('skenes');
+  await ph.waitForTimeout(1200);
+  assert.deepEqual(await ph.evaluate(() => ({ busy: window.arsenal.atBat.state.busy, ro: document.getElementById('ab-ro').textContent, log: document.querySelectorAll('#ab-log li').length })), { busy: false, ro: '', log: 0 }, `${at}, after a new pitcher mid-pitch`);
+  await phoneCtx.close();
+}
+
 // A link straight to a pitch opens on it.
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);
