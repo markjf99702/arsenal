@@ -4,15 +4,17 @@ import {
   drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
+import { drawBatter, drawMarks } from './tracker.js';
 
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
 
 export class Stage {
-  constructor(canvas, { onState = () => {} } = {}) {
+  constructor(canvas, { onState = () => {}, onArrive = () => {} } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onState = onState;
+    this.onArrive = onArrive;
     this.opts = { view: 'catcher', speed: 0.25, ghost: true, hand: 'R', pair: null, dark: false };
     this.flights = [];
     this.clock = 0; // real seconds since the throw
@@ -56,14 +58,24 @@ export class Stage {
     this.play();
   }
 
+  // Play flights worked out elsewhere (the at-bat's), so what's drawn is exactly what happened.
+  show(flights) {
+    this.flights = flights;
+    this.bg = null;
+    this.clock = this.reduced ? WINDUP + 10 / this.opts.speed : 0;
+    this.play();
+  }
+
   play() {
     cancelAnimationFrame(this.raf);
     let last = performance.now();
+    let arrived = false;
     const tick = now => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       this.clock += dt;
       this.draw();
+      if (!arrived && this.gameTime() >= this.flights[0].T) { arrived = true; this.onArrive(); }
       const longest = Math.max(...this.flights.map(f => f.T));
       if (this.gameTime() < longest || this.clock < WINDUP + longest / this.opts.speed + HOLD) {
         this.raf = requestAnimationFrame(tick);
@@ -81,19 +93,21 @@ export class Stage {
     if (this.opts.view === 'side') cam = sideCamera(W, H, { top, dpr: this.dpr || 1 });
     else if (this.opts.view === 'top') cam = topCamera(W, H);
     // Tilt up for a high lob so it stays in frame.
-    else cam = catcherCamera(W, H, { lift: Math.max(0, Math.min(10, (top - 8) * 1.6)) });
+    else cam = catcherCamera(W, H, { lift: Math.max(0, Math.min(10, (top - 8) * 1.6)) + (this.opts.tilt || 0) });
     cam.dpr = this.dpr || 1;
     return cam;
   }
 
   background(cam, colors) {
-    const key = `${cam.kind}|${cam.W}|${cam.H}|${cam.dpr}|${this.opts.dark}|${cam.F || cam.stretch}|${this.opts.hand}`;
+    const key = `${cam.kind}|${cam.W}|${cam.H}|${cam.dpr}|${this.opts.dark}|${cam.F || cam.stretch}|${this.opts.hand}|${this.opts.batter}`;
     if (this.bg && this.bgKey === key) return this.bg;
     const c = document.createElement('canvas');
     c.width = cam.W; c.height = cam.H;
     const x = c.getContext('2d');
-    if (cam.kind === 'catcher') drawCatcherField(x, cam, colors);
-    else if (cam.kind === 'side') drawSideField(x, cam, colors);
+    if (cam.kind === 'catcher') {
+      drawCatcherField(x, cam, colors);
+      if (this.opts.batter) drawBatter(x, cam, this.opts.batter, this.opts.dark);
+    } else if (cam.kind === 'side') drawSideField(x, cam, colors);
     else drawTopField(x, cam, colors, this.opts.hand);
     this.bg = c; this.bgKey = key;
     return c;
@@ -108,7 +122,7 @@ export class Stage {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(this.background(cam, colors), 0, 0);
     if (cam.kind === 'catcher') drawZone(ctx, cam, colors);
-    if (!this.flights.length) return;
+    if (!this.flights.length) { this.drawMarks(ctx, cam); return; }
 
     const t = this.gameTime();
     const lw = Math.max(1.5, W / 520);
@@ -177,6 +191,12 @@ export class Stage {
       }
       drawBall(ctx, p.x, p.y, r, spun(M0, axisView, angle));
     }
+    this.drawMarks(ctx, cam);
+  }
+
+  // An at-bat's pitches so far, where they crossed the plate, over everything else.
+  drawMarks(ctx, cam) {
+    if (cam.kind === 'catcher' && this.opts.marks?.length) drawMarks(ctx, cam, this.opts.marks);
   }
 
   // Facts about the current throw, for the readout.

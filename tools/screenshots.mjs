@@ -72,6 +72,17 @@ async function save(path, buffer, colours = 256) {
   await page.evaluate(() => { const r = document.querySelector('#move').getBoundingClientRect(); scrollTo(0, scrollY + r.top - 150); });
   await page.waitForTimeout(200);
   await save(join(root, 'docs/phone-chart.png'), await page.screenshot());
+
+  // Pitch to a hitter: a six-pitch at-bat, ending in a strikeout, from a link with its seed.
+  await page.goto(base + '#ab.average.R.1p');
+  await page.evaluate(() => document.fonts.ready);
+  for (const [code, spot] of [['FF', '1m1'], ['SL', 'm21'], ['CH', 'm1m1'], ['FF', '21'], ['SL', 'm22'], ['CU', 'm20']]) {
+    await page.evaluate(([c, s]) => window.arsenal.atBat.throw(c, s), [code, spot]);
+    await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  }
+  await page.evaluate(() => { const r = document.querySelector('#ab-flight').getBoundingClientRect(); scrollTo(0, scrollY + r.top - 12); });
+  await page.waitForTimeout(300);
+  await save(join(root, 'docs/phone-atbat.png'), await page.screenshot());
   await page.context().close();
 }
 

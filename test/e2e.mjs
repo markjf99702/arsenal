@@ -331,6 +331,66 @@ assert.match(await heading(), /^Forkball/i);
   assert.deepEqual(problems.slice(before), [], 'errors from a link named after an object property');
 }
 
+// Pitch to a hitter: call pitches by tapping a pitch, a spot and Throw it, until the at-bat ends. Every pitch is logged
+// and marked, the count follows the model, a link replays the same at-bat, and "100 times" charts every pitch.
+{
+  const before = problems.length;
+  await page.goto(base);
+  await page.locator('#at-bat').scrollIntoViewIfNeeded();
+  const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  await page.locator('#ab-pitches .ab-chip', { hasText: 'Slider' }).click();
+  await page.locator('#ab-spots [aria-label="down and away"]').click();
+  assert.equal(await page.locator('#ab-choice').innerText(), 'Slider, down and away');
+  await page.locator('#ab-throw').click();
+  await idle();
+  assert.equal(await page.locator('#ab-log li').count(), 1);
+  assert.ok((await page.locator('#ab-last .res').innerText()).length > 2, 'no result shown for the first pitch');
+  const model = () => page.evaluate(() => { const ab = window.arsenal.atBat.state.ab; return { balls: ab.balls, strikes: ab.strikes, n: ab.pitches.length, result: ab.result, marks: window.arsenal.atBat.stage.opts.marks.length }; });
+  let m = await model();
+  if (!m.result) assert.equal((await page.locator('#ab-count .ct').innerText()), `${m.balls}-${m.strikes}`);
+  for (let i = 0; i < 20 && !(await model()).result; i++) {
+    await page.locator('#ab-suggest').click();
+    assert.match(await page.locator('#ab-hint').innerText(), /^A typical call in a \d-\d count: /);
+    await page.locator('#ab-throw').click();
+    await idle();
+  }
+  m = await model();
+  assert.ok(m.result, 'the at-bat never ended');
+  assert.equal(await page.locator('#ab-end').isHidden(), false, 'no result card at the end of the at-bat');
+  assert.equal(await page.locator('#ab-callbox').isHidden(), true, 'the pitch controls are still there after the at-bat ended');
+  assert.match(await page.locator('#ab-result').innerText(), /^(strikeout swinging|strikeout looking|walk|hit by pitch|out in play|single|double|triple|home run)$/i);
+  assert.ok((await page.locator('#ab-note').innerText()).length > 20, 'no scout\'s note');
+  assert.equal(await page.locator('#ab-log li').count(), m.n);
+  assert.equal(m.marks, m.n, 'not every pitch is marked where it crossed the plate');
+  // The link replays the same at-bat, pitch for pitch.
+  const log = await page.locator('#ab-log').innerText();
+  const link = await page.evaluate(() => window.arsenal.atBat.link());
+  await page.goto('about:blank');
+  await page.goto(base + '#' + link);
+  await idle();
+  assert.equal(await page.locator('#ab-log').innerText(), log, 'the link replayed a different at-bat');
+  // A hundred of each, from here.
+  await page.locator('#ab-run').click();
+  assert.equal(await page.locator('#ab-chart .hundred-bars li').count(), await page.evaluate(() => window.arsenal.atBat.state.pitcher.pitches.length));
+  // Another pitcher, and a left-handed batter: the grid turns round so his inside is on the right.
+  await page.locator('#ab-next').click();
+  await page.locator('#ab-pitcher').selectOption('rogers');
+  assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
+  assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and inside');
+  await page.locator('#ab-batter [data-v="L"]').click();
+  assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
+  await page.locator('#ab-throw').click();
+  await idle();
+  assert.equal(await page.locator('#ab-log li').count(), 1);
+  // Nothing in it scrolls sideways on the narrowest phones.
+  for (const width of [320, 360]) {
+    await page.setViewportSize({ width, height: 740 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `the page scrolls sideways at ${width}px`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.deepEqual(problems.slice(before), [], 'problems while pitching to a hitter');
+}
+
 // A link straight to a pitch opens on it.
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);

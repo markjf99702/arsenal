@@ -10,6 +10,8 @@
   <img src="docs/phone-side.png" alt="A curveball and a four-seamer from the third-base side: the curve starts on the same line and drops more than four feet on the way in, ending at the bottom of the strike zone" width="250">
   &nbsp;
   <img src="docs/phone-card.png" alt="The slider: 86.3 mph, 2,434 rpm, drops 2 feet 11 inches; a drawing of the grip with the fingers off centre along a seam, and the ball spinning with a clock showing a 9:45 tilt" width="250">
+  &nbsp;
+  <img src="docs/phone-atbat.png" alt="Pitching to a hitter: six pitches marked where they crossed the plate, red for strikes and green for balls, ending in a strikeout swinging on a curveball in the dirt; the scout's note says it was 6 mph slower than the slider before it" width="250">
 </p>
 
 ## How it works
@@ -21,6 +23,7 @@
 - **The grip**, drawn as the pitcher sees it from behind, with see-through fingers so the seams show underneath.
 - **The spin**, shown 40 times slower, from behind the pitcher (with a clock for the tilt) or from the side. The seam pattern follows the pitch: four seams a turn for a four-seamer, two for a sinker, the red dot of a slider's bullet spin.
 - **The whole arsenal**: every pitch on one movement chart, and a table of how often each is thrown, how hard, and how often hitters miss it.
+- **Pitch to a hitter.** Pick a pitcher (a league-average righty, or one of nine real 2026 arsenals, from Paul Skenes to Tyler Rogers's submarine sinker and Matt Waldron's knuckleball) and a righty or lefty batter. Call each pitch and one of 25 spots, the strike zone's nine boxes and the ring around them, and throw it. Pitches miss their spots by a realistic amount. Each one is marked where it crossed the plate, with what happened and why: what the hitter was looking for, whether he picked it up, and where and when he swung. The at-bat ends with a scout's note on what decided it. "What would a catcher call?" suggests a typical call for the count, "Throw each of his pitches 100 times from here" charts what every pitch in the arsenal does from the same count and spot, and "Copy link to this at-bat" makes a link that replays it exactly.
 - Links go straight to a pitch, like [junkdrawer.works/arsenal/#sweeper](https://junkdrawer.works/arsenal/#sweeper). No account and nothing saved. It works offline and installs to a phone's home screen.
 
 ## The numbers
@@ -29,6 +32,12 @@ Every number is from Statcast, through Baseball Savant's search, for the 2026 re
 
 The flight is a constant-acceleration model, like the one Statcast fits to each pitch: the speed, movement and release come from the data, and the aim is worked out so the pitch lands where that kind of pitch usually does. The tests check that the model's total drop comes out within 12% of Statcast's (or 3 inches, whichever is more) for every pitch.
 
+## The hitter
+
+The at-bat is a coaching model, not physics, built on the same flight model. Before each pitch the hitter guesses fastball or not, from the count and what this pitcher throws, leaning toward whatever he just saw, and sits on one pitch. He reads the ball until the decision point, 0.175 seconds from the plate. If it isn't the pitch he's sitting on, he may still pick it up: less often when it comes out of the same tunnel as the pitch before. If he doesn't, he decides and swings as if it were the pitch he expected: where that pitch would cross the plate, and when, with his timing pulled a little toward the last pitch's speed. So a slider that looks like a fastball at the decision point is chased off the plate, and a changeup after two fastballs gets him out in front.
+
+His knobs are tuned by `tools/calibrate.mjs` against the 2026 league, gathered by `tools/league.mjs` from Statcast: how often hitters swing in each of the 12 counts and miss when they do, how often they chase pitches out of the zone and miss those, how often taken pitches are called strikes, how each kind of pitch gets missed and lands in the zone, fouls, and what happens on balls in play. Each real pitcher's pitches are tuned to his own miss rates. Over thousands of at-bats it comes out within a point or two of the league on walks, swings, chases, misses and hits; strikeouts run about two points high (24% against 22%). `test/atbat.test.mjs` holds it there.
+
 ## Running it
 
 It's a static site: plain HTML, CSS and JavaScript modules, with no build step.
@@ -36,10 +45,12 @@ It's a static site: plain HTML, CSS and JavaScript modules, with no build step.
 ```sh
 npx serve .                   # or any static file server, then open the printed address
 npm install                   # only for the tools below: esbuild and upng-js
-npm test                      # the flight model against the numbers, then the real page in Chromium (needs Playwright)
+npm test                      # the flight and at-bat models against the numbers, then the real page in Chromium (needs Playwright)
 node tools/screenshots.mjs    # redraws docs/*.png and og.png
 node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
 node tools/statcast.mjs       # refreshes js/numbers.js from Baseball Savant
+node tools/league.mjs         # refreshes js/league.js, the at-bat's targets and the real pitchers' arsenals
+node tools/calibrate.mjs      # retunes the at-bat model to js/league.js and writes js/atbat-params.js
 npm run build                 # dist/arsenal.html, the whole thing in one file
 ```
 
@@ -51,6 +62,8 @@ To put it online with GitHub Pages: **Settings → Pages → Build and deploymen
 - `js/flight.js`: the flight model and the three cameras with their scenery. `js/stage.js`: the animation.
 - `js/ball.js`: the baseball, drawn from the real seam curve with 108 stitches. `js/grip.js`: the grips. `js/spin.js`: the spin panel and tilt.
 - `js/charts.js`: the movement chart and the table. `js/app.js`: the page. `js/math3.js`: small 3D helpers.
+- `js/atbat.js`: the at-bat model: the hitter, the count, a pitcher who calls his own pitches, and the hundred-throw runs. `js/atbat-params.js`: its tuned knobs. `js/league.js`: the league numbers it's tuned to and the real arsenals. `js/atbat-words.js`: what each pitch did and why, in words. `js/atbat-ui.js`: the section on the page. `js/tracker.js`: the pitch marks and the batter's box. `js/rng.js`: the seeded random numbers that let a link replay an at-bat.
 - `fonts/`: Barlow and Barlow Condensed (SIL Open Font License), served from here so nothing loads from elsewhere.
 - `sw.js`: keeps a copy for using offline.
+- `test/atbat.test.mjs` plays every pitch of every pitcher to every spot, replays an at-bat from its seed, checks the count's rules, and runs the lab (`test/lab.mjs`): thousands of at-bats measured against the league overall, in every count, for each kind of pitch and for each real pitcher's pitches, plus that a changeup after a fastball fools him more than one after a changeup.
 - `test/physics.test.mjs` checks that every pitch but the knuckleball, which wobbles, lands where it's aimed and that the gap to its ghost is the Statcast movement; that every pitch's drop is close to Statcast's; the flight times; and the tilt clock. `test/e2e.mjs` picks pitches every way the page offers, throws them from every camera, pairs two, switches hands, and checks it works offline.

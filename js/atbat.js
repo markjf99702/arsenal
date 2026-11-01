@@ -184,7 +184,7 @@ export function throwCall(ab, call) {
   const out = {
     n: ab.pitches.length + 1, code: call.code, spot: call.spot, mph: entry.mph, before,
     aim, plate, atDecide, tunnel, sat, picked, judged, miss, missBy, early, swing, inZone: inZone(plate[0], plate[1]),
-    flight: { target, T: flight.T }, result: null, play: null,
+    flight: { target, T: flight.T }, path: flight, result: null, play: null,
   };
 
   // Hit by the pitch: well inside, at body height.

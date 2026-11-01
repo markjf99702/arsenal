@@ -6,6 +6,7 @@ import { SpinPanel, SLOW, tilt } from './spin.js';
 import { drawGrip } from './grip.js';
 import { movementChart, lineupTable, famName } from './charts.js';
 import { DECIDE, throwPitch } from './flight.js';
+import { setupAtBat } from './atbat-ui.js';
 
 const $ = id => document.getElementById(id);
 const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d });
@@ -252,10 +253,18 @@ function pick(p, { scroll = false, push = true } = {}) {
   throwNow();
 }
 
-addEventListener('hashchange', () => { const p = BY_SLUG[location.hash.slice(1)]; if (p && p !== state.pitch) pick(p, { push: false }); });
+// Pitch to a hitter. A link like #ab.skenes.R.k3x9a.FF6.SL23 replays one at-bat.
+const atBat = setupAtBat({ dark: isDark() });
+addEventListener('hashchange', () => {
+  const h = location.hash.slice(1);
+  if (h.startsWith('ab.')) { if (atBat.load(h)) $('at-bat').scrollIntoView(); return; }
+  const p = BY_SLUG[h];
+  if (p && p !== state.pitch) pick(p, { push: false });
+});
 
 function applyTheme() {
   stage.set({ dark: isDark() });
+  atBat.setDark(isDark());
   spin.colors = { ink: css('--ink'), muted: css('--muted'), accent: css('--accent'), ring: css('--line-strong') };
 }
 darkQuery.addEventListener('change', applyTheme);
@@ -263,9 +272,10 @@ new MutationObserver(applyTheme).observe(document.documentElement, { attributes:
 applyTheme();
 caption();
 pick(BY_SLUG[location.hash.slice(1)] || PITCHES[0], { push: false });
+if (location.hash.startsWith('#ab.') && atBat.load(location.hash.slice(1))) $('at-bat').scrollIntoView();
 
 // Hooks for the screenshot and test scripts.
-window.arsenal = { state, stage, pick: code => pick(BY_CODE[code]), set: o => { Object.assign(state, o); throwNow(); } };
+window.arsenal = { state, stage, atBat, pick: code => pick(BY_CODE[code]), set: o => { Object.assign(state, o); throwNow(); } };
 
 // The one-file copy (data-single) has no service worker to register.
 if ('serviceWorker' in navigator && isSecureContext && !('single' in document.documentElement.dataset)) {

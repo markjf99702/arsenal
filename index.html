@@ -24,7 +24,7 @@
 
   <header class="top">
     <h1 class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" class="mark-ball"/><path class="mark-seam" d="M9 5.5c3.2 3 4.6 6.6 4.6 10.5S12.2 23.5 9 26.5M23 5.5c-3.2 3-4.6 6.6-4.6 10.5s1.4 7.5 4.6 10.5"/></svg>Arsenal</h1>
-    <p class="lede">Every pitch in big-league baseball: how it’s held, how it spins, how hard it’s thrown and where it ends up. Pick one and throw it.</p>
+    <p class="lede">Every pitch in big-league baseball: how it’s held, how it spins, how hard it’s thrown and where it ends up. Pick one and throw it, or <a href="#at-bat">pitch to a hitter</a>.</p>
   </header>
 
   <nav class="picker" aria-label="Pitches" id="picker"></nav>
@@ -94,6 +94,70 @@
       </nav>
     </article>
   </main>
+
+  <section class="bat" id="at-bat" aria-labelledby="bat-title">
+    <header class="bat-head">
+      <h2 id="bat-title">Pitch to a hitter</h2>
+      <p class="intro">Call each pitch and where to throw it. The hitter guesses what’s coming, reads the ball until the decision point, then swings or takes. If he guessed wrong and didn’t pick it up, he swings where the pitch he expected would have gone. Over thousands of at-bats he swings, chases and misses about as often as big-league hitters did in 2026, and each real pitcher’s pitches get missed about as often as his did.</p>
+    </header>
+    <div class="bat-grid">
+      <div class="bat-stage">
+        <div class="frame">
+          <canvas id="ab-flight" aria-label="The at-bat from behind the plate, with each pitch so far marked where it crossed"></canvas>
+          <div class="readout">
+            <div class="count" id="ab-count"></div>
+            <div class="time" id="ab-ro"></div>
+          </div>
+          <p class="sr" id="ab-live" aria-live="polite"></p>
+        </div>
+        <div class="controls">
+          <label class="pairpick">Pitching <select id="ab-pitcher"></select></label>
+          <div class="seg" role="group" aria-label="Batter" id="ab-batter">
+            <button type="button" data-v="R" aria-pressed="true">Righty batter</button>
+            <button type="button" data-v="L" aria-pressed="false">Lefty batter</button>
+          </div>
+          <div class="seg" role="group" aria-label="Speed" id="ab-speed">
+            <button type="button" data-v="1" aria-pressed="true">Real speed</button>
+            <button type="button" data-v="0.25" aria-pressed="false">Slow</button>
+          </div>
+        </div>
+        <p class="caption" id="ab-line"></p>
+      </div>
+
+      <div class="bat-call">
+        <div class="callbox" id="ab-callbox">
+          <h3>Call the pitch</h3>
+          <div class="ab-chips" id="ab-pitches" role="group" aria-label="Pitch: speed in mph and how often he throws it"></div>
+          <h3>Where</h3>
+          <div class="spots-wrap">
+            <div class="spots" id="ab-spots" role="group" aria-label="Spot, as the catcher sees it: the middle nine are the strike zone"></div>
+            <p class="side left" id="ab-side"></p>
+          </div>
+          <p class="choice" id="ab-choice"></p>
+          <div class="call-row">
+            <button class="throw" id="ab-throw" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>Throw it</button>
+            <button class="plain" id="ab-suggest" type="button">What would a catcher call?</button>
+          </div>
+          <p class="small" id="ab-hint" aria-live="polite"></p>
+        </div>
+        <div class="end" id="ab-end" hidden>
+          <p class="end-result" id="ab-result"></p>
+          <p id="ab-note"></p>
+          <div class="call-row">
+            <button class="throw" id="ab-next" type="button">Next hitter</button>
+            <button class="plain" id="ab-copy" type="button">Copy link to this at-bat</button>
+          </div>
+          <p class="small" id="ab-copied" aria-live="polite"></p>
+        </div>
+        <div class="last" id="ab-last"></div>
+        <ol class="log" id="ab-log" aria-label="Pitches so far"></ol>
+        <div class="hundred">
+          <button class="plain" id="ab-run" type="button">Throw each of his pitches 100 times from here</button>
+          <div id="ab-chart"></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section class="all" aria-labelledby="all-title">
     <h2 id="all-title">The whole arsenal</h2>

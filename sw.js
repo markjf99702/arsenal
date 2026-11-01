@@ -1,10 +1,11 @@
 // Offline support: keep a copy of the app so it works with no signal.
 // Network first, so a new version shows up as soon as you're online.
 
-const CACHE = 'arsenal-v1'; // bump the number when the file list changes
+const CACHE = 'arsenal-v2'; // bump the number when the file list changes
 const SHELL = [
   './', 'index.html', 'icon.svg', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/ball.js', 'js/charts.js', 'js/flight.js', 'js/grip.js', 'js/math3.js', 'js/numbers.js', 'js/pitches.js', 'js/spin.js', 'js/stage.js',
+  'js/atbat.js', 'js/atbat-params.js', 'js/atbat-ui.js', 'js/atbat-words.js', 'js/league.js', 'js/rng.js', 'js/tracker.js',
   'fonts/barlow-400.woff2', 'fonts/barlow-500.woff2', 'fonts/barlow-600.woff2', 'fonts/barlow-condensed-500.woff2', 'fonts/barlow-condensed-600.woff2', 'fonts/barlow-condensed-700.woff2',
 ];
 
