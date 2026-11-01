@@ -5,6 +5,7 @@ import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, AV
 import { COUNTS, TYPES } from '../js/league.js';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
+import { why, note } from '../js/atbat-words.js';
 
 const RESULTS = new Set(['ball', 'called', 'whiff', 'foul', 'tip', 'inplay', 'hbp']);
 const ENDS = new Set(['K', 'KL', 'BB', 'HBP', 'out', '1B', '2B', '3B', 'HR']);
@@ -44,6 +45,24 @@ test('the count works: four balls walk him, three strikes sit him down, a foul w
     const last = ab.pitches.at(-1).after;
     if (ab.result === 'BB') assert.equal(last.balls, 4);
     if (ab.result === 'K' || ab.result === 'KL') assert.equal(last.strikes, 3);
+  }
+});
+
+// The words: what made each pitch go how it did, and the scout's note at the end. Thousands of at-bats played by the
+// pitchers' own calls, every pitcher to either side, with each pitch's why and the note checked for what reads badly.
+const PLAYED = [];
+{
+  let seed = 1;
+  for (const pitcher of PITCHERS) for (const batter of ['R', 'L']) for (let i = 0; i < 200; i++) PLAYED.push(autoAtBat({ pitcher, batter, seed: seed++ }));
+}
+const words = ab => [['note', note(ab)], ...ab.pitches.map((p, i) => [`pitch ${p.n}`, why(p, ab.pitches[i - 1], ab.batter)])];
+const READS_BADLY = [
+  [/\d in\b/, 'inches as "in"'],
+  [/\d (ms|mph)\b/, 'a unit that can start a line on its own'],
+];
+test('the at-bat’s words read cleanly over thousands of at-bats', () => {
+  for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why] of READS_BADLY) {
+    assert.doesNotMatch(text, re, `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}, ${what}: ${why}: ${text}`);
   }
 });
 

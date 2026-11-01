@@ -4,8 +4,10 @@ import { ZONE } from './atbat.js';
 
 export const NAME = { FF: 'four-seamer', SI: 'sinker', FC: 'cutter', SL: 'slider', ST: 'sweeper', CU: 'curveball', KC: 'knuckle curve', SV: 'slurve', CH: 'changeup', FS: 'splitter', FO: 'forkball', KN: 'knuckleball', EP: 'eephus' };
 const the = code => `the ${NAME[code] || code}`;
-const inches = ft => `${Math.max(1, Math.round(Math.abs(ft) * 12))} in`;
-const ms = s => `${Math.round(Math.abs(s) * 1000)} ms`;
+// In words, inches spelled out ("in" alone reads as the word), and a no-break space so a unit never starts a line.
+const inches = ft => { const n = Math.max(1, Math.round(Math.abs(ft) * 12)); return n === 1 ? 'an inch' : `${n} inches`; };
+const ms = s => `${Math.round(Math.abs(s) * 1000)}\u00a0ms`;
+const mph = v => `${v}\u00a0mph`;
 
 export function resultWord(p) {
   const three = p.after.strikes === 3, four = p.after.balls === 4;
@@ -22,7 +24,7 @@ export function resultWord(p) {
 
 export const ENDING = { K: 'Strikeout swinging', KL: 'Strikeout looking', BB: 'Walk', HBP: 'Hit by pitch', out: 'Out in play', '1B': 'Single', '2B': 'Double', '3B': 'Triple', HR: 'Home run' };
 
-// Where a pitch missed the zone, from the hitter's side: "3 in below the zone", "5 in off the plate away".
+// Where a pitch missed the zone, from the hitter's side: "3 inches below the zone", "5 inches off the plate away".
 export function missed(p, batter) {
   const [x, z] = p.plate;
   const parts = [];
@@ -43,7 +45,7 @@ export function why(p, prev, batter) {
   out.push(same ? `He was sitting on ${the(p.code)}.` : `He was looking for ${the(p.sat.code)}.`);
   if (!same) {
     const slower = prev ? Math.round(prev.mph - p.mph) : 0;
-    const speed = slower >= 5 ? ` It was ${slower} mph slower than the last pitch.` : slower <= -5 ? ` It was ${-slower} mph harder than the last pitch.` : '';
+    const speed = slower >= 5 ? ` It was ${mph(slower)} slower than the last pitch.` : slower <= -5 ? ` It was ${mph(-slower)} harder than the last pitch.` : '';
     if (p.picked) out.push((p.tunnel != null && p.tunnel > 0.5 ? 'It came out on a different line from the last pitch, and he picked it up.' : 'He picked it up anyway.') + speed);
     else if (p.tunnel != null) out.push(`At the decision point it was ${inches(p.tunnel)} from where the last pitch had been, and he didn't pick it up.${speed}`);
     else out.push(`He didn't pick it up in time.${speed}`);
@@ -95,7 +97,7 @@ export function note(ab) {
     else if (prev && !last.picked && last.code !== prev.code && last.tunnel != null && last.tunnel < 0.6) {
       const apart = Math.hypot(last.plate[0] - prev.plate[0], last.plate[1] - prev.plate[1]);
       lead = `The ${NAME[last.code]} came out of the same tunnel as the ${NAME[prev.code]} before it, ${inches(last.tunnel)} apart at the decision point, and finished ${inches(apart)} away from it.`;
-    } else if (prev && Math.round(prev.mph - last.mph) >= 6) lead = `The ${NAME[last.code]} was ${Math.round(prev.mph - last.mph)} mph slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
+    } else if (prev && Math.round(prev.mph - last.mph) >= 6) lead = `The ${NAME[last.code]} was ${mph(Math.round(prev.mph - last.mph))} slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
     else if (!last.inZone) lead = `He chased the ${NAME[last.code]} for strike three.`;
     else lead = `The ${NAME[last.code]} beat him in the zone.`;
   } else if (r === 'BB') {
