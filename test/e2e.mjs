@@ -15,11 +15,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 // The server answers the way GitHub Pages does at junkdrawer.works/arsenal/: under /arsenal/, so a path from the
 // site's root would miss, and a browser may keep each file for ten minutes and asks again by its ETag. `net` is the
-// connection: 'up' or 'down' (the server drops every connection).
+// connection: 'up', 'down' (the server drops every connection) or 'stalled' (a train, a captive wifi: it takes each
+// request and holds on to it). With `release` set it serves the next release (see the offline checks).
 const SITE = '/arsenal/';
-let net = 'up';
+let net = 'up', release = false;
+const held = [];
 const server = createServer((req, res) => {
   if (net === 'down') { req.socket.destroy(); return; }
+  if (net === 'stalled') { held.push([req, res]); return; }
   serve(req, res);
 }).listen(0);
 async function serve(req, res) {
@@ -29,6 +32,8 @@ async function serve(req, res) {
   if (path.endsWith('/')) path += 'index.html';
   let body;
   try { body = await readFile(join(root, path)); } catch { res.writeHead(404); res.end(); return; }
+  if (release && path === '/sw.js') body = Buffer.from(String(body).replace(/const FILES = '[0-9a-f]*'/, "const FILES = 'next'"));
+  if (release && path === '/index.html') body = Buffer.concat([body, Buffer.from('<!-- the next release -->\n')]);
   const etag = `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
   const head = { etag, 'cache-control': 'max-age=600', 'content-type': TYPES[extname(path)] || 'text/html' };
   if (req.headers['if-none-match'] === etag) { res.writeHead(304, head); res.end(); return; }
@@ -36,6 +41,10 @@ async function serve(req, res) {
   res.end(body);
 }
 const base = `http://localhost:${server.address().port}${SITE}`;
+// Waits for ok() to come true, for up to ms, or fails saying what didn't happen.
+const until = async (ok, ms, what) => {
+  for (const end = Date.now() + ms; !(await ok());) { assert.ok(Date.now() < end, what); await new Promise(r => setTimeout(r, 100)); }
+};
 
 const browser = await pw.chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
@@ -690,6 +699,25 @@ assert.match(await heading(), /^Knuckleball/i, 'the page did not load offline');
 await ctx.setOffline(false);
 net = 'up';
 
+// On a connection that's up but not answering, it opens from the copy too, after the worker's few seconds' wait for
+// the network: the page and every file it loads (were any of them left waiting on the network, it wouldn't open).
+net = 'stalled';
+const t0 = Date.now();
+await page.reload({ timeout: 10000 }).catch(() => {});
+const took = Date.now() - t0;
+assert.ok(took < 8000, `the page took ${took} ms to open on a stalled connection`);
+assert.match(await heading(), /^Knuckleball/i, 'the page did not open on a stalled connection');
+net = 'up';
+for (const [req, res] of held.splice(0)) serve(req, res);
+
+// A new release: every file in the new copy comes from the server, though the browser still has its own copies of
+// the old ones for ten minutes. (The next release changes index.html, and so FILES in sw.js, as a real one does.)
+release = true;
+await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+await until(() => page.evaluate(async () => !!(await (await caches.match('index.html'))?.text())?.includes('<!-- the next release -->')),
+  10000, "the new release's offline copy kept the old index.html");
+release = false;
+
 // It clears out only its own old offline copies. Every tool at junkdrawer.works/ shares one address, and so one set
 // of copies: another tool's, there before this page's service worker starts, is still there once it has. So is one
 // from a tool whose name starts with this one's (arsenal-x).
@@ -790,4 +818,14 @@ await calmCtx.close();
 assert.deepEqual(problems.filter(p => !p.startsWith('failed:')), [], 'problems while using it');
 await browser.close();
 server.close();
+
+// sw.js changes whenever a file it keeps does, so a release replaces the whole offline copy at once: FILES in sw.js is
+// a fingerprint of every file in SHELL (sha1 of each, in the list's order, an address like './' read as its
+// index.html; the first 8 hex of the sha1 of those).
+const sw = await readFile(join(root, 'sw.js'), 'utf8');
+const shell = [...sw.match(/SHELL = \[([^\]]*)\]/)[1].replace(/\/\/.*/g, '').matchAll(/'([^']*)'/g)].map(m => m[1]);
+const all = createHash('sha1');
+for (const f of shell) all.update(createHash('sha1').update(await readFile(join(root, f.endsWith('/') ? f + 'index.html' : f))).digest());
+const files = all.digest('hex').slice(0, 8);
+assert.equal(sw.match(/const FILES = '([0-9a-f]*)'/)?.[1], files, `a file sw.js keeps for offline has changed: set FILES in sw.js to '${files}'`);
 console.log('all good');
