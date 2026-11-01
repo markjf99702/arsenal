@@ -421,6 +421,18 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
   assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8 mph four-seam', `${at}, the readout doesn't say what the pitch did`);
 
+  // Strike three thrown with the button low: the result card takes the controls' place, out from behind the picture.
+  await ph.goto('about:blank');
+  await ph.goto(base + STRIKEOUT.replace(/\.CU22$/, ''));
+  await idle();
+  await ph.locator('#ab-pitches .ab-chip', { hasText: 'Curve' }).tap();
+  await ph.locator('#ab-spots [aria-label="in the dirt"]').tap();
+  await ph.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
+  await ph.locator('#ab-throw').tap();
+  await idle();
+  const ended = await ph.evaluate(() => ({ picture: document.getElementById('ab-flight').getBoundingClientRect().bottom, card: document.getElementById('ab-end').getBoundingClientRect().top }));
+  assert.ok(ended.card >= ended.picture && ended.card < height - 150, `${at}, the result card starts at ${Math.round(ended.card)}px, under a picture ending at ${Math.round(ended.picture)}px`);
+
   // A link: while its last pitch is thrown again, the count and the log are from before it.
   await ph.goto('about:blank');
   await ph.goto(base + STRIKEOUT);

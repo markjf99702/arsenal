@@ -19,10 +19,8 @@ export function setupAtBat({ dark = false } = {}) {
   const frame = $('ab-flight').parentElement;
   new ResizeObserver(() => $('at-bat').style.setProperty('--ab-frame', `${Math.ceil(frame.getBoundingClientRect().height)}px`)).observe(frame);
   // Into view, and out from behind the picture: the browser counts what's behind it as in view.
-  const reveal = el => {
-    const behind = getComputedStyle(frame).position === 'sticky' && el.getBoundingClientRect().top < frame.getBoundingClientRect().bottom;
-    el.scrollIntoView({ block: behind ? 'start' : 'nearest' });
-  };
+  const behind = el => getComputedStyle(frame).position === 'sticky' && el.getBoundingClientRect().top < frame.getBoundingClientRect().bottom;
+  const reveal = el => el.scrollIntoView({ block: behind(el) ? 'start' : 'nearest' });
   document.querySelector('.bat-call').addEventListener('focusin', e => { if (e.target.matches(':focus-visible')) reveal(e.target); });
   // Framed for the at-bat (atBatCamera): from the pitcher's hand down to a pitch in the dirt.
   stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', dark, atBat: true });
@@ -104,6 +102,8 @@ export function setupAtBat({ dark = false } = {}) {
     stage.set({ marks: marks(S.ab.pitches) });
     drawState();
     $('ab-chart').replaceChildren();
+    // The result card takes the pitch controls' place; if that's behind the picture, bring it out.
+    if (S.ab.result && behind($('ab-end'))) $('ab-end').scrollIntoView({ block: 'start' });
   }
 
   const pitchLine = p => `${p.mph.toFixed(1)} mph ${SHORT(p.code).toLowerCase()}`;
