@@ -230,11 +230,15 @@ function legend() {
 }
 
 const stretch = () => { const c = stage.camera(); return c.stretch ? (Math.round(c.stretch * 2) / 2).toString() : '1'; };
+// What's on the picture: the camera, the ghost, the decision ring (from DECIDE, in js/flight.js) and the dots along each
+// path (js/stage.js draws the ball every 1/30 of a second), then what two pitches thrown together show.
 function caption() {
+  const ring = `The dashed ring marks the ball ${DECIDE} seconds from the plate, when the hitter has to decide.`;
+  const dots = 'The dots along each path are the ball every 1/30 of a second: the farther apart, the faster.';
   const cap = {
-    catcher: 'From behind the plate, about where the umpire’s eyes are. The dashed ghost is the same throw with no spin: the gap at the plate is what the spin did. The dashed ring marks the ball 0.175 seconds from the plate, about when a hitter has to decide whether to swing.',
-    side: `From the third-base side, pitcher on the left. Heights are stretched ${stretch()}× so the drop is easier to see. The dashed ghost is the same throw with no spin.`,
-    top: `From above, pitcher on the left. Distances sideways are stretched ${stretch()}× so the break is easier to see. The dashed ghost is the same throw with no spin.`,
+    catcher: `From behind the plate, about where the umpire’s eyes are. The dashed ghost is the same throw with no spin: the gap at the plate is what the spin did. The dashed ring marks the ball ${DECIDE} seconds from the plate, about when a hitter has to decide whether to swing. ${dots}`,
+    side: `From the third-base side, pitcher on the left. Heights are stretched ${stretch()}× so the drop is easier to see. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
+    top: `From above, pitcher on the left. Distances sideways are stretched ${stretch()}× so the break is easier to see. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
   }[state.view];
   $('caption').textContent = [cap, pairing()].filter(Boolean).join(' ');
 }

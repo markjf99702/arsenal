@@ -17,7 +17,7 @@
 ## How it works
 
 - **Thirteen pitches** in four groups: fastballs (four-seam, sinker, cutter), breaking balls (slider, sweeper, curveball, knuckle curve, slurve), off-speed (changeup, splitter, forkball) and oddities (knuckleball, eephus).
-- **The throw.** Each pitch leaves a right-hander's hand (or a left-hander's) at its average speed, release height and extension, and is pushed by its average spin-induced movement on top of gravity and air drag, so it reaches the plate in the right time with the right break. The ball spins at its real rate the whole way. Watch at real speed, slowed to a quarter, or to a twentieth.
+- **The throw.** Each pitch leaves a right-hander's hand (or a left-hander's) at its average speed, release height and extension, and is pushed by its average spin-induced movement on top of gravity and air drag, so it reaches the plate in the right time with the right break. The ball spins at its real rate the whole way, and the dots along its path are where it was every 1/30 of a second, so the farther apart they are, the faster it's going. Watch at real speed, slowed to a quarter, or to a twentieth.
 - **The ghost** is the same throw with no spin. The gap between them at the plate is the movement Statcast measures. A dashed ring marks the ball 0.175 seconds from the plate, about when a hitter has to decide whether to swing.
 - **Throw it with another pitch** to see two pitches leave the same release point together and split late, the way pitchers pair them.
 - **The grip**, drawn as the pitcher sees it from behind, with see-through fingers so the seams show underneath.

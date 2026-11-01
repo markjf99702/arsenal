@@ -241,7 +241,14 @@ for (const v of ['side', 'top', 'catcher']) {
   await page.locator(`#view [data-v="${v}"]`).click();
   await page.locator('#throw').click();
   await arrived();
+  // Each view's caption says what the dots along each path are and what the dashed ring is.
+  const said = await page.locator('#caption').textContent();
+  assert.ok(said.includes('The dots along each path are the ball every 1/30 of a second: the farther apart, the faster.'), `${v}: ${said}`);
+  assert.match(said, /The dashed ring marks the ball 0\.175 seconds from the plate, (about )?when (the|a) hitter has to decide/, `${v}: ${said}`);
 }
+// The hand is the pitcher's, and says so where it's picked; the chart says what arm side and glove side are.
+assert.equal(await page.locator('#hand').evaluate(el => el.previousElementSibling?.textContent), 'Pitcher');
+assert.match(await page.locator('#move-desc').textContent(), /Arm side is toward the pitcher’s throwing arm; glove side, the other way\./);
 
 // From above, the label for the side up the screen stays clear of the speed in the top-left corner and of the legend
 // in the top-right, for either hand, and with a second pitch's speed beside the first.

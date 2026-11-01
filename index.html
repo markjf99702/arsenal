@@ -52,10 +52,12 @@
           <button type="button" data-v="0.25" aria-pressed="true">Slow</button>
           <button type="button" data-v="0.05" aria-pressed="false">Slower</button>
         </div>
-        <div class="seg" role="group" aria-label="Pitcher’s throwing hand" id="hand">
-          <button type="button" data-v="R" aria-pressed="true">Righty</button>
-          <button type="button" data-v="L" aria-pressed="false">Lefty</button>
-        </div>
+        <span class="handpick"><span aria-hidden="true">Pitcher</span>
+          <span class="seg" role="group" aria-label="Pitcher’s throwing hand" id="hand">
+            <button type="button" data-v="R" aria-pressed="true">Righty</button>
+            <button type="button" data-v="L" aria-pressed="false">Lefty</button>
+          </span>
+        </span>
         <label class="check"><input type="checkbox" id="ghost" checked> No-spin ghost</label>
         <label class="pairpick">Throw with <select id="pair"></select></label>
       </div>
@@ -168,7 +170,7 @@
     <p class="intro">Every type of pitch thrown in the 2026 regular season, <span id="total"></span> in all. Tap one to throw it.</p>
     <div class="charts">
       <figure class="chart">
-        <figcaption><h3 id="move-title">How each one moves</h3><p id="move-desc">How far spin pushes a right-hander’s pitch on its way to the plate, compared with a ball thrown with no spin. Bigger dots are thrown more often.</p></figcaption>
+        <figcaption><h3 id="move-title">How each one moves</h3><p id="move-desc">How far spin pushes a right-hander’s pitch on its way to the plate, compared with a ball thrown with no spin. Arm side is toward the pitcher’s throwing arm; glove side, the other way. Bigger dots are thrown more often.</p></figcaption>
         <div id="move"></div>
       </figure>
       <figure class="chart">
