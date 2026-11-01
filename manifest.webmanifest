@@ -1,7 +1,7 @@
 {
   "name": "Arsenal",
   "short_name": "Arsenal",
-  "description": "Every pitch in baseball: the grip, the spin, the speed and the break.",
+  "description": "Every pitch in baseball: the grip, the spin, the break. Then pitch to a hitter.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

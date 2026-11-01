@@ -856,6 +856,17 @@ assert.deepEqual(problems.filter(p => !p.startsWith('failed:')), [], 'problems w
 await browser.close();
 server.close();
 
+// What the page says it is, to a search engine, a link preview and an installed copy: the at-bat too, not only the
+// pitches. The preview and the installed copy say the same, more briefly than the description.
+{
+  const html = await readFile(join(root, 'index.html'), 'utf8'), manifest = JSON.parse(await readFile(join(root, 'manifest.webmanifest'), 'utf8'));
+  const desc = html.match(/<meta name="description" content="([^"]*)"/)[1], og = html.match(/<meta property="og:description" content="([^"]*)"/)[1];
+  assert.match(desc, /pitch to a hitter/i, 'the description leaves out Pitch to a hitter');
+  assert.match(og, /pitch to a hitter/i, 'the link preview leaves out Pitch to a hitter');
+  assert.equal(manifest.description, og, 'the installed copy and the link preview describe it differently');
+  assert.ok(og.length < desc.length, 'the link preview says more than the description');
+}
+
 // sw.js changes whenever a file it keeps does, so a release replaces the whole offline copy at once: FILES in sw.js is
 // a fingerprint of every file in SHELL (sha1 of each, in the list's order, an address like './' read as its
 // index.html; the first 8 hex of the sha1 of those).
