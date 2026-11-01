@@ -355,14 +355,29 @@ assert.match(await heading(), /^Forkball/i);
 // and marked, the count follows the model, a link replays the same at-bat, and "100 times" charts every pitch.
 {
   const before = problems.length;
-  await page.goto(base);
-  await page.locator('#at-bat').scrollIntoViewIfNeeded();
+  await page.goto('about:blank');
+  await page.goto(base + '#ab.average.R.1p'); // the README's hitter, before the first pitch
   const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
-  await page.locator('#ab-pitches .ab-chip', { hasText: 'Slider' }).click();
-  await page.locator('#ab-spots [aria-label="down and away"]').click();
+  // Picked with the keyboard, a pitch and a spot keep focus, and so does Throw while the ball flies (at Slow, so there's
+  // time to look) and once it has landed.
+  const focused = () => page.evaluate(() => {
+    const a = document.activeElement;
+    return { id: a.id, name: a.getAttribute('aria-label') || a.textContent.trim().split(' ')[0], pressed: a.getAttribute('aria-pressed'), busy: window.arsenal.atBat.state.busy };
+  });
+  await page.locator('#ab-pitches .ab-chip', { hasText: 'Slider' }).focus();
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await focused(), { id: '', name: 'Slider', pressed: 'true', busy: false }, 'focus after picking a pitch with Enter');
+  await page.locator('#ab-spots [aria-label="down and away"]').focus();
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await focused(), { id: '', name: 'down and away', pressed: 'true', busy: false }, 'focus after picking a spot with Enter');
   assert.equal(await page.locator('#ab-choice').innerText(), 'Slider, down and away');
-  await page.locator('#ab-throw').click();
+  await page.locator('#ab-speed [data-v="0.25"]').click();
+  await page.locator('#ab-throw').focus();
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await focused(), { id: 'ab-throw', name: 'Throw', pressed: null, busy: true }, 'focus while the pitch flies');
   await idle();
+  assert.deepEqual(await focused(), { id: 'ab-throw', name: 'Throw', pressed: null, busy: false }, 'focus once the pitch has landed');
+  await page.locator('#ab-speed [data-v="1"]').click();
   assert.equal(await page.locator('#ab-log li').count(), 1);
   assert.ok((await page.locator('#ab-last .res').innerText()).length > 2, 'no result shown for the first pitch');
   const model = () => page.evaluate(() => { const ab = window.arsenal.atBat.state.ab; return { balls: ab.balls, strikes: ab.strikes, n: ab.pitches.length, result: ab.result, marks: window.arsenal.atBat.stage.opts.marks.length }; });
@@ -379,6 +394,8 @@ assert.match(await heading(), /^Forkball/i);
   }
   m = await model();
   assert.ok(m.result, 'the at-bat never ended');
+  // Focus was on Throw, which went with the pitch controls: it's on the result now.
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ab-result', 'focus at the end of the at-bat');
   assert.equal(await page.locator('#ab-end').isHidden(), false, 'no result card at the end of the at-bat');
   assert.equal(await page.locator('#ab-callbox').isHidden(), true, 'the pitch controls are still there after the at-bat ended');
   assert.match(await page.locator('#ab-result').innerText(), /^(strikeout swinging|strikeout looking|walk|hit by pitch|out in play|single|double|triple|home run)$/i);
@@ -408,11 +425,17 @@ assert.match(await heading(), /^Forkball/i);
   // Another pitcher, and a left-handed batter: the grid turns round so his inside is on the right.
   await page.locator('#ab-next').click();
   assert.equal(await page.locator('#ab-run').textContent(), 'Throw each of his pitches 100 times from here');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ab-throw', 'focus after Next hitter');
   await page.locator('#ab-pitcher').selectOption('rogers');
   assert.equal(await page.locator('#ab-pitches .ab-chip').count(), 2);
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and inside');
   await page.locator('#ab-batter [data-v="L"]').click();
   assert.equal(await page.locator('#ab-spots button').first().getAttribute('aria-label'), 'high and off the plate away');
+  // The new pitcher's pitches and the turned grid pick too.
+  await page.locator('#ab-pitches .ab-chip').last().click();
+  await page.locator('#ab-spots [aria-label="down and away"]').click();
+  assert.match(await page.locator('#ab-choice').innerText(), /^\w+, down and away$/);
+  assert.equal(await page.locator('#ab-spots [aria-pressed="true"]').getAttribute('aria-label'), 'down and away');
   await page.locator('#ab-throw').click();
   await idle();
   assert.equal(await page.locator('#ab-log li').count(), 1);

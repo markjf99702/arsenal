@@ -31,6 +31,15 @@ export function setupAtBat({ dark = false } = {}) {
   seg('ab-batter', v => { S.batter = v; fresh(); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
+  // Picking a pitch or a spot presses it where it is (drawCall), so focus stays on it.
+  $('ab-pitches').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) { S.code = b.dataset.code; drawCall(); }
+  });
+  $('ab-spots').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) { S.spot = spotById(b.dataset.spot); drawCall(); }
+  });
   // While a pitch is in the air, the catcher's call and the hundred throws wait for it to land: the model has already
   // thrown it, so either would give away how it went.
   $('ab-suggest').addEventListener('click', () => {
@@ -43,8 +52,14 @@ export function setupAtBat({ dark = false } = {}) {
     drawCall();
     $('ab-hint').textContent = `A typical call in a ${S.ab.balls}-${S.ab.strikes} count: ${NAME[c.code]}, ${spotName(c.spot)}.`;
   });
-  // The next hitter: the pitch controls come back where the result was, and into view (under the picture, on a phone).
-  $('ab-next').addEventListener('click', () => { S.seed = newSeed(); fresh(); reveal($('ab-callbox')); });
+  // The next hitter: the pitch controls come back where the result was, and into view (under the picture, on a phone),
+  // with focus on Throw, the button that was gone with the end card.
+  $('ab-next').addEventListener('click', () => {
+    S.seed = newSeed();
+    fresh();
+    reveal($('ab-callbox'));
+    $('ab-throw').focus({ preventScroll: true });
+  });
   $('ab-copy').addEventListener('click', copyLink);
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
@@ -75,7 +90,7 @@ export function setupAtBat({ dark = false } = {}) {
     stage.clear();
     $('ab-chart').replaceChildren();
     $('ab-hint').textContent = '';
-    drawCall();
+    buildCall();
     drawState();
   }
 
@@ -86,7 +101,6 @@ export function setupAtBat({ dark = false } = {}) {
     S.calls.push(call);
     S.busy = true;
     S.pending = rec;
-    $('ab-throw').disabled = true;
     waiting();
     $('ab-hint').textContent = '';
     fly(rec);
@@ -102,13 +116,17 @@ export function setupAtBat({ dark = false } = {}) {
   // The ball has reached the plate: show what happened.
   function land() {
     if (!S.pending) return;
+    const calling = $('ab-callbox').contains(document.activeElement);
     S.pending = null;
     S.busy = false;
     stage.set({ marks: marks(S.ab.pitches) });
     drawState();
     $('ab-chart').replaceChildren();
-    // The result card takes the pitch controls' place; if that's behind the picture, bring it out.
-    if (S.ab.result && behind($('ab-end'))) $('ab-end').scrollIntoView({ block: 'start' });
+    if (!S.ab.result) return;
+    // The result card takes the pitch controls' place; if that's behind the picture, bring it out. Focus was in the
+    // controls, now hidden, so it goes to the result rather than back to the top of the page.
+    if (behind($('ab-end'))) $('ab-end').scrollIntoView({ block: 'start' });
+    if (calling) $('ab-result').focus({ preventScroll: true });
   }
 
   const pitchLine = p => `${p.mph.toFixed(1)} mph ${SHORT(p.code).toLowerCase()}`;
@@ -120,29 +138,26 @@ export function setupAtBat({ dark = false } = {}) {
   }
 
   // ---------------------------------------------------------------- drawing
-  function drawCall() {
-    const box = $('ab-pitches');
-    box.innerHTML = S.pitcher.pitches.map(p => `<button type="button" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-pressed="${p.code === S.code}"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${p.mph.toFixed(0)} · ${pct(p.share)}</small></button>`).join('');
-    for (const b of box.querySelectorAll('button')) b.addEventListener('click', () => { S.code = b.dataset.code; drawCall(); });
+  // The pitches and spots, for this pitcher and batter. They're made again only when one of those changes (fresh), so
+  // a button with focus is never swapped for a new one.
+  function buildCall() {
+    $('ab-pitches').innerHTML = S.pitcher.pitches.map(p => `<button type="button" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-pressed="false"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${p.mph.toFixed(0)} · ${pct(p.share)}</small></button>`).join('');
     // The grid as the catcher sees it: a right-handed hitter on the left, so his inside is on the left.
     const cols = S.batter === 'R' ? [-2, -1, 0, 1, 2] : [2, 1, 0, -1, -2];
-    const grid = $('ab-spots');
-    grid.innerHTML = '';
-    for (const r of [2, 1, 0, -1, -2]) for (const c of cols) {
-      const spot = SPOTS.find(s => s.c === c && s.r === r);
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = `spot${spot.zone ? ' in' : ''}`;
-      b.setAttribute('aria-label', spotName(spot));
-      b.setAttribute('aria-pressed', String(spot === S.spot));
-      b.title = spotName(spot);
-      b.addEventListener('click', () => { S.spot = spot; drawCall(); });
-      grid.appendChild(b);
-    }
+    $('ab-spots').innerHTML = [2, 1, 0, -1, -2].flatMap(r => cols.map(c => {
+      const spot = SPOTS.find(s => s.c === c && s.r === r), name = spotName(spot);
+      return `<button type="button" class="spot${spot.zone ? ' in' : ''}" data-spot="${spot.id}" aria-label="${name}" title="${name}" aria-pressed="false"></button>`;
+    })).join('');
     $('ab-side').textContent = S.batter === 'R' ? '← Right-handed batter' : 'Left-handed batter →';
     $('ab-side').className = `side ${S.batter === 'R' ? 'left' : 'right'}`;
+    drawCall();
+  }
+
+  // The call as it stands: the pitch and spot pressed, and in words.
+  function drawCall() {
+    for (const b of $('ab-pitches').children) b.setAttribute('aria-pressed', String(b.dataset.code === S.code));
+    for (const b of $('ab-spots').children) b.setAttribute('aria-pressed', String(b.dataset.spot === S.spot.id));
     $('ab-choice').textContent = S.code ? `${SHORT(S.code)}, ${spotName(S.spot)}` : '';
-    $('ab-throw').disabled = S.busy || !!S.ab.result;
   }
 
   function drawState() {
@@ -182,11 +197,12 @@ export function setupAtBat({ dark = false } = {}) {
       else if (last) readout(resultWord(last), pitchLine(last));
       else readout();
     }
-    drawCall();
   }
 
-  // While a pitch is in the air, the buttons that would give it away wait (see the listeners above). They keep focus.
+  // While a pitch is in the air, Throw and the buttons that would give it away wait (see the listeners above). They're
+  // marked rather than disabled, so the one with focus keeps it.
   function waiting() {
+    $('ab-throw').setAttribute('aria-disabled', String(S.busy || !!S.ab.result));
     for (const id of ['ab-suggest', 'ab-run']) $(id).setAttribute('aria-disabled', String(S.busy));
   }
 
@@ -265,6 +281,6 @@ export function setupAtBat({ dark = false } = {}) {
   return {
     stage, state: S, load, link: () => code(),
     setDark(d) { stage.set({ dark: d }); },
-    throw: (code, spotId) => { S.code = code; S.spot = spotById(spotId); pitch(); },
+    throw: (code, spotId) => { S.code = code; S.spot = spotById(spotId); drawCall(); pitch(); },
   };
 }
