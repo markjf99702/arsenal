@@ -5,6 +5,7 @@ import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.j
 import { markKind } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
+import { COUNTS } from './league.js';
 
 const $ = id => document.getElementById(id);
 const pct = v => `${Math.round(v * 100)}%`;
@@ -13,7 +14,7 @@ const SHORT = code => BY_CODE[code]?.short || NAME[code];
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
-  const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1 };
+  const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0 };
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   const frame = $('ab-flight').parentElement;
@@ -36,8 +37,8 @@ export function setupAtBat({ dark = false } = {}) {
   $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}</option>`).join('');
   // Another pitcher or batter faces a new hitter. The same seed would bring back the same one, guessing the same pitches,
   // so switching away and back would be a do-over against a hitter you already know.
-  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ picked: true }); });
-  seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ picked: true }); });
+  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ picked: true, changed: true }); });
+  seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
   // The pitches and the spots are each a group of radio buttons: one stop for Tab, at the one picked, and the arrow keys
@@ -65,15 +66,25 @@ export function setupAtBat({ dark = false } = {}) {
   });
   // While a pitch is in the air, the catcher's call and the hundred throws wait for it to land: the model has already
   // thrown it, so either would give away how it went.
+  // The catcher's call is one the way pitchers call them in this count (autoCall), and then what big leaguers did in it,
+  // from the numbers the hitter is tuned to. Asked again in the same count, he calls another, so a few taps show the
+  // range. It's worked out on a copy of the at-bat, so asking doesn't change what happens next.
   $('ab-suggest').addEventListener('click', () => {
     if (S.busy || S.ab.result) return;
-    // A copy of the at-bat, so asking doesn't change what happens next.
-    const look = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: (S.seed + S.calls.length * 7919 + 1) >>> 0 });
-    look.balls = S.ab.balls; look.strikes = S.ab.strikes;
-    const c = autoCall(look);
+    const count = `${S.ab.balls}-${S.ab.strikes}`, k = COUNTS[count];
+    let c;
+    // Another call than the one picked now, if one comes up in a few tries.
+    for (let tries = 0; tries < 8; tries++) {
+      const look = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: (S.seed + S.calls.length * 7919 + 1 + S.asked++ * 104729) >>> 0 });
+      look.balls = S.ab.balls; look.strikes = S.ab.strikes;
+      c = autoCall(look);
+      if (c.code !== S.code || c.spot !== S.spot) break;
+    }
     S.code = c.code; S.spot = c.spot;
     drawCall();
-    $('ab-hint').textContent = `A typical call in a ${S.ab.balls}-${S.ab.strikes} count: ${NAME[c.code]}, ${spotName(c.spot)}.`;
+    const said = `A typical call in a ${count} count: ${NAME[c.code]}, ${spotName(c.spot)}. In ${count} counts in 2026, ${pct(k.fastball)} of pitches were fastballs and ${pct(k.zone)} were in the zone; hitters swung at ${pct(k.swing)}.`;
+    $('ab-hint').textContent = said;
+    $('ab-live').textContent = said;
   });
   // The next hitter: the pitch controls come back where the result was, and into view (under the picture, on a phone),
   // with focus on Throw, the button that was gone with the end card.
@@ -103,9 +114,13 @@ export function setupAtBat({ dark = false } = {}) {
   // A new at-bat. `picked` is one started here, with another pitcher or batter or Next hitter, rather than by the page
   // opening or a link: a screen reader hears who's up now, and an at-bat link in the address gives way to this one, so a
   // reload doesn't bring the old at-bat back. (A link opening calls this before it replays its pitches, so writing the
-  // address then would cut the link short. On a plain page the address waits for the first pitch.)
-  function fresh({ keepCalls = false, picked = false } = {}) {
+  // address then would cut the link short. On a plain page the address waits for the first pitch.) `changed` is another
+  // pitcher or batter: if that cut short an at-bat with pitches in it, wiping its count, marks and log, it says so
+  // under Throw too, for everyone to see.
+  function fresh({ keepCalls = false, picked = false, changed = false } = {}) {
+    const cut = changed && S.ab?.pitches.length > 0;
     S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: S.seed });
+    S.asked = 0;
     if (!keepCalls) S.calls = [];
     S.code = S.pitcher.pitches[0].code;
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
@@ -125,7 +140,9 @@ export function setupAtBat({ dark = false } = {}) {
     drawState();
     $('ab-notice').textContent = '';
     if (picked) {
-      $('ab-live').textContent = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
+      const said = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
+      $('ab-live').textContent = said;
+      if (cut) $('ab-hint').textContent = said;
       if (location.hash.startsWith('#ab.')) stamp();
     }
   }
@@ -138,6 +155,7 @@ export function setupAtBat({ dark = false } = {}) {
     stamp();
     S.busy = true;
     S.pending = rec;
+    S.asked = 0;
     waiting();
     $('ab-hint').textContent = '';
     fly(rec);
@@ -196,11 +214,13 @@ export function setupAtBat({ dark = false } = {}) {
     drawCall();
   }
 
-  // A pitch or a spot picked, by a tap or with the arrow keys (`keys`, which take focus along with them).
+  // A pitch or a spot picked, by a tap or with the arrow keys (`keys`, which take focus along with them). Picked by hand,
+  // the catcher's call under Throw no longer stands.
   function choose(b, keys = false) {
     if (b.dataset.code) S.code = b.dataset.code;
     else S.spot = spotById(b.dataset.spot);
     drawCall();
+    $('ab-hint').textContent = '';
     if (keys) b.focus();
   }
 

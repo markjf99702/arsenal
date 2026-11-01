@@ -671,6 +671,43 @@ assert.match(await heading(), /^Forkball/i);
   assert.deepEqual(problems.slice(before), [], 'problems while pitching to a hitter');
 }
 
+// "What would a catcher call?" gives a typical call for the count, and then what big leaguers did in that count in 2026,
+// from the numbers the hitter is tuned to (js/league.js). Asked again in the same count it calls another. Picking a
+// pitch or a spot by hand clears it, and a new pitcher partway through an at-bat says so in its place, where everyone
+// can see the count, the marks and the log were cleared.
+{
+  const before = problems.length;
+  await page.goto('about:blank');
+  await page.goto(base + '#ab.average.R.1p');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const hint = () => page.locator('#ab-hint').textContent();
+  const asked = [];
+  for (let i = 0; i < 5; i++) { await page.locator('#ab-suggest').click(); asked.push(await hint()); }
+  const { counts, choice } = await page.evaluate(async () => ({ counts: (await import(new URL('js/league.js', location.href))).COUNTS, choice: document.getElementById('ab-choice').textContent }));
+  const k = counts['0-0'], pc = v => `${Math.round(v * 100)}%`;
+  const said = `In 0-0 counts in 2026, ${pc(k.fastball)} of pitches were fastballs and ${pc(k.zone)} were in the zone; hitters swung at ${pc(k.swing)}.`;
+  for (const a of asked) assert.ok(a.startsWith('A typical call in a 0-0 count: ') && a.endsWith(` ${said}`), `the catcher's call: ${a}`);
+  assert.ok(asked.every((a, i) => i === 0 || a !== asked[i - 1]), `asked again in the same count, the catcher called the same pitch: ${asked.join(' | ')}`);
+  assert.equal(await page.locator('#ab-live').textContent(), asked.at(-1), 'a screen reader does not hear the catcher\'s call');
+  // The call is picked, and it's the one he named.
+  const named = /count: (.+)\. In /.exec(asked.at(-1))[1];
+  assert.equal(choice.split(', ').slice(1).join(', '), named.split(', ').slice(1).join(', '), `the catcher called "${named}" and "${choice}" was picked`);
+  await page.locator('#ab-pitches .ab-chip').last().click();
+  assert.equal(await hint(), '', 'the catcher\'s call is still under Throw after picking a pitch by hand');
+  await page.locator('#ab-suggest').click();
+  await page.locator('#ab-spots [aria-label="down the middle"]').click();
+  assert.equal(await hint(), '', 'the catcher\'s call is still under Throw after picking a spot by hand');
+  // Another pitcher before the first pitch is just who's pitching; after it, the at-bat that was going is gone.
+  await page.locator('#ab-pitcher').selectOption('sale');
+  assert.equal(await hint(), '', 'a new pitcher before the first pitch said so under Throw');
+  await page.evaluate(() => window.arsenal.atBat.throw('FF', '00'));
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  await page.locator('#ab-pitcher').selectOption('skenes');
+  assert.equal(await hint(), 'New at-bat: Paul Skenes to a right-handed batter.', 'a new pitcher partway through an at-bat');
+  assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: Paul Skenes to a right-handed batter.');
+  assert.deepEqual(problems.slice(before), [], 'problems asking the catcher');
+}
+
 // Pitch to a hitter on a phone, tapped the way a thumb would. The readout over the picture says what each pitch did,
 // and a shared link shows the count and the pitches before the one it throws again.
 const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
