@@ -426,6 +426,25 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.equal(replay.ro, 'Pitch 6 · 80.3 mph curve', `${at}, while the link's last pitch flies`);
   await idle();
   assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()} · 6 pitches`);
+  // Once it's over, the count gives way to the scorebook's mark and the count it ended on, and that's what a screen
+  // reader hears too, not a count of 2 and 2 after strike three. A strikeout looking is a backwards K; a walk is BB.
+  const ending = () => ph.evaluate(() => {
+    const ct = document.querySelector('#ab-count .ct');
+    return { mark: ct.textContent, label: ct.getAttribute('aria-label'), flipped: getComputedStyle(ct).transform === 'matrix(-1, 0, 0, 1, 0, 0)', on: document.querySelector('#ab-count .on')?.textContent, heard: document.getElementById('ab-live').textContent };
+  });
+  assert.deepEqual(await ending(), { mark: 'K', label: 'Strikeout swinging', flipped: false, on: 'on a 2-2 pitch', heard: 'Strikeout swinging on a 2-2 pitch.' }, `${at}, at the end of the strikeout`);
+  for (const [link, want] of [
+    ['#ab.average.R.2.FF8.FF6.SL16.FF7.CU13', { mark: 'K', label: 'Strikeout looking', flipped: true, on: 'on a 1-2 pitch', heard: 'Strikeout looking on a 1-2 pitch.' }],
+    ['#ab.average.R.3a.FF8.FF6.SL16.FF7', { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch.' }],
+  ]) {
+    await ph.goto('about:blank');
+    await ph.goto(base + link);
+    await idle();
+    assert.deepEqual(await ending(), want, `${at}, at the end of ${link}`);
+  }
+  await ph.goto('about:blank');
+  await ph.goto(base + STRIKEOUT);
+  await idle();
 
   // The next hitter starts clean: no readout left from the last one.
   await ph.locator('#ab-next').tap();

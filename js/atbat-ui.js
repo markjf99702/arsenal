@@ -9,6 +9,8 @@ import { newSeed } from './rng.js';
 const $ = id => document.getElementById(id);
 const pct = v => `${Math.round(v * 100)}%`;
 const SHORT = code => BY_CODE[code]?.short || NAME[code];
+// How each ending goes in a scorebook. A strikeout looking is the same K, drawn backwards.
+const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
   const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1 };
@@ -129,18 +131,22 @@ export function setupAtBat({ dark = false } = {}) {
   function drawState() {
     const ab = S.ab;
     const shown = S.pending ? ab.pitches.slice(0, -1) : ab.pitches;
-    const balls = shown.length ? shown.at(-1).after.balls : 0, strikes = shown.length ? shown.at(-1).after.strikes : 0;
-    const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
-    $('ab-count').innerHTML = `<span class="ct">${Math.min(balls, 3)}-${Math.min(strikes, 2)}</span><span class="dots"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots"><b>S</b>${dots(strikes, 2, 's')}</span>`;
     const last = shown.at(-1);
+    const over = ab.result && !S.pending;
+    const balls = last ? last.after.balls : 0, strikes = last ? last.after.strikes : 0;
+    const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
+    // Once it's over, the count gives way to the scorebook's mark for how it ended, and the count it ended on.
+    const on = over && `on a ${last.before.balls}-${last.before.strikes} pitch`;
+    $('ab-count').innerHTML = over
+      ? `<span class="ct${ab.result === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[ab.result]}">${SCOREBOOK[ab.result]}</span><span class="on">${on}</span>`
+      : `<span class="ct">${balls}-${strikes}</span><span class="dots"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots"><b>S</b>${dots(strikes, 2, 's')}</span>`;
     if (last) {
       $('ab-last').innerHTML = `<p class="res res-${markKind(last.result)}">${resultWord(last)}</p><p>${why(last, shown.at(-2), ab.batter)}</p>`;
-      $('ab-live').textContent = `${resultWord(last)}. The count is ${Math.min(balls, 3)} and ${Math.min(strikes, 2)}.`;
+      $('ab-live').textContent = over ? `${ENDING[ab.result]} ${on}.` : `${resultWord(last)}. The count is ${balls} and ${strikes}.`;
     } else {
       $('ab-last').innerHTML = `<p class="res">Your call</p><p>Pick a pitch and a spot, then throw it. Strikes and swings are red, balls green, balls in play blue.</p>`;
     }
     $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${spotName(p.spot)} · ${p.mph.toFixed(1)} mph</span></li>`).join('');
-    const over = ab.result && !S.pending;
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     if (over) {

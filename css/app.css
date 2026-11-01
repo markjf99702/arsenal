@@ -347,6 +347,8 @@ p { margin: 0; }
 .count .dots i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85); }
 .count .dots i.b { background: #2f9e5f; border-color: #fff; }
 .count .dots i.s { background: #d6463e; border-color: #fff; }
+.count .ct.kl { display: inline-block; transform: scaleX(-1); }
+.count .on { font-size: 16px; font-weight: 600; }
 
 .bat-call { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); display: grid; gap: 14px; min-width: 0; }
 .bat-call h3 { font-size: 18px; text-transform: uppercase; letter-spacing: .04em; }
