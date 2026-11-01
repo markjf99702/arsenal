@@ -700,6 +700,39 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await phoneCtx.close();
 }
 
+// A phone held sideways is a short screen. Neither picture is taller than it, and the at-bat's is beside the call box,
+// so it's on screen while a pitch thrown with the button low on the screen flies. Strike three's end card, which takes
+// the pitch controls' place, comes into view.
+for (const [width, height] of [[844, 390], [667, 375]]) {
+  const sideCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  const side = await sideCtx.newPage();
+  watch(side);
+  const at = `held sideways at ${width}x${height}`;
+  await side.goto(base + STRIKEOUT.replace(/\.CU22$/, ''));
+  await side.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const fits = await side.evaluate(() => ({
+    explorer: document.getElementById('flight').getBoundingClientRect().height <= innerHeight,
+    atBat: document.getElementById('ab-flight').getBoundingClientRect().height <= innerHeight,
+    sideways: document.documentElement.scrollWidth > innerWidth,
+  }));
+  assert.deepEqual(fits, { explorer: true, atBat: true, sideways: false }, `${at}, a picture is taller than the screen, or the page scrolls sideways`);
+  await side.locator('#ab-pitches .ab-chip', { hasText: 'Curve' }).tap();
+  await side.locator('#ab-spots [aria-label="in the dirt"]').tap();
+  await side.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
+  await side.locator('#ab-throw').tap();
+  const flying = await side.evaluate(() => {
+    const r = document.getElementById('ab-flight').getBoundingClientRect();
+    return { busy: window.arsenal.atBat.state.busy, seen: (Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height };
+  });
+  assert.ok(flying.busy, `${at}, the pitch had landed before it could be checked`);
+  assert.ok(flying.seen >= 0.8, `${at}, only ${Math.round(Math.max(0, flying.seen) * 100)}% of the picture is on screen while the pitch flies`);
+  await side.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const card = await side.evaluate(() => document.getElementById('ab-end').getBoundingClientRect().top);
+  assert.ok(card >= 0 && card < height - 100, `${at}, strike three's end card starts at ${Math.round(card)}px`);
+  assert.equal(await side.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${at}, the page scrolls sideways`);
+  await sideCtx.close();
+}
+
 // The end card's headline is coloured like the last pitch's mark and its number in the log: a strikeout red, a walk or
 // a hit by pitch green, a ball in play blue, a home run too. The last pitch's box under it says why without repeating
 // the headline in other words.

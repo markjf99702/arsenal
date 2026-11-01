@@ -137,6 +137,13 @@ p { margin: 0; }
 .frame { position: relative; border-radius: 14px; overflow: hidden; background: #3f8540; box-shadow: var(--shadow); }
 #flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
 @media (max-width: 640px) { #flight { aspect-ratio: 4 / 3.6; } }
+/* A phone held sideways is a short screen: there the picture is no taller than it, with a little room above and below,
+   in the middle with its controls under it, and in the shape it has on a computer. (The at-bat's picture goes beside the
+   call box, further down.) */
+@media (orientation: landscape) and (max-height: 540px) and (min-width: 600px) {
+  .stage { width: 100%; margin-inline: auto; max-width: calc((100vh - 24px) * 16 / 11); max-width: calc((100svh - 24px) * 16 / 11); }
+  #flight { aspect-ratio: 16 / 11; }
+}
 .readout {
   position: absolute; left: 12px; top: 10px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
   font-family: var(--display); pointer-events: none;
@@ -345,9 +352,17 @@ p { margin: 0; }
 .bat-head h2 { font-size: 34px; text-transform: uppercase; letter-spacing: .03em; }
 .bat-head .intro { color: var(--ink-2); max-width: 62em; }
 .bat-grid { display: grid; gap: 18px; }
-@media (min-width: 980px) {
+/* The picture beside the call box, on a computer and on a phone held sideways. Sideways the screen is short: with the
+   call box under the picture, Throw would send the picture off the top of the screen. Beside it, the picture stays put
+   while you call the pitch, throw it and watch it, and it's no taller than the screen. What's brought into view stops
+   level with the picture's top. */
+@media (min-width: 980px), (orientation: landscape) and (max-height: 540px) and (min-width: 600px) {
   .bat-grid { grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr); align-items: start; }
   .bat-stage { position: sticky; top: 12px; }
+}
+@media (orientation: landscape) and (max-height: 540px) and (min-width: 600px) {
+  .bat-stage > .frame { margin-inline: auto; max-width: calc((100vh - 24px) * 16 / 11); max-width: calc((100svh - 24px) * 16 / 11); }
+  #ab-callbox, #ab-end, #ab-chart, .bat-grid :is(button, select, input, .seg) { scroll-margin-top: 12px; }
 }
 #ab-flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
 @media (max-width: 640px) { #ab-flight { aspect-ratio: 16 / 10.5; } }
@@ -373,8 +388,9 @@ p { margin: 0; }
 .count .ct.kl { display: inline-block; transform: scaleX(-1); }
 .count .on { font-size: 16px; font-weight: 600; }
 /* On a phone the picture is short, so the readout keeps to its top-left corner, clear of the zone and the pitcher's
-   hand: the balls and strikes stacked beside the count, and what happened over the pitch, on two lines. */
-@media (max-width: 520px) {
+   hand: the balls and strikes stacked beside the count, and what happened over the pitch, on two lines. The picture is
+   as small on a phone held sideways, beside the call box. */
+@media (max-width: 520px), (orientation: landscape) and (max-height: 540px) and (min-width: 600px) and (max-width: 979px) {
   .bat-stage .readout { left: 10px; top: 8px; }
   .count { display: grid; grid-template-columns: auto auto; gap: 2px 8px; justify-content: start; }
   .count .ct { grid-row: span 2; font-size: 28px; line-height: 1; }
@@ -459,8 +475,11 @@ p { margin: 0; }
   .bat-head h2 { font-size: 30px; }
   .bat-call { padding: 14px; }
   .spots { grid-template-columns: repeat(5, 44px); grid-template-rows: repeat(5, 44px); }
-  /* The batter's side goes on one line just above the grid, at his end of it so the arrow points at him, and the two
-     sit centred together. The pitches go two to a row, each with its speed and share under its name. */
+}
+/* The batter's side goes on one line just above the grid, at his end of it so the arrow points at him, and the two
+   sit centred together. The pitches go two to a row, each with its speed and share under its name. So too on a phone
+   held sideways, where the call box beside the picture is as narrow as on a phone. */
+@media (max-width: 640px), (orientation: landscape) and (max-height: 540px) and (min-width: 600px) and (max-width: 979px) {
   .spots-wrap { display: grid; justify-content: center; gap: 6px; }
   .spots-wrap .side { order: -1; max-width: none; white-space: nowrap; }
   .spots-wrap .side.left { text-align: left; }
@@ -468,4 +487,9 @@ p { margin: 0; }
   .ab-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ab-chips .ab-chip { white-space: normal; text-align: left; border-radius: 16px; padding: 6px 12px; }
   .ab-chips .ab-chip small { display: block; margin: 1px 0 0; padding-left: 15px; }
+}
+/* Held sideways, the grid's spots are as big as on a computer, and a little smaller where the call box is narrowest, so
+   the grid fits in it. */
+@media (orientation: landscape) and (max-height: 540px) and (min-width: 600px) and (max-width: 666px) {
+  .spots { grid-template-columns: repeat(5, 36px); grid-template-rows: repeat(5, 36px); }
 }

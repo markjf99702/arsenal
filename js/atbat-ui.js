@@ -18,8 +18,12 @@ export function setupAtBat({ dark = false } = {}) {
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   const frame = $('ab-flight').parentElement;
   new ResizeObserver(() => $('at-bat').style.setProperty('--ab-frame', `${Math.ceil(frame.getBoundingClientRect().height)}px`)).observe(frame);
-  // Into view, and out from behind the picture: the browser counts what's behind it as in view.
-  const behind = el => getComputedStyle(frame).position === 'sticky' && el.getBoundingClientRect().top < frame.getBoundingClientRect().bottom;
+  // Into view, and out from behind the picture: the browser counts what's behind it as in view. Beside the picture (on a
+  // computer, or a phone held sideways) something whose top is off the top of the screen is brought down whole too.
+  const behind = el => {
+    const top = el.getBoundingClientRect().top;
+    return top < 0 || (getComputedStyle(frame).position === 'sticky' && top < frame.getBoundingClientRect().bottom);
+  };
   const reveal = el => el.scrollIntoView({ block: behind(el) ? 'start' : 'nearest' });
   // Anything reached with the keyboard: the pitch controls, and the pitcher, batter and speed above them, which scroll
   // away under the picture. A button in a .seg is brought out by its row: the row clips its buttons, so the browser would
