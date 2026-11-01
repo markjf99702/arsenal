@@ -36,8 +36,8 @@ export function setupAtBat({ dark = false } = {}) {
   $('ab-pitcher').innerHTML = PITCHERS.map(p => `<option value="${p.key}">${p.name}</option>`).join('');
   // Another pitcher or batter faces a new hitter. The same seed would bring back the same one, guessing the same pitches,
   // so switching away and back would be a do-over against a hitter you already know.
-  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ say: true }); });
-  seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ say: true }); });
+  $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ picked: true }); });
+  seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ picked: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
   // Picking a pitch or a spot presses it where it is (drawCall), so focus stays on it.
@@ -65,7 +65,7 @@ export function setupAtBat({ dark = false } = {}) {
   // with focus on Throw, the button that was gone with the end card.
   $('ab-next').addEventListener('click', () => {
     S.seed = newSeed();
-    fresh({ say: true });
+    fresh({ picked: true });
     reveal($('ab-callbox'));
     $('ab-throw').focus({ preventScroll: true });
   });
@@ -86,8 +86,11 @@ export function setupAtBat({ dark = false } = {}) {
 
   // ---------------------------------------------------------------- an at-bat
   const who = () => (S.pitcher.key === 'average' ? 'the league-average righty' : S.pitcher.name);
-  // A new at-bat. Picking another pitcher or batter starts one too, so `say` tells a screen reader who's up now.
-  function fresh({ keepCalls = false, say = false } = {}) {
+  // A new at-bat. `picked` is one started here, with another pitcher or batter or Next hitter, rather than by the page
+  // opening or a link: a screen reader hears who's up now, and an at-bat link in the address gives way to this one, so a
+  // reload doesn't bring the old at-bat back. (A link opening calls this before it replays its pitches, so writing the
+  // address then would cut the link short. On a plain page the address waits for the first pitch.)
+  function fresh({ keepCalls = false, picked = false } = {}) {
     S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: S.seed });
     if (!keepCalls) S.calls = [];
     S.code = S.pitcher.pitches[0].code;
@@ -107,7 +110,10 @@ export function setupAtBat({ dark = false } = {}) {
     buildCall();
     drawState();
     $('ab-notice').textContent = '';
-    if (say) $('ab-live').textContent = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
+    if (picked) {
+      $('ab-live').textContent = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
+      if (location.hash.startsWith('#ab.')) stamp();
+    }
   }
 
   function pitch() {
@@ -115,6 +121,7 @@ export function setupAtBat({ dark = false } = {}) {
     const call = { code: S.code, spot: S.spot };
     const rec = throwCall(S.ab, call);
     S.calls.push(call);
+    stamp();
     S.busy = true;
     S.pending = rec;
     waiting();
@@ -263,6 +270,13 @@ export function setupAtBat({ dark = false } = {}) {
   function code() {
     return ['ab', S.pitcher.key, S.batter, S.seed.toString(36), ...S.calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
   }
+  // The address follows the at-bat, so a reload replays the one being played and a phone's Share sends it. It's replaced
+  // rather than added to, so Back still leaves the page. (A framed one-file copy may not be allowed to change its
+  // address; that's fine.) Picking a pitch above takes the address and the tab's title back.
+  function stamp() {
+    try { history.replaceState(null, '', `#${code()}`); } catch {}
+    document.title = 'Pitch to a hitter · Arsenal';
+  }
   // Some browsers refuse the clipboard (an in-app browser, the framed copy, a denied permission): then the link goes in
   // a field, selected, to copy by hand.
   async function copyLink() {
@@ -313,6 +327,9 @@ export function setupAtBat({ dark = false } = {}) {
     if (last) { S.pending = last; S.busy = true; }
     drawState();
     if (last) fly(last);
+    // The address says what was replayed: without the pitches left out, and the league-average righty for a pitcher who
+    // isn't here.
+    stamp();
     return true;
   }
 

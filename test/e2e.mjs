@@ -746,6 +746,47 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
   await sideCtx.close();
 }
 
+// The address follows the at-bat once a pitch is thrown, so a reload, or a phone's Share, has the at-bat being played.
+{
+  const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const now = () => page.evaluate(() => ({
+    hash: location.hash, link: '#' + window.arsenal.atBat.link(), title: document.title,
+    count: document.querySelector('#ab-count .ct').textContent, log: document.querySelectorAll('#ab-log li').length,
+  }));
+  // A plain page keeps its address until the first pitch, even with another batter picked.
+  await page.goto('about:blank');
+  await page.goto(base + '#at-bat');
+  await page.locator('#ab-batter [data-v="L"]').click();
+  assert.equal((await now()).hash, '#at-bat', 'the address changed before the first pitch');
+  // Two pitches, then a reload: the same at-bat, where it stood.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.FF6.*/, ''));
+  for (const [code, spot] of [['FF', '1m1'], ['SL', 'm21']]) {
+    await page.evaluate(([c, s]) => window.arsenal.atBat.throw(c, s), [code, spot]);
+    await idle();
+  }
+  const thrown = await now();
+  assert.deepEqual({ hash: thrown.hash, title: thrown.title, log: thrown.log }, { hash: STRIKEOUT.replace(/\.CH16.*/, ''), title: 'Pitch to a hitter · Arsenal', log: 2 }, 'after two pitches');
+  await page.reload();
+  await idle();
+  assert.deepEqual(await now(), thrown, 'a reload lost the at-bat being played');
+  // From a link, Next hitter's at-bat takes the link's place, so a reload doesn't bring the link's back.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT);
+  await idle();
+  await page.locator('#ab-next').click();
+  const next = await now();
+  assert.ok(next.hash !== STRIKEOUT && next.hash === next.link && next.log === 0, `after Next hitter from a link the address is ${next.hash}`);
+  // A link with pitches left out says in the address what was replayed.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT + '.FF6.FF6');
+  await idle();
+  assert.equal((await now()).hash, STRIKEOUT, 'the address keeps the pitches left out of a link');
+  // Picking a pitch takes the address and the title back.
+  await page.locator('.chip', { hasText: 'Sweeper' }).click();
+  assert.deepEqual(await page.evaluate(() => [location.hash, document.title]), ['#sweeper', 'Sweeper · Arsenal'], 'after picking a pitch');
+}
+
 // The end card's headline is coloured like the last pitch's mark and its number in the log: a strikeout red, a walk or
 // a hit by pitch green, a ball in play blue, a home run too. The last pitch's box under it says why without repeating
 // the headline in other words.
