@@ -389,6 +389,13 @@ assert.match(await heading(), /^Forkball/i);
   await page.goto(base + '#' + link);
   await idle();
   assert.equal(await page.locator('#ab-log').innerText(), log, 'the link replayed a different at-bat');
+  // Where the clipboard is allowed, Copy link copies it and says so.
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.locator('#ab-copy').click();
+  await page.waitForFunction(() => document.getElementById('ab-copied').textContent);
+  assert.equal(await page.locator('#ab-copied').textContent(), 'Link copied. Whoever opens it sees this exact at-bat.');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'https://junkdrawer.works/arsenal/#' + link, 'Copy link copied something else');
+  assert.equal(await page.locator('#ab-link').isHidden(), true, 'the link field shows after the link was copied');
   // A hundred of each, from here.
   await page.locator('#ab-run').click();
   assert.equal(await page.locator('#ab-chart .hundred-bars li').count(), await page.evaluate(() => window.arsenal.atBat.state.pitcher.pitches.length));
@@ -416,6 +423,8 @@ assert.match(await heading(), /^Forkball/i);
 const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
 for (const [width, height] of [[390, 844], [320, 640]]) {
   const phoneCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  // The clipboard is refused, as it is in some in-app browsers and in the framed copy.
+  await phoneCtx.addInitScript(() => { if (navigator.clipboard) navigator.clipboard.writeText = () => Promise.reject(new DOMException('The Clipboard API has been blocked', 'NotAllowedError')); });
   const ph = await phoneCtx.newPage();
   watch(ph);
   const idle = () => ph.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
@@ -485,6 +494,19 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await ph.goto('about:blank');
   await ph.goto(base + STRIKEOUT);
   await idle();
+
+  // Copy link with the clipboard refused: it says so and puts the link in a field, selected, to copy by hand. The end
+  // card stays inside the call box, and nothing scrolls sideways.
+  await ph.locator('#ab-copy').tap();
+  const copied = await ph.evaluate(() => {
+    const field = document.getElementById('ab-link'), end = document.getElementById('ab-end').getBoundingClientRect(), box = document.querySelector('.bat-call').getBoundingClientRect();
+    return {
+      said: document.getElementById('ab-copied').textContent, link: field?.value, shown: !!field && !field.hidden,
+      focused: !!field && document.activeElement === field, selected: !!field && field.selectionStart === 0 && field.selectionEnd === field.value.length,
+      inside: end.left >= box.left && end.right <= box.right, sideways: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  assert.deepEqual(copied, { said: "Couldn't copy here. Select the link and copy it:", link: 'https://junkdrawer.works/arsenal/' + STRIKEOUT, shown: true, focused: true, selected: true, inside: true, sideways: false }, `${at}, Copy link with the clipboard refused`);
 
   // The next hitter starts clean: no readout left from the last one.
   // Scrolled so the end card is behind the picture, it's still there to tap; the pitch controls come back below it.

@@ -44,6 +44,8 @@ export function setupAtBat({ dark = false } = {}) {
   // The next hitter: the pitch controls come back where the result was, and into view (under the picture, on a phone).
   $('ab-next').addEventListener('click', () => { S.seed = newSeed(); fresh(); reveal($('ab-callbox')); });
   $('ab-copy').addEventListener('click', copyLink);
+  // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
+  for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
   $('ab-run').addEventListener('click', hundred);
 
   function seg(id, on) {
@@ -166,6 +168,7 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-result').className = `end-result ${hitterWon(ab.result) ? 'lost' : 'won'}`;
       $('ab-note').textContent = note(ab);
       $('ab-copied').textContent = '';
+      $('ab-link').hidden = true;
     }
     // While a pitch flies the readout says what's coming (fly); once it's in, what happened.
     if (!S.pending) {
@@ -197,10 +200,21 @@ export function setupAtBat({ dark = false } = {}) {
   function code() {
     return ['ab', S.pitcher.key, S.batter, S.seed.toString(36), ...S.calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
   }
+  // Some browsers refuse the clipboard (an in-app browser, the framed copy, a denied permission): then the link goes in
+  // a field, selected, to copy by hand.
   async function copyLink() {
-    const url = `https://junkdrawer.works/arsenal/#${code()}`;
-    try { await navigator.clipboard.writeText(url); $('ab-copied').textContent = 'Link copied. Whoever opens it sees this exact at-bat.'; }
-    catch { $('ab-copied').textContent = url; }
+    const url = `https://junkdrawer.works/arsenal/#${code()}`, field = $('ab-link');
+    try {
+      await navigator.clipboard.writeText(url);
+      field.hidden = true;
+      $('ab-copied').textContent = 'Link copied. Whoever opens it sees this exact at-bat.';
+    } catch {
+      $('ab-copied').textContent = "Couldn't copy here. Select the link and copy it:";
+      field.value = url;
+      field.hidden = false;
+      field.focus();
+      field.select();
+    }
   }
   function load(hash) {
     const m = /^ab\.(\w+)\.([RL])\.([0-9a-z]+)((?:\.[A-Z]{2}\d{1,2})*)$/.exec(hash);
