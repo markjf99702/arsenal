@@ -1030,6 +1030,33 @@ assert.match(await heading(), /^Forkball/i);
   assert.deepEqual(problems.slice(before), [], 'problems with Sale’s pitches to each side');
 }
 
+// Beside the batter's side, a kind of hitter: the average one, or one like a quarter of 2026's qualified hitters. Another
+// kind is a new at-bat, the caption says what he is, the address carries him after a hyphen on his side, and a reload
+// brings him back. One the page doesn't know opens as the average one, and says so.
+{
+  const before = problems.length, idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  await page.goto('about:blank');
+  await page.goto(base + `#ab.v${VERSION}.average.R.2gbo`);
+  await idle();
+  assert.deepEqual(await page.locator('#ab-hitter option').allTextContents(), ['Average', 'Free swinger', 'Patient', 'Contact', 'Power']);
+  await page.locator('#ab-hitter').selectOption('patient');
+  assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: the league-average righty to a patient right-handed hitter.');
+  assert.match(await page.locator('#ab-line').textContent(), /\. Patient: he chases \d+% of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased least did\.$/);
+  await page.evaluate(() => window.arsenal.atBat.throw('FF', '00'));
+  await idle();
+  const hash = await page.evaluate(() => location.hash);
+  assert.match(hash, new RegExp(`^#ab\\.v${VERSION}\\.average\\.R-patient\\.[0-9a-z]+\\.FF12$`), 'the address of an at-bat to a patient hitter');
+  await page.reload();
+  await idle();
+  const back = () => page.evaluate(() => ({ hitter: window.arsenal.atBat.state.hitter, shown: document.getElementById('ab-hitter').value, n: window.arsenal.atBat.state.ab.pitches.length, notice: document.getElementById('ab-notice').textContent, hash: location.hash }));
+  assert.deepEqual(await back(), { hitter: 'patient', shown: 'patient', n: 1, notice: 'A shared at-bat: the league-average righty to a patient right-handed hitter, 1 pitch.', hash }, 'reloaded');
+  await page.goto('about:blank');
+  await page.goto(base + `#ab.v${VERSION}.skenes.L-slugger.b.FF6`);
+  await idle();
+  assert.deepEqual(await back(), { hitter: 'average', shown: 'average', n: 1, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. There’s no kind of hitter called “slugger” here, so this is the average one.', hash: `#ab.v${VERSION}.skenes.L.b.FF6` }, 'a link with a kind of hitter the page doesn’t know');
+  assert.deepEqual(problems.slice(before), [], 'problems with the kinds of hitter');
+}
+
 // A screen reader hears a line of its own for each pitch as it lands: which pitch, the spot called and where it crossed
 // (as in the log), what happened and the count, then why. Three fouls down the middle are three different lines, two of them in the same count, where it used to
 // hear "Foul. The count is 0 and 2." twice.

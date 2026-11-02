@@ -35,10 +35,11 @@ export const spotById = id => SPOTS.find(s => s.id === id);
 export const VERSION = 3;
 
 // An at-bat as a link: ab.v<version>.<pitcher>.<R|L>.<seed in base 36>, then each call as its pitch and its spot's place
-// in SPOTS, like ab.v1.skenes.L.k3x9a.FF6.ST23. The seed brings back the same hitter and the same luck, so the calls
-// replay the same at-bat on the same version of the hitter. One made before links had a version (ab.skenes.L.k3x9a...)
-// was made against version 1. It takes anything with a pitcher, a batter, a seed and the calls so far, like the page's
-// own state.
+// in SPOTS, like ab.v1.skenes.L.k3x9a.FF6.ST23. A hitter of a kind other than the average one goes on his side with a
+// hyphen, like L-patient (HITTER_TYPES). The seed brings back the same hitter and the same luck, so the calls replay the
+// same at-bat on the same version of the hitter. One made before links had a version (ab.skenes.L.k3x9a...) was made
+// against version 1. It takes anything with a pitcher, a batter, a seed and the calls so far, like the page's own state
+// (and a hitter, the average one when it has none).
 // A link without what a message stuck on its end: anything after its last letter or digit, like a full stop, a bracket
 // or a quote. One step back at a time from the end, since /[^0-9a-z]+$/ takes time growing with the square of a long
 // run of them with a letter after it, and a link can be made to freeze the page that way.
@@ -47,27 +48,30 @@ export function trimmed(h) {
   while (n && !/[0-9a-z]/i.test(h[n - 1])) n--;
   return h.slice(0, n);
 }
-export const linkFor = ({ pitcher, batter, seed, calls }) => ['ab', `v${VERSION}`, pitcher.key, batter, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
+export const linkFor = ({ pitcher, batter, hitter = 'average', seed, calls }) => ['ab', `v${VERSION}`, pitcher.key, hitter === 'average' ? batter : `${batter}-${hitter}`, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
 // Reads a link like that, with or without its #, or gives null when even its pitcher, batter and seed can't be read. It
 // reads what it can, the way a link arrives from a message: a full stop, bracket or quote stuck on the end is dropped,
 // a pitch's letters can be in lower case, and the calls are read up to the first that can't be (`rest` is what's left
 // from there, '' when nothing is). A call's spot is undefined when its number is off the grid, and its pitch can be one
-// the pitcher doesn't throw: what to do then is the page's to say. `version` is the hitter's the link was made against.
+// the pitcher doesn't throw: what to do then is the page's to say. `version` is the hitter's the link was made against,
+// and `hitter` his kind, in lower case: 'average' when the link has none, and as the link has it when it isn't one of
+// HITTER_TYPES, for the page to say so too.
 export function parseLink(hash) {
   let h = String(hash).replace(/^#/, '');
   try { h = decodeURIComponent(h); } catch {}
   const parts = trimmed(h).split('.');
   const v = /^v(\d{1,6})$/i.exec(parts[1] || '');
   if (v) parts.splice(1, 1);
-  const [ab, key = '', batter = '', seed = '', ...tokens] = parts;
-  if (!/^ab$/i.test(ab) || !/^\w+$/.test(key) || !/^[RL]$/i.test(batter) || !/^[0-9a-z]+$/i.test(seed)) return null;
+  const [ab, key = '', side = '', seed = '', ...tokens] = parts;
+  const [, batter, hitter = 'average'] = /^([RL])(?:-(\w+))?$/i.exec(side) || [];
+  if (!/^ab$/i.test(ab) || !/^\w+$/.test(key) || !batter || !/^[0-9a-z]+$/i.test(seed)) return null;
   const calls = [];
   for (const t of tokens) {
     const m = /^([A-Za-z]{2})(\d{1,2})$/.exec(t);
     if (!m) break;
     calls.push({ code: m[1].toUpperCase(), spot: SPOTS[Number(m[2])] });
   }
-  return { version: v ? Number(v[1]) : 1, pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
+  return { version: v ? Number(v[1]) : 1, pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), hitter: hitter.toLowerCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
 }
 
 // Where a spot is, from the catcher's view: away is the catcher's right for a right-handed hitter.
@@ -121,6 +125,8 @@ export function mixFor(pitcher, batter) {
 }
 // The same side of the plate as the pitcher's arm (1), or the other (-1).
 const sideOf = ab => (ab.pitcher.hand === ab.batter ? 1 : -1);
+// The average hitter's kind: no change to his knobs.
+const NO_TYPE = { zone: 0, chase: 0, miss: 1, damage: 0 };
 
 // The pitch as the flight model wants it, aimed at a spot on the plate (catcher's view, feet).
 export function pitchFor(pitcher, entry, plate) {
@@ -151,8 +157,20 @@ export const inZone = (x, z) => margin(x, z) >= 0;
 
 // ---------------------------------------------------------------- an at-bat
 
-export function startAtBat({ pitcher = AVERAGE, batter = 'R', seed = 1, params = DEFAULTS } = {}) {
-  return { pitcher, batter, seed, params, rand: makeRng(seed), balls: 0, strikes: 0, pitches: [], result: null };
+// The hitters you can pitch to: the league's average one, or one of four kinds, each tuned to a quarter of 2026's
+// qualified hitters (js/league.js, HITTERS): the free swingers, who chased most out of the zone; the patient, who chased
+// least; the contact hitters, who missed least per swing; and the power hitters, with the most extra bases per at-bat.
+// Each is a small change to the average hitter's knobs (hitters, in js/atbat-params.js): how much more or less he swings
+// at pitches he reads in the zone (zone) and out of it (chase), how much more he misses (miss, on a pitch's stuff), and
+// how much harder he hits it (damage, on his contact).
+export const HITTER_TYPES = [
+  { key: 'average', name: 'Average' }, { key: 'free', name: 'Free swinger' }, { key: 'patient', name: 'Patient' },
+  { key: 'contact', name: 'Contact' }, { key: 'power', name: 'Power' },
+];
+export const hitterByKey = key => HITTER_TYPES.find(h => h.key === key) || HITTER_TYPES[0];
+
+export function startAtBat({ pitcher = AVERAGE, batter = 'R', hitter = 'average', seed = 1, params = DEFAULTS } = {}) {
+  return { pitcher, batter, hitter, seed, params, rand: makeRng(seed), balls: 0, strikes: 0, pitches: [], result: null };
 }
 
 const countKey = ab => `${ab.balls}-${ab.strikes}`;
@@ -273,8 +291,9 @@ export function throwCall(ab, call) {
   const bias = P.swingBias[`${before.balls}-${before.strikes}`] ?? 0;
   const seen = margin(judged[0], judged[1]), look = P.typeSwing[call.code];
   // And by the matchup: in 2026 hitters chased a little more against a pitcher throwing from their own side (platoon).
-  const side = sideOf(ab), off = 1 - sigmoid(seen / P.swingWidth);
-  const lean = (look ? look.zone * (1 - off) + look.chase * off : 0) + side * P.platoon.chase * off;
+  // And by the kind of hitter he is: a free swinger swings more, in the zone and out of it (hitters).
+  const side = sideOf(ab), off = 1 - sigmoid(seen / P.swingWidth), H = P.hitters[ab.hitter] || NO_TYPE;
+  const lean = (look ? look.zone * (1 - off) + look.chase * off : 0) + side * P.platoon.chase * off + H.zone * (1 - off) + H.chase * off;
   const pSwing = P.swingLo + (P.swingHi - P.swingLo) * sigmoid((seen + bias + lean) / P.swingWidth);
   const swing = R.chance(pSwing);
 
@@ -299,8 +318,9 @@ export function throwCall(ab, call) {
     const reach = Math.max(0, -margin(plate[0], plate[1]));
     // A real pitcher's stuff with two strikes (pitcherPutaway) brings his strikeouts to his own. And against a hitter on
     // his own side of the plate any pitcher's stuff is harder to hit, on the other side easier (platoon), as in 2026.
+    // A power hitter misses more, a contact hitter less (hitters).
     const stuff = (P.stuff[call.code] ?? 1) * (P.pitcherStuff[ab.pitcher.key]?.[call.code] ?? 1) * (before.strikes === 2 ? P.pitcherPutaway[ab.pitcher.key] ?? 1 : 1)
-      * Math.exp(side * P.platoon.stuff);
+      * Math.exp(side * P.platoon.stuff) * H.miss;
     out.stuff = stuff;
     // Even a fooled hitter gets a piece of it sometimes (the floor): hitters touch most chase pitches they swing at.
     // His approach by count: a full swing early in the count, shortened up to protect with two strikes.
@@ -329,8 +349,9 @@ export function throwCall(ab, call) {
         // And where pitches have been crossing this at-bat, he's ready for one there: each earlier pitch that crossed
         // within about 7 inches of where he reads this one crossing adds to how hard he hits it (notice.where).
         const ready = ab.pitches.reduce((a, e) => a + Math.exp(-((e.plate[0] - r.at[0]) ** 2 + (e.plate[1] - r.at[1]) ** 2) / 0.36), 0);
-        // A hitter on the pitcher's side of the plate hits him softer, one on the other side harder (platoon).
-        const s = q + P.notice.where * ready - side * P.platoon.damage + R.normal() * P.quality.noise;
+        // A hitter on the pitcher's side of the plate hits him softer, one on the other side harder (platoon); a power
+        // hitter harder still (hitters).
+        const s = q + P.notice.where * ready - side * P.platoon.damage + H.damage + R.normal() * P.quality.noise;
         const O = P.outcome;
         let play;
         if (s > O.hr) play = 'HR';
@@ -421,7 +442,7 @@ export function whatIf(ab, spot, runs = 100, seed = 1, from = 0) {
   for (const entry of ab.pitcher.pitches) {
     const tally = { ball: 0, called: 0, whiff: 0, foul: 0, out: 0, hit: 0, hbp: 0, runs };
     for (let i = from; i < from + runs; i++) {
-      const copy = startAtBat({ pitcher: ab.pitcher, batter: ab.batter, seed: (seed * 7919 + i * 104729) >>> 0, params: ab.params });
+      const copy = startAtBat({ pitcher: ab.pitcher, batter: ab.batter, hitter: ab.hitter, seed: (seed * 7919 + i * 104729) >>> 0, params: ab.params });
       copy.balls = ab.balls; copy.strikes = ab.strikes;
       copy.pitches = ab.pitches.slice();
       const r = throwCall(copy, { code: entry.code, spot });

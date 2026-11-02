@@ -1,7 +1,7 @@
 // The at-bat lab: plays thousands of at-bats with the pitcher choosing for himself, and measures them the way
 // Statcast measures the league. Used by tools/calibrate.mjs and test/atbat.test.mjs, which hold the hitter to the same
 // checks (checks, below): the test fails on knobs that miss them, and the calibrator won't write them.
-import { LEAGUE, COUNTS, TYPES, ZONES } from '../js/league.js';
+import { LEAGUE, COUNTS, TYPES, ZONES, HITTERS } from '../js/league.js';
 import { autoAtBat, autoCall, startAtBat, throwCall, spotById, pitcherByKey, AVERAGE, LEAGUE_ARM, PITCHERS, ZONE, inZone } from '../js/atbat.js';
 
 const L = LEAGUE;
@@ -26,9 +26,9 @@ export function batterFor(pitcher, i) {
   const r = pitcher.paBy ? pitcher.paBy.R / (pitcher.paBy.R + pitcher.paBy.L) : pitcher.hand === 'R' ? PLATOON.sameShare : 1 - PLATOON.sameShare;
   return Math.floor((i + 1) * r) > Math.floor(i * r) ? 'R' : 'L';
 }
-// The at-bats of a lab run: `pas` of them for each seed (one, or a list to pool).
-function* atBats(pitcher, params, pas, seeds) {
-  for (const seed of [seeds].flat()) for (let i = 0; i < pas; i++) yield autoAtBat({ pitcher, batter: batterFor(pitcher, i), seed: (seed * 1000003 + i * 7919) >>> 0, params });
+// The at-bats of a lab run: `pas` of them for each seed (one, or a list to pool), to a hitter of one kind.
+function* atBats(pitcher, params, pas, seeds, hitter = 'average') {
+  for (const seed of [seeds].flat()) for (let i = 0; i < pas; i++) yield autoAtBat({ pitcher, batter: batterFor(pitcher, i), hitter, seed: (seed * 1000003 + i * 7919) >>> 0, params });
 }
 
 // Where a pitch crossed, as Statcast's zones put it: 'middle' (zone 5), 'edge' (2, 4, 6, 8, the middle of each side),
@@ -201,6 +201,36 @@ export function measurePitchers(params, pas = 1500, seed = 1) {
   return out;
 }
 
+// The quarters of 2026's qualified hitters the hitter types are tuned to (js/league.js, HITTERS), as the lab counts them:
+// chases (swings at pitches out of the zone), swings in the zone, misses per swing, wOBA on contact, strikeouts and walks.
+export const QUARTERS = Object.fromEntries(['free', 'patient', 'contact', 'power'].map(k => {
+  const h = HITTERS[k];
+  return [k, {
+    chase: (h.swings - h.zoneSwings) / (h.pitches - h.zone), zoneSwing: h.zoneSwings / h.zone, whiff: h.whiffs / h.swings,
+    wobacon: (W['1B'] * h.singles + W['2B'] * h.doubles + W['3B'] * h.triples + W.HR * h.hrs) / h.bip, k: h.so / h.pa, bb: h.bb / h.pa,
+  }];
+}));
+// Each kind of hitter against the league's arm, on each seed (per) and pooled: the same as QUARTERS gives.
+export function measureHitters(params, pas = 3000, seeds = [1]) {
+  const out = {};
+  for (const type of Object.keys(QUARTERS)) {
+    const per = [...[seeds].flat(), null].map(() => ({ pa: 0, k: 0, bb: 0, pitches: 0, zone: 0, swings: 0, zoneSwings: 0, whiffs: 0, bip: 0, wc: 0 }));
+    [seeds].flat().forEach((seed, i) => {
+      for (const ab of atBats(LEAGUE_ARM, params, pas, seed, type)) for (const c of [per[i], per.at(-1)]) {
+        c.pa++; if (ab.result === 'K' || ab.result === 'KL') c.k++; if (ab.result === 'BB') c.bb++;
+        for (const p of ab.pitches) {
+          c.pitches++; if (p.inZone) c.zone++;
+          if (p.swing) { c.swings++; if (p.inZone) c.zoneSwings++; if (MISSED(p)) c.whiffs++; }
+          if (p.result === 'inplay') { c.bip++; c.wc += wobaOf(p.play); }
+        }
+      }
+    });
+    const rates = c => ({ chase: (c.swings - c.zoneSwings) / (c.pitches - c.zone), zoneSwing: c.zoneSwings / c.zone, whiff: c.whiffs / c.swings, wobacon: c.wc / c.bip, k: c.k / c.pa, bb: c.bb / c.pa });
+    out[type] = { ...rates(per.at(-1)), per: per.slice(0, -1).map(rates) };
+  }
+  return out;
+}
+
 // Changing speeds: the league-average righty's changeup down in the zone at 0-1, right after a four-seamer down the
 // middle and right after a changeup there, `throws` times each. Misses per swing at the changeup, after each.
 export function speedChange(params, throws = 600) {
@@ -264,7 +294,7 @@ export function plan(params, key, call, pas = 1000, seeds = SEEDS) {
 // knuckle curve, 2% of the league's pitches) and the platoon split (a few points of wOBA between the two sides of the
 // plate), 1,200 for each real pitcher, 1,000 for each plan. `run` is a measure of them already made. Each check is { group, what, ok, said }: the league
 // overall, each count, each kind of pitch, where pitches crossed, each real pitcher's pitches, strikeouts, walks and
-// wOBA, the platoon split, changing speeds, and the plans.
+// wOBA, the platoon split, each kind of hitter (3,000 at-bats a seed), changing speeds, and the plans.
 export const SEEDS = [21, 22, 23];
 export function run(params) {
   const plans = { own: {} };
@@ -272,9 +302,9 @@ export function run(params) {
   for (const [group, list] of Object.entries(PLANS)) plans[group] = list.map(([key, what, call, even]) => ({ key, what, even, ...plan(params, key, call) }));
   plans.miller = plan(params, MILLER[0], MILLER[2]);
   const big = measure(params, 16000, SEEDS);
-  return { lab: measure(params, 3000, SEEDS), types: big.types, platoon: big.platoon, pitchers: measurePitchers(params, 1200, SEEDS), plans };
+  return { lab: measure(params, 3000, SEEDS), types: big.types, platoon: big.platoon, pitchers: measurePitchers(params, 1200, SEEDS), hitters: measureHitters(params, 3000, SEEDS), plans };
 }
-export function checks(params, { lab, types, platoon, pitchers, plans } = run(params)) {
+export function checks(params, { lab, types, platoon, pitchers, hitters, plans } = run(params)) {
   const out = [];
   const near = (group, what, sim, real, by, fmt = v => v.toFixed(3)) => out.push({ group, what, ok: Math.abs(sim - real) <= by, said: `${what}: ${fmt(sim)} against ${fmt(real)} (within ${fmt(by)})` });
   for (const [key, by] of [['k', 0.03], ['bb', 0.015], ['hbp', 0.006], ['ppa', 0.2], ['swing', 0.025], ['whiff', 0.025], ['zone', 0.025], ['zoneSwing', 0.025], ['zoneWhiff', 0.025],
@@ -331,6 +361,18 @@ export function checks(params, { lab, types, platoon, pitchers, plans } = run(pa
     for (const l of lines) near('platoon', `${l} wOBA`, platoon[side].woba, PLATOON.lines[l].woba, 0.015);
   }
   near('platoon', 'the other side’s wOBA over the same side’s', platoon.other.woba - platoon.same.woba, PLATOON.other.woba - PLATOON.same.woba, 0.01);
+  // Each kind of hitter, against the quarter of 2026's qualified hitters he's tuned to: his chases and his misses per
+  // swing within 3 points on each seed, and pooled his swings in the zone within 3 points and his wOBA on contact within
+  // .040.
+  for (const [type, m] of Object.entries(hitters)) {
+    const q = QUARTERS[type];
+    m.per.forEach((x, i) => {
+      near('hitters', `${type} hitter's chases on seed ${SEEDS[i]}`, x.chase, q.chase, 0.03, pct);
+      near('hitters', `${type} hitter's misses per swing on seed ${SEEDS[i]}`, x.whiff, q.whiff, 0.03, pct);
+    });
+    near('hitters', `${type} hitter's swings in the zone`, m.zoneSwing, q.zoneSwing, 0.03, pct);
+    near('hitters', `${type} hitter's wOBA on contact`, m.wobacon, q.wobacon, 0.04);
+  }
   // Changing speeds still works: a changeup after a four-seamer fools him more than one after a changeup.
   const sc = speedChange(params);
   out.push({ group: 'sequence', what: 'changing speeds', ok: sc.afterFastball > sc.afterChangeup + 0.03, said: `a changeup after a four-seamer missed on ${pct(sc.afterFastball)} of swings, after a changeup ${pct(sc.afterChangeup)} (3 points less, at least)` });

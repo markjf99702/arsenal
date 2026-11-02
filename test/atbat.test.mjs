@@ -1,10 +1,10 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL, LEAGUE } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
-import { TARGET, run, checks, SEEDS, measure, measurePitchers } from './lab.mjs';
+import { TARGET, run, checks, SEEDS, measure, measurePitchers, measureHitters } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
 import { rng } from '../js/rng.js';
@@ -103,12 +103,12 @@ test('the count works: four balls walk him, three strikes sit him down, a foul w
 });
 
 // About 2,000 at-bats called at random, the way someone trying things out might call them: every pitcher to either
-// side, each pitch any of his, to any of the 25 spots.
+// side and every kind of hitter in turn, each pitch any of his, to any of the 25 spots.
 const RANDOM = [];
 {
   const R = rng(77);
   for (const pitcher of PITCHERS) for (const batter of ['R', 'L']) for (let i = 0; i < 100; i++) {
-    const ab = startAtBat({ pitcher, batter, seed: (R() * 2 ** 32) >>> 0 });
+    const ab = startAtBat({ pitcher, batter, hitter: HITTER_TYPES[i % HITTER_TYPES.length].key, seed: (R() * 2 ** 32) >>> 0 });
     while (!ab.result) throwCall(ab, { code: pitcher.pitches[Math.floor(R() * pitcher.pitches.length)].code, spot: SPOTS[Math.floor(R() * SPOTS.length)] });
     RANDOM.push(ab);
   }
@@ -266,12 +266,12 @@ test('the why talks about the decision point and lines only after another kind o
 });
 
 test('a pitch under half an inch off the zone was just off the edge, and ball four in the zone caught it', () => {
-  // Misiorowski's first pitch crossed a few hundredths of an inch past the zone's edge, and was called a strike.
+  // Misiorowski's first pitch crossed a quarter of an inch past the zone's edge, and was called a strike.
   const first = replay('#ab.v3.misiorowski.R.1b.FF8.CU23.FF9.FC18.FF8').pitches[0];
   assert.ok(!first.inZone && ZONE.half - Math.abs(first.plate[0]) > -0.5 / 12, 'the pitch isn’t just off the edge');
   assert.match(why(first, null, 'R'), /It was just off the edge, but the umpire gave the pitcher the strike\./);
   // Nola's walk ended on a pitch in the zone, called a ball.
-  const walk = replay('#ab.v3.nola.R.q6.KC18.FF23.FF6.CH22.FF3');
+  const walk = replay('#ab.v3.nola.R.yy.KC18.FF23.FF6.CH22.FF3');
   assert.equal(walk.result, 'BB');
   assert.ok(walk.pitches.at(-1).inZone);
   assert.match(note(walk), /^Ball four caught the edge, but the umpire called it a ball\. /);
@@ -281,8 +281,8 @@ test('a pitch under half an inch off the zone was just off the edge, and ball fo
 // An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), read by the page's own parseLink and played call by
 // call. (The page stops at a call it can't throw and says why; here that call throws, and fails the test.)
 function replay(link) {
-  const { pitcherKey, batter, seed, calls } = parseLink(link);
-  const ab = startAtBat({ pitcher: pitcherByKey(pitcherKey), batter, seed });
+  const { pitcherKey, batter, hitter, seed, calls } = parseLink(link);
+  const ab = startAtBat({ pitcher: pitcherByKey(pitcherKey), batter, hitter, seed });
   for (const c of calls) if (!ab.result) throwCall(ab, c);
   return ab;
 }
@@ -294,7 +294,7 @@ test('an at-bat link replays the at-bat it was made from, pitch for pitch, and s
     const calls = ab.pitches.map(p => ({ code: p.code, spot: p.spot }));
     for (let k = 0; k <= calls.length; k++) {
       const link = linkFor({ ...ab, calls: calls.slice(0, k) }), read = parseLink(`#${link}`);
-      assert.deepEqual([read.version, read.pitcherKey, read.batter, read.seed, read.rest], [VERSION, ab.pitcher.key, ab.batter, ab.seed, ''], link);
+      assert.deepEqual([read.version, read.pitcherKey, read.batter, read.hitter, read.seed, read.rest], [VERSION, ab.pitcher.key, ab.batter, ab.hitter, ab.seed, ''], link);
       assert.deepEqual(read.calls, calls.slice(0, k), link);
       assert.deepEqual(replay(link).pitches.map(played), ab.pitches.slice(0, k).map(played), link);
     }
@@ -309,11 +309,11 @@ test('an at-bat link replays the at-bat it was made from, pitch for pitch, and s
 const PINNED = {
   version: 3,
   links: {
-    'ab.v3.average.R.2v.CH17.SI7.CH22.SI19.CH18.FF18.CH21': ['called 0.721 2.609', 'foul 0.101 3.249', 'foul 0.442 1.740', 'ball 1.143 1.316', 'foul 1.182 2.374', 'ball -0.560 1.676', 'whiff -1.030 1.241'],
-    'ab.v3.skenes.L.5p.CH17.SI8.ST24.FF10.SI10': ['ball 0.596 1.388', 'foul -0.260 2.797', 'ball -1.013 0.598', 'ball 0.958 2.711', 'ball 1.888 2.759'],
-    'ab.v3.miller.R.8h.SL18.FF18.FF13.FF14.SL13': ['ball -0.072 1.005', 'foul -0.077 2.641', 'foul 0.833 2.101', 'ball 1.767 2.748', 'whiff -0.006 3.300'],
-    'ab.v3.waldron.L.b9.FF1.FC7.KN18.SI22.ST22': ['inplay out 0.478 3.548'],
-    'ab.v3.rogers.R.e1.SI17.SL23.SI10.SL24.SI12': ['called 0.880 2.348', 'whiff 0.959 1.108', 'ball -0.946 1.308', 'ball 2.442 1.669', 'inplay out -0.476 1.618'],
+    'ab.v3.average.R.2v.CH17.SI7.CH22.SI19.CH18.FF18.CH21': ['called 0.743 2.631', 'foul 0.105 3.258', 'foul 0.455 1.762', 'ball 1.142 1.298', 'foul 1.204 2.389', 'ball -0.591 1.670', 'whiff -1.047 1.247'],
+    'ab.v3.skenes.L.5p.CH17.SI8.ST24.FF10.SI10': ['ball 0.626 1.362', 'foul -0.249 2.789', 'ball -1.003 0.576', 'ball 0.946 2.726', 'ball 1.924 2.777'],
+    'ab.v3.miller.R.8h.SL18.FF18.FF13.FF14.SL13': ['ball -0.079 0.994', 'foul -0.084 2.651', 'foul 0.838 2.097', 'ball 1.774 2.752', 'whiff -0.011 3.311'],
+    'ab.v3.waldron.L.b9.FF1.FC7.KN18.SI22.ST22': ['inplay out 0.478 3.539'],
+    'ab.v3.rogers.R.e1.SI17.SL23.SI10.SL24.SI12': ['called 0.910 2.363', 'whiff 0.975 1.111', 'ball -0.937 1.270', 'ball 2.485 1.691', 'inplay out -0.492 1.590'],
   },
 };
 const pitchByPitch = ab => ab.pitches.map(p => `${p.result}${p.play ? ` ${p.play}` : ''} ${p.plate.map(v => v.toFixed(3)).join(' ')}`);
@@ -343,7 +343,15 @@ test('a link with something stuck on the end reads the same, and one cut off rea
   assert.equal(parseLink('#ab.skenes.L'), null);
   assert.equal(parseLink('#ab.skenes'), null);
   assert.equal(parseLink('#sweeper'), null);
-  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { version: 1, pitcherKey: 'skenes', batter: 'L', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
+  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { version: 1, pitcherKey: 'skenes', batter: 'L', hitter: 'average', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
+  // A hitter of another kind is on his side, after a hyphen; one the page doesn't know is read as the link has it, for
+  // the page to say so. A side with a hyphen and nothing after it is garbled.
+  assert.deepEqual(parseLink('#ab.v3.skenes.L-patient.k3x9a.FF6'), { ...parseLink('#ab.v3.skenes.L.k3x9a.FF6'), hitter: 'patient' });
+  assert.equal(parseLink('#ab.v3.skenes.l-POWER.k3x9a').hitter, 'power');
+  assert.equal(parseLink('#ab.v3.skenes.L-slugger.k3x9a').hitter, 'slugger');
+  for (const bad of ['#ab.v3.skenes.L-.k3x9a', '#ab.v3.skenes.-patient.k3x9a', '#ab.v3.skenes.L-patient']) assert.equal(parseLink(bad), null, bad);
+  assert.equal(linkFor({ pitcher: AVERAGE, batter: 'L', hitter: 'free', seed: 35, calls: [] }), `ab.v${VERSION}.average.L-free.z`);
+  assert.equal(linkFor({ pitcher: AVERAGE, batter: 'L', hitter: 'average', seed: 35, calls: [] }), `ab.v${VERSION}.average.L.z`);
   // A link carries the version of the hitter it was made against; one from before links had a version, the first.
   assert.deepEqual(parseLink('#ab.v7.skenes.L.k3x9a.FF6.S'), { ...parseLink('#ab.skenes.L.k3x9a.FF6.S'), version: 7 });
   assert.equal(parseLink('#AB.V7.skenes.L.k3x9a').version, 7);
@@ -539,6 +547,24 @@ test('the platoon term moves a batter on the pitcher’s side against one on the
   assert.ok(more > none + 0.03, `the other side's wOBA over the same side's: ${none.toFixed(3)} with no platoon term, ${more.toFixed(3)} with a big one`);
 });
 
+// Each kind of hitter chases and misses per swing as his quarter of 2026's qualified hitters did, on every seed (test/lab.mjs,
+// QUARTERS), and swings in the zone and hits the ball as hard.
+test('each kind of hitter chases, misses and does damage as his quarter of 2026’s qualified hitters did', () => holds('hitters'));
+
+// A kind of hitter's knobs (js/atbat-params.js, hitters) move his chases, his misses and his damage, and nobody else's;
+// and the 400 throws face the kind of hitter at the plate.
+test('a kind of hitter’s knobs move his chases, misses and damage, and the 400 throws face him', () => {
+  const by = H => measureHitters({ ...PARAMS, hitters: { ...PARAMS.hitters, power: { ...PARAMS.hitters.power, ...H } } }, 2500, [15]);
+  const base = by({}), chasing = by({ chase: PARAMS.hitters.power.chase + 0.2 }), missing = by({ miss: PARAMS.hitters.power.miss * 1.5 }), hitting = by({ damage: PARAMS.hitters.power.damage + 0.2 });
+  assert.ok(chasing.power.chase > base.power.chase + 0.05, `power hitter's chases ${base.power.chase.toFixed(3)}, then ${chasing.power.chase.toFixed(3)}`);
+  assert.ok(missing.power.whiff > base.power.whiff + 0.04, `power hitter's misses per swing ${base.power.whiff.toFixed(3)}, then ${missing.power.whiff.toFixed(3)}`);
+  assert.ok(hitting.power.wobacon > base.power.wobacon + 0.05, `power hitter's wOBA on contact ${base.power.wobacon.toFixed(3)}, then ${hitting.power.wobacon.toFixed(3)}`);
+  assert.equal(chasing.patient.chase, base.patient.chase, 'a patient hitter moved with the power hitter’s knobs');
+  const off = hitter => whatIf(startAtBat({ pitcher: pitcherByKey('skenes'), batter: 'R', hitter, seed: 3 }), spotById('m12'), 400, 2);
+  const swung = t => Object.values(t).reduce((a, v) => a + v.whiff + v.foul + v.out + v.hit, 0);
+  assert.ok(swung(off('free')) > swung(off('patient')) * 1.3, `swings at 400 throws of each down and off the plate away: a free swinger ${swung(off('free'))}, a patient hitter ${swung(off('patient'))}`);
+});
+
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => holds('sequence'));
 
 // The lab measures what 2026's pitch-by-pitch numbers measure (js/league.js, LEAGUE.after): how much likelier a miss is
@@ -573,7 +599,7 @@ test('the hundred throws face a hitter who remembers the whole at-bat, not just 
 // The page throws each pitch 400 times, a slice of 100 at a time, and shows it per 100: at 100 throws a pitch's misses
 // per 100 wander by about 8 either way from chart to chart, enough to put the wrong pitch on top. Paul Skenes to a
 // left-handed batter, 1-2 after a four-seamer up and in, down and off the plate away: over 20,000 throws the changeup is
-// missed most, 33 times in 100 to the slider's 22.5.
+// missed most, 32 times in 100 to the slider's 22.
 test('four hundred throws of each put the same pitch on top whatever the seed', () => {
   const ab = startAtBat({ pitcher: pitcherByKey('skenes'), batter: 'L', seed: 12345 });
   throwCall(ab, { code: 'FF', spot: spotById('1m1') });

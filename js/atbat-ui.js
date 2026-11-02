@@ -1,22 +1,37 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
 import { markKind, readoutRoom } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
-import { COUNTS } from './league.js';
+import { COUNTS, HITTERS } from './league.js';
 
 const $ = id => document.getElementById(id);
 const pct = v => `${Math.round(v * 100)}%`;
 const SHORT = code => BY_CODE[code]?.short || NAME[code];
 const lower = s => s[0].toLowerCase() + s.slice(1);
 const plural = (n, one) => `${n} ${one}${n === 1 ? '' : one.endsWith('h') ? 'es' : 's'}`;
+// Each kind of hitter as the caption puts him, from the quarter of 2026's qualified hitters he's tuned to (js/league.js).
+const QUARTER = key => {
+  const h = HITTERS[key], chase = (h.swings - h.zoneSwings) / (h.pitches - h.zone);
+  return {
+    free: `Free swinger: he chases ${pct(chase)} of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased most did.`,
+    patient: `Patient: he chases ${pct(chase)} of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased least did.`,
+    contact: `Contact: he misses ${pct(h.whiffs / h.swings)} of his swings, as the quarter of 2026’s qualified hitters who missed least did.`,
+    power: `Power: he hits a home run on ${pct(h.hrs / h.bip)} of the balls he puts in play, as the quarter of 2026’s qualified hitters with the most power did.`,
+  }[key];
+};
+// The batter, for what a screen reader hears and the notice says: "a right-handed batter", "a patient left-handed hitter".
+const batterWords = (side, hitter) => {
+  const hand = `${side === 'R' ? 'right' : 'left'}-handed`;
+  return { average: `a ${hand} batter`, free: `a ${hand} free swinger`, patient: `a patient ${hand} hitter`, contact: `a ${hand} contact hitter`, power: `a ${hand} power hitter` }[hitter] || `a ${hand} batter`;
+};
 // How each ending goes in a scorebook. A strikeout looking is the same K, drawn backwards.
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
-  const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0 };
+  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0 };
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
@@ -49,6 +64,10 @@ export function setupAtBat({ dark = false } = {}) {
   // so switching away and back would be a do-over against a hitter you already know.
   $('ab-pitcher').addEventListener('change', e => { S.pitcher = pitcherByKey(e.target.value); S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   seg('ab-batter', v => { S.batter = v; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
+  // And another kind of hitter, beside the batter's side: the average one, or a free swinger, a patient, contact or power
+  // hitter, each like a quarter of 2026's qualified hitters.
+  $('ab-hitter').innerHTML = HITTER_TYPES.map(h => `<option value="${h.key}">${h.name}</option>`).join('');
+  $('ab-hitter').addEventListener('change', e => { S.hitter = hitterByKey(e.target.value).key; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
   $('ab-throw').addEventListener('click', () => pitch());
   // The pitches and the spots are each a group of radio buttons: one stop for Tab, at the one picked, and the arrow keys
@@ -129,7 +148,7 @@ export function setupAtBat({ dark = false } = {}) {
   // under Throw too, for everyone to see.
   function fresh({ keepCalls = false, picked = false, changed = false } = {}) {
     const cut = changed && S.ab?.pitches.length > 0;
-    S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: S.seed });
+    S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.seed });
     S.asked = 0;
     if (!keepCalls) S.calls = [];
     S.code = S.pitcher.pitches[0].code;
@@ -137,11 +156,13 @@ export function setupAtBat({ dark = false } = {}) {
     S.busy = false;
     S.pending = null;
     stopChart();
-    // The pitcher's name, set apart from his line (which can have a colon of its own: "A submariner: an 83 mph sinker").
+    // The pitcher's name, set apart from his line (which can have a colon of its own: "A submariner: an 83 mph sinker"),
+    // and the kind of hitter, when he isn't the average one.
     const name = document.createElement('b');
     name.textContent = `${S.pitcher.name}.`;
-    $('ab-line').replaceChildren(name, ` ${S.pitcher.line}`);
+    $('ab-line').replaceChildren(name, ` ${S.pitcher.line}${S.hitter === 'average' ? '' : ` ${QUARTER(S.hitter)}`}`);
     $('ab-pitcher').value = S.pitcher.key;
+    $('ab-hitter').value = S.hitter;
     for (const b of $('ab-batter').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === S.batter));
     stage.set({ hand: S.pitcher.hand, batter: S.batter, marks: [] });
     stage.clear();
@@ -152,7 +173,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-notice').textContent = '';
     $('ab-version').textContent = '';
     if (picked) {
-      const said = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
+      const said = `New at-bat: ${who()} to ${batterWords(S.batter, S.hitter)}.`;
       $('ab-live').textContent = said;
       if (cut) $('ab-hint').textContent = said;
       if (location.hash.startsWith('#ab.')) stamp();
@@ -466,10 +487,12 @@ export function setupAtBat({ dark = false } = {}) {
     }
     S.pitcher = pitcherByKey(link.pitcherKey);
     S.batter = link.batter;
+    S.hitter = hitterByKey(link.hitter).key;
     S.seed = link.seed;
     fresh();
     const said = [];
     if (S.pitcher.key !== link.pitcherKey) said.push(`There’s no pitcher called “${link.pitcherKey}” here, so this is the league-average righty.`);
+    if (S.hitter !== link.hitter) said.push(`There’s no kind of hitter called “${link.hitter}” here, so this is the average one.`);
     const calls = link.calls;
     let i = 0;
     for (; i < calls.length; i++) {
@@ -490,7 +513,7 @@ export function setupAtBat({ dark = false } = {}) {
     if (link.rest) said.push('The rest of the link couldn’t be read, so it was left out.');
     // First, what this is: a screen reader hears it rather than the result of the pitch before the one thrown again.
     const n = S.ab.pitches.length;
-    if (n) said.unshift(`A shared at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter, ${plural(n, 'pitch')}.`);
+    if (n) said.unshift(`A shared at-bat: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
     // Made against another version of the hitter, the calls are thrown to today's, who may not play them the same way.
     $('ab-version').textContent = n && link.version !== VERSION

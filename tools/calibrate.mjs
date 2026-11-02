@@ -4,8 +4,8 @@
 // Each round: the pitcher's aim by count and pitch type, the hitter's swing by count, the umpire, and hit-by-pitches
 // are nudged straight toward their targets; then the contact and recognition knobs are searched at random,
 // keeping a change only when it lowers the total error; then the outcomes of balls in play are matched by quantile.
-// The round with the lowest error is kept and finished with finer nudges, and each real pitcher's pitches are fitted
-// last, so nothing after undoes them. Then the knobs are put to the lab's checks (test/lab.mjs, the same as
+// The round with the lowest error is kept and finished with finer nudges, and each real pitcher's pitches, then each kind
+// of hitter, are fitted last, so nothing after undoes them. Then the knobs are put to the lab's checks (test/lab.mjs, the same as
 // test/atbat.test.mjs's, on three other seeds pooled); if any fails, it says which and writes nothing.
 // The random search is seeded (js/rng.js, seed 1 unless --seed says otherwise) and the file's date is js/league.js's,
 // so the same league numbers and the same starting knobs write the same file, byte for byte. It starts from the knobs
@@ -15,7 +15,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEAGUE, COUNTS, TYPES } from '../js/league.js';
-import { measure, measurePitchers, TARGET, checks, SEEDS, GROUPS, PLATOON } from '../test/lab.mjs';
+import { measure, measurePitchers, measureHitters, TARGET, checks, SEEDS, GROUPS, PLATOON, QUARTERS } from '../test/lab.mjs';
 import { PARAMS as START } from '../js/atbat-params.js';
 import { rng } from '../js/rng.js';
 
@@ -38,6 +38,7 @@ let P = clone(START);
 P.pitcherCommand ||= {};
 P.pitcherContact ||= {};
 P.platoon ||= { stuff: 0, chase: 0, damage: 0 };
+P.hitters ||= Object.fromEntries(Object.keys(QUARTERS).map(k => [k, { zone: 0, chase: 0, miss: 1, damage: 0 }]));
 
 // Where the knobs live in PARAMS, and how far a random step may move each (as a factor).
 const KNOBS = [
@@ -212,6 +213,21 @@ outcomes(measure(P, PA * 4, seed));
 console.log(`timing pull ${P.memory.toFixed(3)}, lean toward repeating ${P.repeat.lean.toFixed(3)} and ${P.repeat.weight.toFixed(3)}`);
 // Last, each real pitcher: his own knobs only, on top of the league's, so nothing after this moves them.
 fitPitchers(8);
+
+// And each kind of hitter: his own changes to the average hitter's knobs, until against the league's arm he swings in
+// the zone and chases, misses per swing and does damage on contact as his quarter of 2026's qualified hitters did.
+function fitHitters(steps) {
+  for (let i = 0; i < steps; i++) {
+    for (const [type, m] of Object.entries(measureHitters(P, 3000, [31 + 2 * i, 32 + 2 * i]))) {
+      const H = P.hitters[type], q = QUARTERS[type];
+      H.zone = clamp(H.zone + 0.7 * P.swingWidth * (logit(q.zoneSwing) - logit(m.zoneSwing)), -0.6, 0.6);
+      H.chase = clamp(H.chase + 0.7 * P.swingWidth * (logit(q.chase) - logit(m.chase)), -0.6, 0.6);
+      H.miss = clamp(H.miss * Math.exp(0.8 * (logit(q.whiff) - logit(m.whiff))), 0.3, 3);
+      H.damage = clamp(H.damage + 1.2 * (q.wobacon - m.wobacon), -0.5, 0.5);
+    }
+  }
+}
+fitHitters(10);
 
 // The checks the test holds the hitter to. Knobs that miss any aren't written.
 const failed = checks(P).filter(c => !c.ok);
