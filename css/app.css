@@ -560,7 +560,7 @@ p { margin: 0; }
 .spot[aria-checked="true"]::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: #fbf7ee; box-shadow: 0 0 0 2px #c8202f, 0 1px 3px rgba(0, 0, 0, .35); }
 /* His pitches, under the pitcher's line: folded away on a phone. The chart beside the rows where there's room. */
 .his { margin-top: 10px; }
-.his summary { font: 600 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); cursor: pointer; padding: 12px 0; margin: -12px 0; width: max-content; }
+.his summary { font: 600 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); cursor: pointer; padding: 13px 0; margin: -13px 0; width: max-content; }
 .his summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 .his-body { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 8px 18px; align-items: start; margin-top: 18px; }
 @media (max-width: 640px) { .his-body { grid-template-columns: minmax(0, 1fr); } .his-chart-wrap { max-width: 340px; } }

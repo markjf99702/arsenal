@@ -1523,7 +1523,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
   const reach = () => ph.evaluate(() => {
     const short = [];
-    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button, #hit-game button')) {
+    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-his summary, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button, #hit-game button')) {
       if (!el.offsetParent) continue;
       el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
