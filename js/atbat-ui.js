@@ -1,6 +1,6 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink } from './atbat.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
 import { markKind, readoutRoom } from './tracker.js';
 import { BY_CODE } from './pitches.js';
@@ -150,6 +150,7 @@ export function setupAtBat({ dark = false } = {}) {
     buildCall();
     drawState();
     $('ab-notice').textContent = '';
+    $('ab-version').textContent = '';
     if (picked) {
       const said = `New at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter.`;
       $('ab-live').textContent = said;
@@ -172,6 +173,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-hint').textContent = '';
     // A link's notice was about what it replayed; from here on the at-bat is this one.
     $('ab-notice').textContent = '';
+    $('ab-version').textContent = '';
     fly(rec);
   }
 
@@ -420,7 +422,8 @@ export function setupAtBat({ dark = false } = {}) {
   }
 
   // ---------------------------------------------------------------- links
-  // #ab.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat (linkFor, js/atbat.js).
+  // #ab.v<version>.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat on the same version of
+  // the hitter (linkFor, js/atbat.js).
   const code = () => linkFor(S);
   // The address follows the at-bat, so a reload replays the one being played and a phone's Share sends it. It's replaced
   // rather than added to, so Back still leaves the page. (A framed one-file copy may not be allowed to change its
@@ -488,6 +491,9 @@ export function setupAtBat({ dark = false } = {}) {
     const n = S.ab.pitches.length;
     if (n) said.unshift(`A shared at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
+    // Made against another version of the hitter, the calls are thrown to today's, who may not play them the same way.
+    $('ab-version').textContent = n && link.version !== VERSION
+      ? `Pitched against ${link.version < VERSION ? 'an earlier' : 'a newer'} version of the hitter, so the same calls may play out differently.` : '';
     $('ab-live').textContent = '';
     // The last pitch is thrown again, so the count and the log show where things stood before it.
     const last = S.ab.pitches.at(-1);

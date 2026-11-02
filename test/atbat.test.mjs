@@ -1,7 +1,7 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
@@ -270,13 +270,34 @@ test('an at-bat link replays the at-bat it was made from, pitch for pitch, and s
     const calls = ab.pitches.map(p => ({ code: p.code, spot: p.spot }));
     for (let k = 0; k <= calls.length; k++) {
       const link = linkFor({ ...ab, calls: calls.slice(0, k) }), read = parseLink(`#${link}`);
-      assert.deepEqual([read.pitcherKey, read.batter, read.seed, read.rest], [ab.pitcher.key, ab.batter, ab.seed, ''], link);
+      assert.deepEqual([read.version, read.pitcherKey, read.batter, read.seed, read.rest], [VERSION, ab.pitcher.key, ab.batter, ab.seed, ''], link);
       assert.deepEqual(read.calls, calls.slice(0, k), link);
       assert.deepEqual(replay(link).pitches.map(played), ab.pitches.slice(0, k).map(played), link);
     }
   }
   // The seed's whole range.
   for (const seed of [0, 2 ** 32 - 1]) assert.equal(parseLink(linkFor({ pitcher: AVERAGE, batter: 'R', seed, calls: [] })).seed, seed);
+});
+
+// Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 1 of the hitter plays them.
+// Anything that changes how a link replays fails here until VERSION in js/atbat.js goes up and these are pinned again,
+// so a link made before the change opens saying it may play out differently.
+const PINNED = {
+  version: 1,
+  links: {
+    'ab.v1.average.R.2t.FF8.SI17.SL14.FF11.CU16.CH21': ['called 0.560 2.766', 'ball 0.943 2.529', 'ball 1.525 2.925', 'foul -0.651 2.579', 'ball -0.929 2.380', 'ball -0.839 0.496'],
+    'ab.v1.skenes.L.5m.FS22.SI19.FF6.FF18.SL18.CH21': ['ball 0.954 0.277', 'ball -1.984 2.837', 'called 0.601 2.977', 'foul -0.976 2.397', 'ball -0.760 1.315', 'ball 0.818 0.684'],
+    'ab.v1.miller.R.8j.FF18.SL24.FF11.FF11.FF18': ['ball 1.556 1.325', 'ball 1.366 1.011', 'ball -1.064 2.151', 'called -0.502 3.327', 'ball 0.996 1.423'],
+    'ab.v1.waldron.L.ba.SI10.FF13.KN16.FC18.FF13.FF16': ['ball 1.596 2.550', 'ball -1.033 2.938', 'ball 0.963 2.193', 'called -0.124 2.418', 'called 0.284 2.762', 'tip 0.468 1.367'],
+    'ab.v1.rogers.R.e5.SI16.SI12.SI17.SI22.SI10': ['ball -1.374 2.596', 'called -0.510 2.722', 'whiff 0.436 1.467', 'ball -0.507 0.098', 'whiff -1.279 2.459'],
+  },
+};
+const pitchByPitch = ab => ab.pitches.map(p => `${p.result}${p.play ? ` ${p.play}` : ''} ${p.plate.map(v => v.toFixed(3)).join(' ')}`);
+test('five pinned links replay as they did, until the hitter’s version goes up', () => {
+  const now = Object.fromEntries(Object.keys(PINNED.links).map(link => [link, pitchByPitch(replay(link))]));
+  const pinned = `\n${JSON.stringify(Object.fromEntries(Object.entries(now).map(([link, ps]) => [link.replace(/^ab\.v\d+/, `ab.v${VERSION}`), ps])), null, 1)}`;
+  if (VERSION === PINNED.version) assert.deepEqual(now, PINNED.links, 'This changes how at-bat links replay: raise VERSION in js/atbat.js, then pin these links again.');
+  else assert.fail(`The hitter is version ${VERSION} now: pin these links again for it, as version ${VERSION} plays them:${pinned}`);
 });
 
 // A link pasted into a message can come back with a full stop, a bracket or a quote on the end (a closing quote as the
@@ -298,7 +319,11 @@ test('a link with something stuck on the end reads the same, and one cut off rea
   assert.equal(parseLink('#ab.skenes.L'), null);
   assert.equal(parseLink('#ab.skenes'), null);
   assert.equal(parseLink('#sweeper'), null);
-  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { pitcherKey: 'skenes', batter: 'L', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
+  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { version: 1, pitcherKey: 'skenes', batter: 'L', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
+  // A link carries the version of the hitter it was made against; one from before links had a version, the first.
+  assert.deepEqual(parseLink('#ab.v7.skenes.L.k3x9a.FF6.S'), { ...parseLink('#ab.skenes.L.k3x9a.FF6.S'), version: 7 });
+  assert.equal(parseLink('#AB.V7.skenes.L.k3x9a').version, 7);
+  for (const cut of ['#ab.v7', '#ab.v7.skenes', '#ab.v7.skenes.L', '#ab.v', '#ab.v.skenes.L.k3x9a']) assert.equal(parseLink(cut), null, cut);
   // A spot off the grid is read as no spot, for the page to say so.
   assert.deepEqual(parseLink('#ab.average.R.9.FF6.SL40').calls, [{ code: 'FF', spot: SPOTS[6] }, { code: 'SL', spot: undefined }]);
   // A link made with a long run of full stops and a letter after it reads at once, rather than freezing the page that

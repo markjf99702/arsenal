@@ -530,6 +530,7 @@ p { margin: 0; }
 .notice:empty { display: none; }
 
 .last:empty { display: none; }
+#ab-version:empty { display: none; }
 .last .res { font: 700 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
 .last .res-strike, .end-result.res-strike { color: var(--res-strike); }
 .last .res-ball, .end-result.res-ball { color: var(--res-ball); }

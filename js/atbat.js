@@ -24,9 +24,17 @@ export const SPOTS = [];
 for (const r of [2, 1, 0, -1, -2]) for (const c of [-2, -1, 0, 1, 2]) SPOTS.push({ c, r, id: `${r}${c}`.replace(/-/g, 'm'), zone: Math.abs(c) < 2 && Math.abs(r) < 2 });
 export const spotById = id => SPOTS.find(s => s.id === id);
 
-// An at-bat as a link: ab.<pitcher>.<R|L>.<seed in base 36>, then each call as its pitch and its spot's place in SPOTS,
-// like ab.skenes.L.k3x9a.FF6.ST23. The seed brings back the same hitter and the same luck, so the calls replay the same
-// at-bat. It takes anything with a pitcher, a batter, a seed and the calls so far, like the page's own state.
+// The hitter's version. A link carries it, so one made against another version still opens and replays, saying the
+// same calls may play out differently. Raise it with anything that changes how an at-bat plays: the model, its knobs
+// (js/atbat-params.js), or the league numbers and arsenals (js/league.js). Links pinned in test/atbat.test.mjs fail
+// until it goes up.
+export const VERSION = 1;
+
+// An at-bat as a link: ab.v<version>.<pitcher>.<R|L>.<seed in base 36>, then each call as its pitch and its spot's place
+// in SPOTS, like ab.v1.skenes.L.k3x9a.FF6.ST23. The seed brings back the same hitter and the same luck, so the calls
+// replay the same at-bat on the same version of the hitter. One made before links had a version (ab.skenes.L.k3x9a...)
+// was made against version 1. It takes anything with a pitcher, a batter, a seed and the calls so far, like the page's
+// own state.
 // A link without what a message stuck on its end: anything after its last letter or digit, like a full stop, a bracket
 // or a quote. One step back at a time from the end, since /[^0-9a-z]+$/ takes time growing with the square of a long
 // run of them with a letter after it, and a link can be made to freeze the page that way.
@@ -35,16 +43,19 @@ export function trimmed(h) {
   while (n && !/[0-9a-z]/i.test(h[n - 1])) n--;
   return h.slice(0, n);
 }
-export const linkFor = ({ pitcher, batter, seed, calls }) => ['ab', pitcher.key, batter, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
+export const linkFor = ({ pitcher, batter, seed, calls }) => ['ab', `v${VERSION}`, pitcher.key, batter, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
 // Reads a link like that, with or without its #, or gives null when even its pitcher, batter and seed can't be read. It
 // reads what it can, the way a link arrives from a message: a full stop, bracket or quote stuck on the end is dropped,
 // a pitch's letters can be in lower case, and the calls are read up to the first that can't be (`rest` is what's left
 // from there, '' when nothing is). A call's spot is undefined when its number is off the grid, and its pitch can be one
-// the pitcher doesn't throw: what to do then is the page's to say.
+// the pitcher doesn't throw: what to do then is the page's to say. `version` is the hitter's the link was made against.
 export function parseLink(hash) {
   let h = String(hash).replace(/^#/, '');
   try { h = decodeURIComponent(h); } catch {}
-  const [ab, key = '', batter = '', seed = '', ...tokens] = trimmed(h).split('.');
+  const parts = trimmed(h).split('.');
+  const v = /^v(\d{1,6})$/i.exec(parts[1] || '');
+  if (v) parts.splice(1, 1);
+  const [ab, key = '', batter = '', seed = '', ...tokens] = parts;
   if (!/^ab$/i.test(ab) || !/^\w+$/.test(key) || !/^[RL]$/i.test(batter) || !/^[0-9a-z]+$/i.test(seed)) return null;
   const calls = [];
   for (const t of tokens) {
@@ -52,7 +63,7 @@ export function parseLink(hash) {
     if (!m) break;
     calls.push({ code: m[1].toUpperCase(), spot: SPOTS[Number(m[2])] });
   }
-  return { pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
+  return { version: v ? Number(v[1]) : 1, pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
 }
 
 // Where a spot is, from the catcher's view: away is the catcher's right for a right-handed hitter.

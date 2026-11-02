@@ -7,6 +7,7 @@ import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { VERSION } from '../js/atbat.js';
 
 const require = createRequire(import.meta.url);
 let pw;
@@ -858,28 +859,51 @@ assert.match(await heading(), /^Forkball/i);
   await page.goto('about:blank');
   await page.goto(base + '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.');
   await idle();
-  assert.deepEqual(await opened(), { hash: '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22', top: 12, notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
+  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22`, top: 12, notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
   // Cut off before its seed, there's nothing to replay: a new at-bat, which says why, and the address is its own.
   await page.goto('about:blank');
   await page.goto(base + '#ab.skenes');
   await idle();
   const garbled = 'This at-bat link is cut off or garbled, so here’s a new at-bat.';
   let o = await opened();
-  assert.deepEqual({ ...o, hash: /^#ab\.average\.R\.[0-9a-z]+$/.test(o.hash) }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'average' }, 'a link cut off before its seed');
+  assert.deepEqual({ ...o, hash: new RegExp(`^#ab\\.v${VERSION}\\.average\\.R\\.[0-9a-z]+$`).test(o.hash) }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'average' }, 'a link cut off before its seed');
   assert.equal(await page.locator('#ab-notice').isVisible(), true, 'the notice over a garbled link is hidden');
   // The same in a tab already open, from the explorer at the top: changed to a link cut off partway, it replays what it
   // can; changed to a garbled one, the pitcher and batter stay, against a new hitter.
   await page.evaluate(() => scrollTo(0, 0));
   await change('#ab.skenes.L.k3x9a.FF6.S');
   await idle();
-  assert.deepEqual(await opened(), { hash: '#ab.skenes.L.k3x9a.FF6', top: 12, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
+  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.skenes.L.k3x9a.FF6`, top: 12, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
   await page.evaluate(() => scrollTo(0, 0));
   await change('#ab.skenes.X.k3x9a.FF6');
   await idle();
   o = await opened();
-  assert.deepEqual({ ...o, hash: /^#ab\.skenes\.L\.[0-9a-z]+$/.test(o.hash) && o.hash !== '#ab.skenes.L.k3x9a' }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'skenes' }, 'the address changed to a garbled link');
+  assert.deepEqual({ ...o, hash: new RegExp(`^#ab\\.v${VERSION}\\.skenes\\.L\\.[0-9a-z]+$`).test(o.hash) && o.hash !== `#ab.v${VERSION}.skenes.L.k3x9a` }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'skenes' }, 'the address changed to a garbled link');
   await page.locator('#ab-pitcher').selectOption('sale');
   assert.equal(await page.locator('#ab-notice').isHidden(), true, 'the link’s notice is still there for a new at-bat');
+  // A link made against another version of the hitter replays on today's, and says under the pitch log that the same
+  // calls may play out differently; one made against today's says nothing. Throwing on from it, the at-bat is this one.
+  // A link from before links had a version was made against the first.
+  const versionLine = () => page.evaluate(() => {
+    const el = document.getElementById('ab-version');
+    return { text: el.textContent, shown: el.checkVisibility(), afterLog: el.previousElementSibling.id };
+  });
+  const other = [[`#ab.v${VERSION + 1}.average.R.1p.FF6`, 'a newer'], ...(VERSION > 1 ? [['#ab.average.R.1p.FF6', 'an earlier'], ['#ab.v1.average.R.1p.FF6', 'an earlier']] : [])];
+  for (const [hash, which] of other) {
+    await page.goto('about:blank');
+    await page.goto(base + hash);
+    await idle();
+    assert.deepEqual(await versionLine(), { text: `Pitched against ${which} version of the hitter, so the same calls may play out differently.`, shown: true, afterLog: 'ab-log' }, hash);
+  }
+  await page.evaluate(() => window.arsenal.atBat.throw('SL', 'm12'));
+  await idle();
+  assert.equal((await versionLine()).shown, false, 'the version line stayed after throwing on from the link');
+  for (const hash of [`#ab.v${VERSION}.average.R.1p.FF6`, ...(VERSION === 1 ? ['#ab.average.R.1p.FF6'] : [])]) {
+    await page.goto('about:blank');
+    await page.goto(base + hash);
+    await idle();
+    assert.equal((await versionLine()).shown, false, `${hash}: a version line for a link made against today's hitter`);
+  }
   await page.goto('about:blank');
   await page.goto(base + '#' + link);
   await idle();
@@ -1036,7 +1060,7 @@ const dotStarts = p => p.evaluate(() => {
 
 // Pitch to a hitter on a phone, tapped the way a thumb would. The readout over the picture says what each pitch did,
 // and a shared link shows the count and the pitches before the one it throws again.
-const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
+const STRIKEOUT = `#ab.v${VERSION}.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22`; // the README's: a strikeout swinging on a 2-2 curve
 for (const [width, height] of [[390, 844], [320, 640]]) {
   const phoneCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   await phoneCtx.addInitScript(() => {
