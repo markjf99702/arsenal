@@ -181,7 +181,8 @@ export function setupAtBat({ dark = false } = {}) {
     const calling = $('ab-callbox').contains(document.activeElement);
     S.pending = null;
     S.busy = false;
-    stage.set({ marks: marks(S.ab.pitches) });
+    // Its mark grows in as it lands, as what happened comes up in the readout.
+    stage.set({ marks: marks(S.ab.pitches), grow: true });
     drawState();
     say();
     $('ab-chart').replaceChildren();
@@ -196,8 +197,11 @@ export function setupAtBat({ dark = false } = {}) {
   // dot keeps it at the end of a line rather than the start of the next.
   const speed = p => `${p.mph.toFixed(1)}\u00a0mph`;
   const pitchLine = p => `${speed(p)} ${NAME[p.code]}`;
-  // The line under the count: what's coming or what happened, then the pitch. On a phone they're two short lines.
-  const readout = (what = '', pitch = '') => { $('ab-ro').innerHTML = what && `${what}<span class="sep">\u00a0· </span><span>${pitch}</span>`; };
+  // The line under the count: what's coming or what happened, then the pitch. On a phone they're two short lines. What
+  // happened is in a tag coloured like its mark (`kind`: strike, ball or play), so it reads at a glance as the mark lands.
+  const readout = (what = '', pitch = '', kind = '') => {
+    $('ab-ro').innerHTML = what && `${kind ? `<b class="tag k-${kind}">${what}</b>` : what}<span class="sep">\u00a0· </span><span>${pitch}</span>`;
+  };
 
   function marks(ps) {
     return ps.map(p => ({ x: p.plate[0], z: p.plate[1], n: p.n, kind: markKind(p.result) }));
@@ -291,8 +295,8 @@ export function setupAtBat({ dark = false } = {}) {
     }
     // While a pitch flies the readout says what's coming (fly); once it's in, what happened.
     if (!S.pending) {
-      if (over) readout(ENDING[ab.result], `${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`);
-      else if (last) readout(resultWord(last), pitchLine(last));
+      if (over) readout(ENDING[ab.result], `${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`, markKind(last.result));
+      else if (last) readout(resultWord(last), pitchLine(last), markKind(last.result));
       else readout();
     }
   }

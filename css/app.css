@@ -430,6 +430,12 @@ p { margin: 0; }
 .count .dots i.s { background: #d6463e; border-color: #fff; }
 .count .ct.kl { display: inline-block; transform: scaleX(-1); }
 .count .on { font-size: 16px; font-weight: 600; }
+/* What happened, in a tag filled with its mark's colour, a shade darker so the white words on it read at 4.5 to 1 or
+   more. The same in either palette, since it sits on the picture. */
+#ab-ro .tag { display: inline-block; padding: 0 5px; border-radius: 4px; font-weight: 700; text-shadow: none; }
+#ab-ro .k-strike { background: #c23b33; }
+#ab-ro .k-ball { background: #23804b; }
+#ab-ro .k-play { background: #2f66b8; }
 /* On a phone the picture is short, so the readout keeps to its top-left corner, clear of the zone and the pitcher's
    hand: the balls and strikes stacked beside the count, and what happened over the pitch, on two lines. The picture is
    as small on a phone held sideways, beside the call box. */

@@ -50,25 +50,30 @@ export function atBatCamera(W, H, { dpr = 1, lift = 0 } = {}) {
   return cam;
 }
 
+// The newest mark grows in as it lands: half as big again, settling to its size over GROW seconds. `age` is how long
+// ago it landed; growth is how many times its size it's drawn.
+export const GROW = 0.18;
+export const growth = age => (age >= 0 && age < GROW ? 1 + 0.5 * (1 - age / GROW) ** 2 : 1);
+
 // Each pitch where it crossed. One that crossed below the bottom edge (it bounced) sits on the edge with a notch
-// under its number, pointing down: lower than this.
-export function drawMarks(ctx, cam, marks) {
-  const r = markRadius(cam);
-  const floor = cam.H - r - 2;
+// under its number, pointing down: lower than this. `grow` is how many times its size the newest is drawn (growth).
+export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
+  const r0 = markRadius(cam);
+  const floor = cam.H - r0 - 2;
   ctx.save();
-  ctx.font = `700 ${Math.round(r * 1.15)}px "Barlow Condensed", system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   marks.forEach((m, i) => {
     const p = cam.project([m.x, PLATE_Y, m.z]);
     const low = p.y > floor, y = Math.min(p.y, floor);
-    const last = i === marks.length - 1;
+    const last = i === marks.length - 1, r = last ? r0 * grow : r0;
     ctx.globalAlpha = last ? 1 : 0.88;
     ctx.fillStyle = MARK[m.kind];
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = Math.max(1.5, r * (last ? 0.26 : 0.16));
     ctx.beginPath(); ctx.arc(p.x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fff';
+    ctx.font = `700 ${Math.round(r * 1.15)}px "Barlow Condensed", system-ui, sans-serif`;
     ctx.fillText(String(m.n), p.x, y + r * (low ? -0.18 : 0.06));
     if (low) {
       ctx.beginPath();

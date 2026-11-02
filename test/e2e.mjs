@@ -954,6 +954,17 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.locator('#ab-count .sr').textContent(), '0 balls, 2 strikes');
 }
 
+// The readout's tag over the at-bat's picture: its words, its kind (strike, ball or play), its fill, and how its white
+// words stand off the fill.
+const tagged = p => p.evaluate(() => {
+  const tag = document.querySelector('#ab-ro .tag');
+  if (!tag) return null;
+  const cs = getComputedStyle(tag), rgb = c => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+  const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
+  const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
+  return { words: tag.textContent, kind: tag.className.replace('tag k-', ''), fill: cs.backgroundColor, ratio: Math.floor(((hi + 0.05) / (lo + 0.05)) * 10) / 10 };
+});
+
 // The at-bat's lines that a dot separates: no line starts with the dot (a no-break space before it keeps it on the line
 // before). Gives each line that does, for the message.
 const dotStarts = p => p.evaluate(() => {
@@ -1009,6 +1020,8 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
   assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike\u00a0· 94.8\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
+  const tag = await tagged(ph);
+  assert.deepEqual(tag && { words: tag.words, kind: tag.kind, readable: tag.ratio >= 4.5 }, { words: 'Called strike', kind: 'strike', readable: true }, `${at}, the readout's tag: ${JSON.stringify(tag)}`);
 
   // Strike three thrown with the button low: the result card takes the controls' place, out from behind the picture.
   await ph.goto('about:blank');
@@ -1277,7 +1290,8 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
 
 // The end card's headline is coloured like the last pitch's mark and its number in the log: a strikeout red, a walk or
 // a hit by pitch green, a ball in play blue, a home run too. The last pitch's box under it says why without repeating
-// the headline in other words.
+// the headline in other words. Over the picture, how it ended is in a tag of that colour, the same in either palette as
+// it's on the picture, with its white words at 4.5 to 1 or more (WCAG 2.2, SC 1.4.3).
 for (const [link, kind] of [
   [STRIKEOUT, 'strike'], ['#ab.average.R.3a.FF8.FF6.SL16.FF7', 'ball'], ['#ab.average.R.2x.FF6.FF8.CH16.SL16.FF10', 'ball'],
   ['#ab.average.R.3.CH17.FF14.FF16', 'play'], ['#ab.average.R.4c.FF9.SI16.FF7', 'play'],
@@ -1297,6 +1311,14 @@ for (const [link, kind] of [
     };
   });
   assert.deepEqual({ kind: end.kind, matches: end.matches, last: end.last, headline: end.headline }, { kind, matches: true, last: 'Last pitch', headline: 0 }, `the end card of ${link} (${end.result})`);
+  const tags = [];
+  for (const colorScheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme });
+    tags.push(await tagged(page));
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+  assert.ok(tags[0]?.ratio >= 4.5, `the readout's tag at the end of ${link}: ${JSON.stringify(tags[0])}`);
+  assert.deepEqual(tags, [0, 1].map(() => ({ ...tags[0], words: end.result, kind })), `the readout's tag at the end of ${link}, in the light and dark palettes`);
 }
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.

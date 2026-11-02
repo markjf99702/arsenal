@@ -4,7 +4,7 @@ import {
   drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
-import { drawBatter, drawMarks, atBatCamera } from './tracker.js';
+import { drawBatter, drawMarks, atBatCamera, growth } from './tracker.js';
 
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
@@ -52,9 +52,12 @@ export class Stage {
     this.draw();
   }
 
-  set(opts) {
+  // `grow`, with marks: the newest has just landed, so it grows in (js/tracker.js), timed by the stage's own clock, which
+  // runs on for HOLD after the pitch lands. Not with reduced motion.
+  set({ grow = false, ...opts }) {
     const before = { ...this.opts };
     Object.assign(this.opts, opts);
+    if (opts.marks) this.markAt = grow && !this.reduced ? this.clock : null;
     this.measure();
     if (before.view !== this.opts.view || before.dark !== this.opts.dark) this.bg = null;
     this.draw();
@@ -238,7 +241,8 @@ export class Stage {
 
   // An at-bat's pitches so far, where they crossed the plate, over everything else.
   drawMarks(ctx, cam) {
-    if (cam.kind === 'catcher' && this.opts.marks?.length) drawMarks(ctx, cam, this.opts.marks);
+    if (cam.kind !== 'catcher' || !this.opts.marks?.length) return;
+    drawMarks(ctx, cam, this.opts.marks, { grow: this.markAt == null ? 1 : growth(this.clock - this.markAt) });
   }
 
   // Facts about the current throw, for the readout.

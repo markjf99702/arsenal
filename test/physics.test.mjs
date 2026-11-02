@@ -5,7 +5,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, PLATE_Y, G } from '../js/flight.js';
 import { tilt } from '../js/spin.js';
-import { atBatCamera, markRadius, GROUND, HIGH_RELEASE } from '../js/tracker.js';
+import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW } from '../js/tracker.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
 
@@ -87,6 +87,41 @@ test('the at-bat view marks a pitch that crosses at the ground and shows the hig
   assert.equal(atBatCamera(716, 716, { dpr: 2 }).F, catcherCamera(716, 716).F);
   const wide = atBatCamera(1300, 894, { dpr: 2 }).F / catcherCamera(1300, 894).F;
   assert.ok(wide > 0.78 && wide < 0.86, `the computer's at-bat view is ${wide.toFixed(2)} of the explorer's`);
+});
+
+// A stand-in for a canvas's 2D context that records each circle filled or stroked: where, how big, in what colour.
+function recorder() {
+  const drawn = [];
+  let path = [];
+  const ctx = new Proxy({}, {
+    get(t, k) {
+      if (k in t) return t[k];
+      if (k === 'beginPath') return () => { path = []; };
+      if (k === 'arc') return (x, y, r) => path.push({ x, y, r });
+      if (k === 'fill' || k === 'stroke') return () => { for (const a of path) drawn.push({ ...a, op: k, color: k === 'fill' ? t.fillStyle : t.strokeStyle, width: t.lineWidth }); };
+      return () => {};
+    },
+    set(t, k, v) { t[k] = v; return true; },
+  });
+  return { ctx, drawn };
+}
+
+test('the newest mark grows in as it lands, settling to its size, and the others stay as they are', () => {
+  assert.equal(growth(0), 1.5);
+  assert.equal(growth(GROW), 1);
+  assert.equal(growth(Infinity), 1);
+  for (let t = 0; t < GROW; t += 0.01) assert.ok(growth(t + 0.01) < growth(t), `it grows again at ${t.toFixed(2)} s`);
+  assert.ok(GROW >= 0.15 && GROW <= 0.25, `it takes ${GROW} s`);
+  const cam = atBatCamera(716, 470, { dpr: 2 }), r = markRadius(cam);
+  const marks = [{ x: -0.5, z: 3, n: 1, kind: 'strike' }, { x: 0.5, z: 2, n: 2, kind: 'ball' }];
+  for (const [grow, want] of [[undefined, [1, 1]], [growth(0), [1, 1.5]], [growth(GROW / 2), [1, growth(GROW / 2)]]]) {
+    const { ctx, drawn } = recorder();
+    drawMarks(ctx, cam, marks, { grow });
+    const discs = drawn.filter(d => d.op === 'fill');
+    assert.deepEqual(discs.map(d => +(d.r / r).toFixed(3)), want.map(v => +v.toFixed(3)), `drawn at ${grow ?? 1}× for the newest`);
+    // Each where it crossed, the newest too.
+    discs.forEach((d, i) => { const p = cam.project([marks[i].x, 17 / 12, marks[i].z]); assert.ok(Math.hypot(d.x - p.x, d.y - p.y) < 1e-9, `mark ${i + 1} moved`); });
+  }
 });
 
 test('a knuckleball never goes the same way twice', () => {
