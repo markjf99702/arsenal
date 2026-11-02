@@ -296,6 +296,34 @@ test('the catcher\'s target is under the pitch, and the line from it to where th
   assert.equal(drawn.filter(d => d.color === '#f3d6ad').length, 0, 'a line with no miss');
 });
 
+// Where the hitter swung: a small ring, smaller than a mark, joined to its mark by a line, all under the marks, and its
+// word beside it over them. Nothing at all when he swung where the pitch was.
+test('where the hitter swung is a small ring joined to the mark, with its word over the marks', () => {
+  const marks = [{ x: 0.2, z: 1.4, n: 1, kind: 'strike' }];
+  const draw = swing => {
+    const { ctx, drawn } = recorder();
+    Object.assign(globalThis, {
+      window: { devicePixelRatio: 2 }, matchMedia: () => ({ matches: false }), ResizeObserver: class { observe() {} },
+      requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
+      document: { createElement: () => ({ getContext: () => recorder().ctx }) },
+    });
+    const stage = new Stage({ width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => ({ width: 358, height: 235, left: 0, top: 0 }) });
+    stage.set({ view: 'catcher', atBat: true, batter: 'R', marks, swing });
+    drawn.length = 0;
+    stage.draw();
+    return { drawn, cam: stage.camera() };
+  };
+  const { drawn, cam } = draw({ at: [0.1, 1.85], to: [0.2, 1.4], tag: 'early' });
+  const at = cam.project([0.1, 17 / 12, 1.85]), rr = markRadius(cam);
+  const ring = drawn.findIndex(d => d.op === 'stroke' && d.color === '#fff' && d.r && Math.hypot(d.x - at.x, d.y - at.y) < 1e-9);
+  const mark = drawn.findIndex(d => d.op === 'fill' && d.color === MARK.strike), word = drawn.findIndex(d => d.op === 'text' && d.text === 'early');
+  assert.ok(ring >= 0 && drawn[ring].r < rr, `the ring: ${JSON.stringify(drawn[ring])}`);
+  assert.ok(ring < mark && mark < word, `drawn in the order ${JSON.stringify({ ring, mark, word })}`);
+  assert.ok(drawn.slice(0, mark).some(d => d.op === 'stroke' && d.color === '#fff' && !d.r), 'no line from the ring to the mark');
+  const near = draw({ at: [0.21, 1.41], to: [0.2, 1.4], tag: '' }).drawn;
+  assert.equal(near.filter(d => d.op === 'stroke' && d.color === '#fff' && d.r && d.r < rr).length, 0, 'a ring on the mark');
+});
+
 test('a knuckleball never goes the same way twice', () => {
   let seed = 1;
   const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);

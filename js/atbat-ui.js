@@ -1,7 +1,7 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
 import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
-import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
+import { resultWord, why, note, calledLine, ENDING, NAME, timing, thoughtMiss } from './atbat-words.js';
 import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
@@ -301,11 +301,16 @@ export function setupAtBat({ dark = false } = {}) {
 
   // On the picture, the catcher's target where the pitch is called (while one flies, where it was called), so picking
   // another spot moves it there at once; and once a pitch is in, a line from the target to where it crossed, if it missed
-  // by more than 6 inches. The line is the last pitch's: it goes with the target when another spot is picked.
+  // by more than 6 inches. The line is the last pitch's: it goes with the target when another spot is picked. And once
+  // it's in, where the hitter swung at it, "early" or "late" if he missed out in front or behind, or for a strike he
+  // took thinking it would miss, where he thought it would cross. Only the last pitch's, so the picture doesn't clutter.
   function drawPicture() {
     const p = S.pending, last = S.ab.pitches.at(-1);
     const missed = !p && last && last.spot.id === S.spot.id && Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]) > MISSED;
-    stage.set({ target: spotXZ(p ? p.spot : S.spot, S.batter), miss: missed ? last.plate : null });
+    let swing = null;
+    if (!p && last?.swing) swing = { at: [last.plate[0] - last.miss[0], last.plate[1] - last.miss[1]], to: last.plate, tag: last.result === 'whiff' ? timing(last) : '' };
+    else if (!p && last?.result === 'called' && last.inZone && thoughtMiss(last)) swing = { at: last.judged, to: last.plate, tag: 'his read' };
+    stage.set({ target: spotXZ(p ? p.spot : S.spot, S.batter), miss: missed ? last.plate : null, swing });
   }
 
   function drawState() {

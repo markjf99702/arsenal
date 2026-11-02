@@ -4,7 +4,7 @@ import {
   drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
-import { drawBatter, drawMarks, drawTarget, drawMiss, atBatCamera, growth } from './tracker.js';
+import { drawBatter, drawMarks, drawTarget, drawMiss, drawSwing, atBatCamera, growth } from './tracker.js';
 
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
@@ -257,10 +257,13 @@ export class Stage {
     if (this.opts.miss) drawMiss(ctx, cam, this.opts.target, this.opts.miss, this.opts.dark);
   }
 
-  // An at-bat's pitches so far, where they crossed the plate, over everything else.
+  // An at-bat's pitches so far, where they crossed the plate, over everything else, and where the hitter swung at the
+  // last one (`swing`): its ring under the marks, and its word over them.
   drawMarks(ctx, cam) {
     if (cam.kind !== 'catcher' || !this.opts.marks?.length) return;
+    if (this.opts.swing) drawSwing(ctx, cam, this.opts.swing, 'ring');
     drawMarks(ctx, cam, this.opts.marks, { grow: this.markAt == null ? 1 : growth(this.clock - this.markAt) });
+    if (this.opts.swing) drawSwing(ctx, cam, this.opts.swing, 'tag');
   }
 
   // Facts about the current throw, for the readout.

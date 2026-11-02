@@ -1727,6 +1727,36 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   assert.deepEqual([a.target, a.miss], [a.last.at, null], 'once a pitch that missed by 5 inches is in');
 }
 
+// Where the hitter swung at the last pitch, once it's in: a ring where he swung, "early" or "late" beside it if he
+// missed out in front or behind; for a strike he took thinking it would miss, where he thought it would cross, "his
+// read"; nothing for a ball he took. Only the last pitch's, and not while the next one flies.
+{
+  const swung = () => page.evaluate(() => {
+    const { stage, state } = window.arsenal.atBat, last = state.ab.pitches.at(-1);
+    return { busy: state.busy, swing: stage.opts.swing, plate: last.plate, swungAt: [last.plate[0] - last.miss[0], last.plate[1] - last.miss[1]], judged: last.judged };
+  });
+  // The README's strikeout: a curveball in the dirt, swung at 5 inches over it and 15 ms out in front.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT);
+  let s = await swung();
+  assert.deepEqual([s.busy, s.swing], [true, null], 'where he swung at the pitch before, while the link\'s last pitch flies');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  s = await swung();
+  assert.deepEqual(s.swing, { at: s.swungAt, to: s.plate, tag: 'early' }, 'where he swung at strike three');
+  // Its fifth pitch, a ball he took.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.CU22$/, ''));
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  assert.equal((await swung()).swing, null, 'a ring for a ball he took');
+  // A sinker down the middle he took for one high: a called strike.
+  await page.goto('about:blank');
+  await page.goto(base + `#ab.v${VERSION}.average.R.6.SI6`);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  s = await swung();
+  assert.deepEqual(s.swing, { at: s.judged, to: s.plate, tag: 'his read' }, 'where he thought a strike he took would cross');
+  assert.match(await page.locator('#ab-last p:last-child').textContent(), /He thought it would miss/, 'the words for a strike he took');
+}
+
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
   const showing = () => page.evaluate(() => {

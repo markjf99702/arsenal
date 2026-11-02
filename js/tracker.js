@@ -173,6 +173,44 @@ export function drawMiss(ctx, cam, from, to, dark) {
   ctx.restore();
 }
 
+// Where the hitter swung at a pitch: a small white ring, joined to the pitch's mark by a dashed line, with a word beside
+// it (`tag`) when there's one to say: "early" or "late" for a swing that missed out in front or behind. On a strike he
+// took thinking it would miss, the ring is where he thought it would cross. Left out when it's on the mark: he swung
+// where the pitch was. `part` is what to draw: the ring and its line under the marks, or its word over them.
+export function drawSwing(ctx, cam, { at, to, tag }, part = 'ring') {
+  const r0 = markRadius(cam), dpr = cam.dpr || 1, a = markAt(cam, at), b = markAt(cam, to), r = r0 * 0.62;
+  const d = Math.hypot(a.x - b.x, a.y - b.y);
+  if (d < r0 * 1.25) return;
+  ctx.save();
+  if (part === 'ring') {
+    const ux = (b.x - a.x) / d, uy = (b.y - a.y) / d;
+    ctx.lineCap = 'round';
+    for (const [color, w] of [['rgba(20, 30, 45, .7)', 3.5 * dpr], ['#fff', 1.5 * dpr]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      if (d > r + r0) {
+        ctx.setLineDash(color === '#fff' ? [3 * dpr, 3 * dpr] : []);
+        ctx.beginPath(); ctx.moveTo(a.x + ux * r, a.y + uy * r); ctx.lineTo(b.x - ux * r0, b.y - uy * r0); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.lineWidth = w + 0.5 * dpr;
+      ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if (tag) {
+    // Beside the ring, on the side away from the mark unless that runs off the picture.
+    ctx.font = `700 ${Math.round(14 * dpr)}px "Barlow Condensed", system-ui, sans-serif`;
+    const w = ctx.measureText(tag).width || 40 * dpr, gap = r + 4 * dpr;
+    const right = a.x >= b.x ? a.x + gap + w <= cam.W - 4 * dpr : a.x - gap - w < 4 * dpr;
+    const x = a.x + (right ? gap : -gap), y = Math.min(Math.max(a.y, 10 * dpr), cam.H - 10 * dpr);
+    ctx.textAlign = right ? 'left' : 'right';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3.5 * dpr; ctx.strokeStyle = 'rgba(15, 20, 30, .85)'; ctx.strokeText(tag, x, y);
+    ctx.fillStyle = '#fff'; ctx.fillText(tag, x, y);
+  }
+  ctx.restore();
+}
+
 // The batter, a flat figure in his box, the way a broadcast's strike zone graphic stands one beside it: side on from
 // behind the plate, facing it, his bat up behind him. He's made of simple shapes, drawn in feet: across, toward the
 // plate from the middle of his stance, and up from the ground, with the hollow under his front knee at KNEE and the

@@ -77,13 +77,19 @@ const ring = spot => (Math.abs(spot.c) === 2 ? 'off the plate' : spot.r === 2 ? 
 // Where it missed the zone, or that it bounced: "it was 3 inches below the zone", "it bounced in front of the plate".
 const offBy = (p, batter, verb) => (bounced(p) ? 'it bounced in front of the plate' : `it ${verb} ${missed(p, batter)}`);
 
+// When he swung, against when the pitch got there: early, more than 8 ms out in front (the ball slower than he was set
+// for), late, more than 8 ms behind it, or on time ('').
+export const timing = p => (p.early > 0.008 ? 'early' : p.early < -0.008 ? 'late' : '');
+// Whether he judged that a pitch would miss the zone.
+export const thoughtMiss = p => Math.abs(p.judged[0]) > ZONE.half || p.judged[1] < ZONE.bottom || p.judged[1] > ZONE.top;
+
 // Weak contact, by what happened: out in front, he rolled it over, wherever it was. Otherwise by where it crossed, from
 // his side: inside, it got in on his hands; away, he got the end of the bat on it; over the middle, by when he swung:
 // late, it got in on him, and on time he just didn't hit it squarely.
 function weak(p, batter) {
-  if (p.early > 0.008) return 'early';
+  if (timing(p) === 'early') return 'early';
   const c = boxAt(p.plate, batter).c;
-  return c < 0 ? 'hands' : c > 0 ? 'end' : p.early < -0.008 ? 'late' : 'square';
+  return c < 0 ? 'hands' : c > 0 ? 'end' : timing(p) === 'late' ? 'late' : 'square';
 }
 
 // A few sentences on why the pitch went the way it did: where it went against the call, what he was looking for and
@@ -116,8 +122,7 @@ export function why(p, prev, batter) {
     else if (p.result === 'ball') out.push('It caught the edge, but the umpire called it a ball.');
     else if (!p.inZone) out.push(`${cap(offBy(p, batter, 'was'))}, but the umpire gave the pitcher the strike.`);
     else {
-      const thoughtBall = Math.abs(p.judged[0]) > ZONE.half || p.judged[1] < ZONE.bottom || p.judged[1] > ZONE.top;
-      out.push(!thoughtBall ? 'He took it, and it was a strike.' : caught ? 'He thought it would miss, and took it.' : 'He thought it would miss, and it caught the zone.');
+      out.push(!thoughtMiss(p) ? 'He took it, and it was a strike.' : caught ? 'He thought it would miss, and took it.' : 'He thought it would miss, and it caught the zone.');
     }
     return out.join(' ');
   }
@@ -128,7 +133,7 @@ export function why(p, prev, batter) {
   } else if (p.result === 'whiff') {
     const v = p.miss[1], t = p.early;
     const where = Math.abs(v) >= 0.12 ? `He swung ${inches(v)} ${v < 0 ? 'over' : 'under'} it` : Math.abs(p.miss[0]) >= 0.2 ? `He swung ${inches(p.miss[0])} ${(batter === 'R') === (p.miss[0] > 0) ? 'inside of' : 'outside of'} it` : '';
-    const when = t > 0.008 ? `${ms(t)} out in front` : t < -0.008 ? `${ms(t)} late` : '';
+    const when = { early: `${ms(t)} out in front`, late: `${ms(t)} late` }[timing(p)] || '';
     if (where && when) out.push(`${where}, ${when}.`);
     else if (where) out.push(`${where}.`);
     else if (when) out.push(`He was ${when}.`);
