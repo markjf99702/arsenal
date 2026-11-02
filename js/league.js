@@ -295,7 +295,7 @@ export const PITCHERS = [
  },
  {
   "key": "misiorowski",
-  "line": "A four-seamer at 100 mph, and a curve at 88.",
+  "line": "A four-seamer at 101 mph, and a curve at 88.",
   "tag": "power arm",
   "name": "Jacob Misiorowski",
   "hand": "R",

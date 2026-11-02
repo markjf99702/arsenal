@@ -43,6 +43,14 @@ test('each real pitcher’s line and tag are the ones tools/league.mjs writes', 
   assert.deepEqual(REAL.map(p => [p.key, p.line, p.tag]), REAL.map(p => [p.key, ...(rows[p.key] || [])]));
 });
 
+// A line is typed in tools/league.mjs, but the speeds come from Statcast, so a refresh can move one away from what the
+// line says. Every number in a line is one of his pitches' speeds, as the chips under it round it.
+test('every speed a real pitcher’s line gives is one of his pitches’ speeds', () => {
+  for (const p of REAL) for (const [n] of p.line.matchAll(/\d+(\.\d+)?/g)) {
+    assert.ok(p.pitches.some(e => Math.round(e.mph) === Number(n)), `${p.name}: “${p.line}” gives ${n}, and his pitches are ${p.pitches.map(e => `${e.code} ${e.mph}`).join(', ')}`);
+  }
+});
+
 test('the same seed and the same calls replay the same at-bat', () => {
   const calls = [['FF', '1m1'], ['SL', 'm21'], ['CH', 'm1m1'], ['FF', '20'], ['CU', 'm20'], ['FF', '00'], ['SL', 'm22']];
   const play = () => {

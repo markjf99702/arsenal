@@ -16,7 +16,7 @@ const FASTBALLS = ['FF', 'SI', 'FC'];
 // fits a 320px phone.
 const PITCHERS = [
   [694973, 'skenes', 'Six pitches, most of them hard.', 'six pitches'],
-  [694819, 'misiorowski', 'A four-seamer at 100 mph, and a curve at 88.', 'power arm'],
+  [694819, 'misiorowski', 'A four-seamer at 101 mph, and a curve at 88.', 'power arm'],
   [592332, 'gausman', 'Four-seamer and splitter that look alike until late.', 'splitter'],
   [650911, 'sanchez', 'A lefty’s sinker and changeup.', 'lefty'],
   [519242, 'sale', 'A lefty’s slider that sweeps a foot.', 'lefty, big slider'],
