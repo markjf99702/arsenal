@@ -90,9 +90,10 @@ export function setupHit({ dark = false } = {}) {
 
   // One of his pitches, as he'd throw it to this batter: his mix to that side of the plate, to a spot where that kind
   // of pitch goes in some count (autoCall), at its own speed. Only the ball is drawn, with no speed on the board, from
-  // the moment it leaves his hand to the plate.
+  // the moment it leaves his hand to the plate. While it's in the air, and once it's in until it's named, Throw waits,
+  // as it looks (waiting).
   function throwOne() {
-    if (H.phase === 'flying') return;
+    if (H.phase === 'flying' || H.phase === 'asking') return;
     const ab = startAtBat({ pitcher: H.pitcher, batter: H.batter, seed: newSeed() });
     ab.balls = Math.floor(Math.random() * 4);
     ab.strikes = Math.floor(Math.random() * 3);

@@ -2088,6 +2088,9 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.waitForFunction(() => window.arsenal.hit.state.phase === 'asking', null, { timeout: 15000 });
   h = await hit();
   assert.deepEqual([h.board, h.asked, h.focus], ['', true, 'FF'], 'once it\'s in, before it\'s named');
+  // Throw is marked as waiting until it's named, and it does wait: a tap on it doesn't throw another.
+  await page.evaluate(() => { window.asked = window.arsenal.hit.state.rec; document.getElementById('hit-throw').click(); });
+  assert.deepEqual(await page.evaluate(() => [window.arsenal.hit.state.phase, window.arsenal.hit.state.rec === window.asked, document.getElementById('hit-throw').getAttribute('aria-disabled')]), ['asking', true, 'true'], 'Throw tapped before the pitch was named');
   const NAMES = { FF: 'four-seamer', ST: 'sweeper', CH: 'changeup', SI: 'sinker', FS: 'splitter', SL: 'slider' };
   // Named right, then wrong: the streak and the visit's count.
   await page.locator(`#hit-answers [data-code="${h.code}"]`).click();
