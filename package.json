@@ -2,7 +2,7 @@
   "name": "arsenal",
   "private": true,
   "type": "module",
-  "description": "Every pitch in baseball: the grip, the spin, the speed and the break.",
+  "description": "Every pitch in baseball: the grip, the spin, the break. Then pitch to a hitter.",
   "scripts": {
     "start": "npx --yes http-server -c-1 -p 8080 .",
     "test": "node --test test/physics.test.mjs test/atbat.test.mjs && node test/e2e.mjs",

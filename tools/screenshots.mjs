@@ -88,8 +88,11 @@ async function save(path, buffer, colours = 256) {
   await page.context().close();
 }
 
-// Link preview, 1200 x 630: the name and one line on the left, a real throw on the right.
+// Link preview, 1200 x 630: the name and one line on the left, a real throw on the right. The line is the page's own
+// og:description, so the picture and the words a message shows under it say the same.
 {
+  const line = (await readFile(join(root, 'index.html'), 'utf8')).match(/<meta property="og:description" content="([^"]*)"/)?.[1];
+  if (!line) throw new Error('index.html has no og:description for the link preview');
   const page = await open({ width: 1280, height: 900 }, 2);
   await throwAndWait(page, { code: 'FF', pair: 'CU' });
   const flight = await page.evaluate(() => document.getElementById('flight').toDataURL('image/png'));
@@ -118,7 +121,7 @@ async function save(path, buffer, colours = 256) {
     .tags span { display: flex; align-items: center; gap: 8px; }
     .tags i { width: 28px; height: 5px; border-radius: 3px; }
   </style></head><body><div class="wrap">
-    <div class="text"><h1>Arsenal</h1><p>Every pitch in baseball: the grip, the spin, the speed and the break.</p></div>
+    <div class="text"><h1>Arsenal</h1><p>${line}</p></div>
     <div class="site">junkdrawer.works</div>
     <div class="stage"><img src="${flight}"></div>
     <div class="grip"><img src="${grip}"></div>
