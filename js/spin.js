@@ -1,6 +1,7 @@
 // The spin panel: the ball turning on its real axis, slowed down, with the axis and a tilt clock.
 import { drawBall, orient, spun, FOUR, TWO, DOT } from './ball.js';
-import { cross, norm, add, scale } from './math3.js';
+import { norm } from './math3.js';
+import { pushOf, axisOf } from './flight.js';
 
 export const SLOW = 40; // shown this many times slower than real
 // The ball is the same cream on the light page and the dark one, so the axis is drawn over it in a fixed dark ink, and
@@ -16,27 +17,37 @@ const VIEWS = {
   side: v => [-v[1], v[2], -v[0]], // from the third-base side, ball flying left to right
 };
 
-// The spin axis and movement direction of a pitch, in world space (see flight.js).
+// A pitch's spin axis, which way it moves (move) and which way its spin pushes it (push), in world space (see flight.js).
 export function spinOf(p, hand = 'R') {
   const n = p.n, sgn = hand === 'R' ? 1 : -1;
-  const fwd = [0, -1, 0];
-  let move = norm([(-sgn * n.arm) / 12, 0, n.rise / 12]);
-  if (p.code === 'KN') move = norm([0.3, 0, 1]);
+  const move = p.code === 'KN' ? norm([0.3, 0, 1]) : norm([(-sgn * n.arm) / 12, 0, n.rise / 12]);
+  const push = p.code === 'KN' ? move : pushOf(n, hand);
   const active = (n.active ?? p.active ?? 65) / 100;
-  const axis = norm(add(scale(cross(fwd, move), active), scale(fwd, Math.sqrt(Math.max(0, 1 - active * active)) * sgn)));
-  return { axis, move, active, rps: (n.rpm || 0) / 60 };
+  return { axis: axisOf(push, active, hand), move, push, active, rps: (n.rpm || 0) / 60 };
 }
 
-// Tilt as a clock reading, seen from behind the pitcher: where the spin pushes the ball.
-export function tilt(p, hand = 'R') {
-  const { move } = spinOf(p, hand);
-  const v = VIEWS.behind(move);
+// A direction as a clock reading, seen from behind the pitcher, to the nearest quarter of an hour: its words, its angle
+// (radians clockwise from 12) and its minutes round the clock (0 to 719).
+function clock(dir) {
+  const v = VIEWS.behind(dir);
   let a = Math.atan2(v[0], v[1]);
   if (a < 0) a += Math.PI * 2;
-  let minutes = Math.round(((a / (Math.PI * 2)) * 720) / 15) * 15;
-  let h = Math.floor(minutes / 60) % 12, m = minutes % 60;
+  const minutes = (Math.round(((a / (Math.PI * 2)) * 720) / 15) * 15) % 720;
+  let h = Math.floor(minutes / 60) % 12;
+  const m = minutes % 60;
   if (h === 0) h = 12;
-  return { text: `${h}:${String(m).padStart(2, '0')}`, angle: a };
+  return { text: `${h}:${String(m).padStart(2, '0')}`, angle: a, minutes };
+}
+// Tilt as a clock reading, seen from behind the pitcher: where the pitch moves (the clock's arrow).
+export const tilt = (p, hand = 'R') => clock(spinOf(p, hand).move);
+// Where its spin itself points, as Hawk-Eye measured it (the clock's thin line), or null where there's no measurement.
+export const spinTilt = (p, hand = 'R') => (p.code === 'KN' || p.n.spin == null ? null : clock(spinOf(p, hand).push));
+// Whether the two are half an hour or more apart round the clock, as they read: then the seams have moved it.
+export function seamsMove(p, hand = 'R') {
+  const s = spinTilt(p, hand);
+  if (!s) return false;
+  const d = Math.abs(s.minutes - tilt(p, hand).minutes) % 720;
+  return Math.min(d, 720 - d) >= 30;
 }
 
 export class SpinPanel {
@@ -131,7 +142,13 @@ export class SpinPanel {
         if (h % 3 === 0) ctx.fillText(String(h), cx + Math.sin(a) * out, cy - Math.cos(a) * out);
         ctx.beginPath(); ctx.arc(x, y, lw * (h % 3 === 0 ? 2 : 1.2), 0, Math.PI * 2); ctx.fill();
       }
-      const t = tilt(pitch, this.hand);
+      const t = tilt(pitch, this.hand), st = spinTilt(pitch, this.hand);
+      // Where its spin itself points: a thin line across the clock, under the arrow where they're the same.
+      if (st) {
+        const a = st.angle;
+        ctx.strokeStyle = c.ink; ctx.lineWidth = lw * 1.2; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(cx + Math.sin(a) * R * 1.06, cy - Math.cos(a) * R * 1.06); ctx.lineTo(cx + Math.sin(a) * R * 1.5, cy - Math.cos(a) * R * 1.5); ctx.stroke();
+      }
       if (pitch.code !== 'KN') {
         const a = t.angle;
         const x1 = cx + Math.sin(a) * R * 1.32, y1 = cy - Math.cos(a) * R * 1.32;

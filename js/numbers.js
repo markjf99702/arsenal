@@ -1,4 +1,4 @@
-// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20, the aim points on 2026-11-01.
+// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20, the aim points on 2026-11-01, the spin directions on 2026-11-02.
 // Every pitch of the 2026 regular season, by pitch type. Averages weight each pitcher by how many they threw.
 // The knuckleball's count only pitchers who threw at least 100 of them, which leaves out position players' lobs.
 // rise and arm are spin-induced movement in inches (arm < 0 means toward the glove side); drop includes gravity.
@@ -6,6 +6,8 @@
 // average comes from one pitcher.
 // aim: where a right-hander's pitch crossed the plate on average to right-handed batters, [plate_x, plate_z] in feet from
 // the catcher's view (x to his right, z up). The explorer throws each pitch there.
+// spin: which way its spin itself would push it, as Hawk-Eye measured its spin axis, in degrees clockwise from 12 o'clock
+// seen from behind a right-hander, or null where it wasn't measured (the eephus) or doesn't matter (the knuckleball).
 export const SEASON = 2026;
 export const TOTAL = 713311;
 export const NUMBERS = {
@@ -33,7 +35,8 @@ export const NUMBERS = {
       mph: 101.4,
       pitches: 555
     },
-    aim: [0.17, 2.77]
+    aim: [0.17, 2.77],
+    spin: 34.2
   },
   SI: {
     pitches: 118806,
@@ -59,7 +62,8 @@ export const NUMBERS = {
       mph: 100.9,
       pitches: 241
     },
-    aim: [-0.17, 2.33]
+    aim: [-0.17, 2.33],
+    spin: 43
   },
   FC: {
     pitches: 57245,
@@ -85,7 +89,8 @@ export const NUMBERS = {
       mph: 98.8,
       pitches: 275
     },
-    aim: [0.47, 2.29]
+    aim: [0.47, 2.29],
+    spin: 5.4
   },
   SL: {
     pitches: 93541,
@@ -111,7 +116,8 @@ export const NUMBERS = {
       mph: 91.9,
       pitches: 286
     },
-    aim: [0.53, 1.83]
+    aim: [0.53, 1.83],
+    spin: 297.3
   },
   ST: {
     pitches: 59341,
@@ -137,7 +143,8 @@ export const NUMBERS = {
       mph: 89,
       pitches: 533
     },
-    aim: [0.66, 1.92]
+    aim: [0.66, 1.92],
+    spin: 246
   },
   CU: {
     pitches: 45416,
@@ -163,7 +170,8 @@ export const NUMBERS = {
       mph: 88,
       pitches: 283
     },
-    aim: [0.37, 1.72]
+    aim: [0.37, 1.72],
+    spin: 222.2
   },
   KC: {
     pitches: 11687,
@@ -189,7 +197,8 @@ export const NUMBERS = {
       mph: 88,
       pitches: 309
     },
-    aim: [0.51, 1.58]
+    aim: [0.51, 1.58],
+    spin: 217.9
   },
   SV: {
     pitches: 3218,
@@ -215,7 +224,8 @@ export const NUMBERS = {
       mph: 85.6,
       pitches: 261
     },
-    aim: [0.63, 1.62]
+    aim: [0.63, 1.62],
+    spin: 229.8
   },
   CS: {
     pitches: 136,
@@ -237,7 +247,8 @@ export const NUMBERS = {
       pitches: 64
     },
     hardest: null,
-    aim: [0.52, 2.13]
+    aim: [0.52, 2.13],
+    spin: null
   },
   CH: {
     pitches: 79833,
@@ -263,7 +274,8 @@ export const NUMBERS = {
       mph: 93.1,
       pitches: 414
     },
-    aim: [-0.07, 1.67]
+    aim: [-0.07, 1.67],
+    spin: 60.4
   },
   FS: {
     pitches: 23077,
@@ -289,7 +301,8 @@ export const NUMBERS = {
       mph: 97.6,
       pitches: 445
     },
-    aim: [0, 1.56]
+    aim: [0, 1.56],
+    spin: 56
   },
   FO: {
     pitches: 456,
@@ -315,7 +328,8 @@ export const NUMBERS = {
       mph: 83.3,
       pitches: 302
     },
-    aim: [-0.12, 1.5]
+    aim: [-0.12, 1.5],
+    spin: 86.6
   },
   KN: {
     pitches: 310,
@@ -341,7 +355,8 @@ export const NUMBERS = {
       mph: 80.5,
       pitches: 208
     },
-    aim: [0.22, 2.11]
+    aim: [0.22, 2.11],
+    spin: null
   },
   EP: {
     pitches: 1076,
@@ -363,6 +378,7 @@ export const NUMBERS = {
       pitches: 106
     },
     hardest: null,
-    aim: [0.1, 2.99]
+    aim: [0.1, 2.99],
+    spin: null
   }
 };

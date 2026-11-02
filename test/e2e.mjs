@@ -573,6 +573,19 @@ await page.locator('#hand [data-v="R"]').click();
   for (const code of shown) assert.equal(young[code], 'Pitch Smart, from MLB and USA Baseball, says to stick to fastballs and changeups through age 12 and to add breaking pitches once both are consistent. https://www.mlb.com/pitch-smart', code);
 }
 
+// The spin words say where the clock's thin line, the spin itself, points, and where its spin and its movement are half
+// an hour or more apart, that the seams add the rest: the sinker's spin points to 1:30, but it moves toward 2:00.
+{
+  const said = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.chip')].map(b => b.dataset.code).map(code => {
+    window.arsenal.pick(code);
+    return [code, / The thin line is its spin[^.]*\./.exec(document.getElementById('c-spin').textContent)?.[0].trim() || ''];
+  })));
+  assert.equal(said.SI, 'The thin line is its spin: it points to 1:30, but the pitch moves toward 2:00, and the seams add the rest.');
+  assert.equal(said.FF, 'The thin line is its spin, pointing to 1:15.');
+  assert.deepEqual(Object.keys(said).filter(code => said[code].includes('seams')), ['SI', 'FC', 'ST', 'SV', 'CH', 'FS'], 'the pitches the seams move');
+  assert.deepEqual(Object.keys(said).filter(code => !said[code]), ['KN', 'EP'], 'the pitches with no thin line');
+}
+
 // On the card, the sideways movement and its unit stay on one line ("glove side 3.9 in", never "in" on its own).
 {
   const split = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).filter(code => {

@@ -1,13 +1,17 @@
 // Refreshes js/numbers.js from Baseball Savant's Statcast search:  node tools/statcast.mjs [season]
 // One request per pitch type, grouped by pitcher; the averages here weight each pitcher by how many they threw. Then one
-// more per type for where it crosses the plate (aim).
+// more per type for where it crosses the plate (aim), and one to Savant's spin-direction leaderboard (spin).
 //   node tools/statcast.mjs --aim    fetches only the aim points, and adds them to js/numbers.js as it stands
+//   node tools/statcast.mjs --spin   the same for the spin directions
 import { writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const aimOnly = process.argv.includes('--aim');
+// The parts that can be fetched on their own and added to js/numbers.js as it stands, with what the file's first line
+// calls them.
+const PARTS = { aim: 'the aim points', spin: 'the spin directions' };
+const only = Object.keys(PARTS).filter(k => process.argv.includes(`--${k}`));
 const season = Number(process.argv.slice(2).find(a => /^\d{4}$/.test(a))) || 2026;
 const TYPES = ['FF', 'SI', 'FC', 'SL', 'ST', 'CU', 'KC', 'SV', 'CS', 'CH', 'FS', 'FO', 'SC', 'KN', 'EP'];
 
@@ -75,10 +79,36 @@ async function fetchAim(code, every) {
   return n ? [round(x / n, 2), round(z / n, 2)] : null;
 }
 
-// js/numbers.js, with the date its numbers were fetched, and the aim points' if that was another day.
+// Spin direction: which way a pitch's spin itself would push it, before its seams have their say, as Hawk-Eye measures
+// its spin axis: a clock angle seen from behind a right-hander, in degrees clockwise from 12 (a left-hander's mirrored).
+// Savant's spin-direction leaderboard has it for each pitcher with at least 10 of a pitch, and counts knuckle curves as
+// curves. Averaged as directions, each pitcher counted by how many of the pitch he threw (`every`, the type's rows).
+// None for the knuckleball, which turns two or three times on the way in, so its seams move it, not its spin.
+const SPIN_BOARD = { KC: 'CU' };
+async function fetchSpin(code, every) {
+  if (code === 'KN') return null;
+  const board = await get(`https://baseballsavant.mlb.com/leaderboard/spin-direction-pitches?year=${season}&min=1&pitch_type=${SPIN_BOARD[code] || code}&pov=Pit&csv=true`);
+  return spinOf(board, Object.fromEntries(regulars(every, code).map(r => [String(r.player_id), Number(r.pitches)])));
+}
+// The leaderboard's angle (pov=Pit) is 180 at 12 o'clock and falls clockwise; `weights` is how many each pitcher threw.
+function spinOf(board, weights) {
+  let x = 0, y = 0;
+  for (const r of board) {
+    const k = weights[String(r.player_id)], deg = num(r.hawkeye_measured);
+    if (!k || deg == null) continue;
+    const a = ((180 - deg) * (r.pitch_hand === 'L' ? -1 : 1) * Math.PI) / 180;
+    x += k * Math.sin(a); y += k * Math.cos(a);
+  }
+  if (!x && !y) return null;
+  const a = (Math.atan2(x, y) * 180) / Math.PI;
+  return round(a < 0 ? a + 360 : a);
+}
+
+// js/numbers.js, with the date its numbers were fetched, and the day any part was fetched later (`later`, by PARTS).
 const today = new Date().toISOString().slice(0, 10);
-async function write(numbers, total, made, aimed = made) {
-  const js = `// Made by tools/statcast.mjs from Baseball Savant's Statcast search on ${made}${aimed !== made ? `, the aim points on ${aimed}` : ''}.
+async function write(numbers, total, made, later = {}) {
+  const when = Object.entries(later).filter(([, day]) => day !== made).map(([k, day]) => `, ${PARTS[k]} on ${day}`).join('');
+  const js = `// Made by tools/statcast.mjs from Baseball Savant's Statcast search on ${made}${when}.
 // Every pitch of the ${season} regular season, by pitch type. Averages weight each pitcher by how many they threw.
 // The knuckleball's count only pitchers who threw at least ${REGULARS_ONLY.KN} of them, which leaves out position players' lobs.
 // rise and arm are spin-induced movement in inches (arm < 0 means toward the glove side); drop includes gravity.
@@ -86,6 +116,8 @@ async function write(numbers, total, made, aimed = made) {
 // average comes from one pitcher.
 // aim: where a right-hander's pitch crossed the plate on average to right-handed batters, [plate_x, plate_z] in feet from
 // the catcher's view (x to his right, z up). The explorer throws each pitch there.
+// spin: which way its spin itself would push it, as Hawk-Eye measured its spin axis, in degrees clockwise from 12 o'clock
+// seen from behind a right-hander, or null where it wasn't measured (the eephus) or doesn't matter (the knuckleball).
 export const SEASON = ${season};
 export const TOTAL = ${total};
 export const NUMBERS = ${JSON.stringify(numbers, null, 2).replace(/"(\w+)":/g, '$1:').replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]')};
@@ -93,19 +125,24 @@ export const NUMBERS = ${JSON.stringify(numbers, null, 2).replace(/"(\w+)":/g, '
   await writeFile(join(root, 'js/numbers.js'), js);
 }
 
-if (aimOnly) {
-  // The numbers as they stand, each with its aim added; the rest isn't fetched again.
+const FETCH = { aim: fetchAim, spin: fetchSpin };
+if (only.length) {
+  // The numbers as they stand, each with these parts added; the rest isn't fetched again.
   const file = join(root, 'js/numbers.js');
   const { NUMBERS, TOTAL, SEASON } = await import(`${pathToFileURL(file).href}?${Date.now()}`);
-  if (SEASON !== season) throw new Error(`js/numbers.js is ${SEASON}'s; run node tools/statcast.mjs --aim ${SEASON}`);
-  const made = (await readFile(file, 'utf8')).match(/Statcast search on (\d{4}-\d\d-\d\d)/)[1];
+  if (SEASON !== season) throw new Error(`js/numbers.js is ${SEASON}'s; run node tools/statcast.mjs --${only[0]} ${SEASON}`);
+  const head = (await readFile(file, 'utf8')).split('\n')[0];
+  const made = head.match(/Statcast search on (\d{4}-\d\d-\d\d)/)[1];
+  const later = Object.fromEntries(Object.entries(PARTS).map(([k, words]) => [k, head.match(new RegExp(`${words} on (\\d{4}-\\d\\d-\\d\\d)`))?.[1]]).filter(([, day]) => day));
   const numbers = {};
   for (const [code, n] of Object.entries(NUMBERS)) {
-    numbers[code] = { ...n, aim: await fetchAim(code, REGULARS_ONLY[code] ? await fetchType(code) : []) };
-    console.log(code, 'aim', numbers[code].aim);
+    const every = await fetchType(code);
+    numbers[code] = { ...n };
+    for (const k of only) { numbers[code][k] = await FETCH[k](code, every); console.log(code, k, numbers[code][k]); }
   }
-  await write(numbers, TOTAL, made, today);
-  console.log('added the aim points to js/numbers.js');
+  for (const k of only) later[k] = today;
+  await write(numbers, TOTAL, made, later);
+  console.log(`added ${only.map(k => PARTS[k]).join(' and ')} to js/numbers.js`);
   process.exit(0);
 }
 
@@ -168,6 +205,7 @@ for (const code of TYPES) {
     most: { name: name(most), pitches: Number(most.pitches) },
     hardest: hardest && { name: name(hardest), mph: num(hardest.velocity), pitches: Number(hardest.pitches) },
     aim: await fetchAim(code, every),
+    spin: await fetchSpin(code, every),
   };
 }
 

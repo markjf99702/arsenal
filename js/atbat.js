@@ -108,7 +108,7 @@ const AVERAGE_SET = ['FF', 'SI', 'SL', 'CH', 'CU'];
 const fromLeague = (code, set) => {
   const n = NUMBERS[code], of = key => NUMBERS[code][key] / set.reduce((s, c) => s + NUMBERS[c][key], 0);
   const mix = Object.fromEntries(['R', 'L'].map(b => [b, TYPES[code].mix[b] / set.reduce((s, c) => s + TYPES[c].mix[b], 0)]));
-  return { code, share: of('share'), mix, mph: n.mph, sd: TYPES[code]?.sd ?? 0, rpm: n.rpm, rise: n.rise, arm: n.arm, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
+  return { code, share: of('share'), mix, mph: n.mph, sd: TYPES[code]?.sd ?? 0, rpm: n.rpm, rise: n.rise, arm: n.arm, spin: n.spin, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
 };
 export const AVERAGE = {
   key: 'average', name: 'League-average righty', hand: 'R', line: 'A four-seamer, sinker, slider, changeup and curve, each at the league average.',
@@ -133,13 +133,14 @@ const sideOf = ab => (ab.pitcher.hand === ab.batter ? 1 : -1);
 // The average hitter's kind: no change to his knobs.
 const NO_TYPE = { zone: 0, chase: 0, miss: 1, damage: 0 };
 
-// The pitch as the flight model wants it, aimed at a spot on the plate (catcher's view, feet).
+// The pitch as the flight model wants it, aimed at a spot on the plate (catcher's view, feet). The ball turns on his own
+// spin direction where there is one (spin), and otherwise the way his pitch moves, not on the league's.
 export function pitchFor(pitcher, entry, plate) {
   const base = BY_CODE[entry.code];
   const sgn = pitcher.hand === 'R' ? 1 : -1;
   return {
     ...base, side: -entry.side, target: [plate[0] * sgn, plate[1]],
-    n: { ...base.n, mph: entry.mph, rpm: entry.rpm || base.n.rpm, rise: entry.rise, arm: entry.arm, height: entry.height, extension: entry.extension },
+    n: { ...base.n, mph: entry.mph, rpm: entry.rpm || base.n.rpm, rise: entry.rise, arm: entry.arm, height: entry.height, extension: entry.extension, spin: entry.spin ?? null },
   };
 }
 

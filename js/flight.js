@@ -18,6 +18,22 @@ const ZONE = { left: -17 / 24, right: 17 / 24, bottom: LEAGUE.sz.bottom, top: LE
 
 const LOCAL_AXIS = { four: FOUR, two: TWO, dot: DOT };
 
+// Which way a pitch's spin pushes it, square to the flight: its own spin direction as Hawk-Eye measured it (n.spin, in
+// degrees clockwise from 12 o'clock seen from behind a right-hander, mirrored for a left-hander), or where there's none
+// the way the pitch moves. A pitch doesn't move quite where its spin points: its seams push it too.
+export function pushOf(n, hand = 'R') {
+  const sgn = hand === 'R' ? 1 : -1;
+  if (n.spin == null) return norm([(-sgn * n.arm) / 12, 0, n.rise / 12]);
+  const a = (n.spin * Math.PI) / 180;
+  return [-sgn * Math.sin(a), 0, Math.cos(a)];
+}
+// The axis the ball turns on: the part of the spin that pushes it (`active`, 0 to 1) sits square to the flight and to
+// `push`; the rest, bullet spin, points along the flight.
+export function axisOf(push, active, hand = 'R') {
+  const fwd = [0, -1, 0];
+  return norm(add(scale(cross(fwd, push), active), scale(fwd, Math.sqrt(Math.max(0, 1 - active * active)) * (hand === 'R' ? 1 : -1))));
+}
+
 // A thrown pitch: position over time, the no-spin path for comparison, and how the ball turns.
 export function throwPitch(p, { hand = 'R', jitter = [0, 0], release = null, rng = Math.random } = {}) {
   const n = p.n;
@@ -53,14 +69,10 @@ export function throwPitch(p, { hand = 'R', jitter = [0, 0], release = null, rng
   };
   const ghost = t => [rel.x + vx * t, rel.y - v0 * t + 0.5 * ay * t * t, rel.z + vz * t - 0.5 * G * t * t];
 
-  // Spin axis: the part that moves the ball sits square to both the flight and the movement;
-  // the rest (bullet spin) points along the flight.
-  const fwd = [0, -1, 0];
-  let move = norm([mx, 0, mz]);
-  if (p.code === 'KN') move = norm([rng() - 0.5, 0, rng() - 0.5]);
-  const active = (n.active ?? p.active ?? 65) / 100;
-  const transverse = cross(fwd, move);
-  const axis = norm(add(scale(transverse, active), scale(fwd, Math.sqrt(Math.max(0, 1 - active * active)) * sgn)));
+  // The axis it turns on, from where its spin pushes it; a knuckleball's, which barely turns, any way at all.
+  let push = pushOf(n, hand);
+  if (p.code === 'KN') push = norm([rng() - 0.5, 0, rng() - 0.5]);
+  const axis = axisOf(push, (n.active ?? p.active ?? 65) / 100, hand);
   const rps = (n.rpm || 0) / 60;
 
   return {

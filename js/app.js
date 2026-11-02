@@ -2,7 +2,7 @@
 import { PITCHES, FAMILIES, BY_CODE, BY_SLUG } from './pitches.js';
 import { TOTAL, SEASON } from './numbers.js';
 import { Stage } from './stage.js';
-import { SpinPanel, SLOW, tilt } from './spin.js';
+import { SpinPanel, SLOW, tilt, spinTilt, seamsMove } from './spin.js';
 import { drawGrip } from './grip.js';
 import { movementChart, lineupTable, famName, shareText } from './charts.js';
 import { DECIDE, throwPitch } from './flight.js';
@@ -178,7 +178,12 @@ function renderCard() {
   let spinText = `${fmt(n.rpm, 0)} rpm, shown ${SLOW}× slower: about ${Math.round(turns)} turns on the way to the plate.`;
   if (p.code === 'KN') spinText = `About ${fmt(n.rpm, 0)} rpm, shown ${SLOW}× slower: two or three turns on the whole way in, so the seams drift instead of spinning.`;
   else {
-    spinText += ` The arrow on the clock points where the spin pushes it: ${t.text}, ${direction(n)}.`;
+    // The arrow is where it moves; the thin line, where its spin itself points, as Hawk-Eye measured it. Half an hour
+    // or more apart, the seams have pushed it the rest of the way.
+    spinText += ` The arrow on the clock points where it moves: ${t.text}, ${direction(n)}.`;
+    const st = spinTilt(p, state.hand);
+    if (st && seamsMove(p, state.hand)) spinText += ` The thin line is its spin: it points to ${st.text}, but the pitch moves toward ${t.text}, and the seams add the rest.`;
+    else if (st) spinText += ` The thin line is its spin, pointing to ${st.text}.`;
     const act = n.active ?? null;
     if (act != null) spinText += ` ${act}% of the spin does the pushing; the rest is bullet spin around the line of flight.`;
   }

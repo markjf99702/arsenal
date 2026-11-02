@@ -5,7 +5,8 @@ import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
 import { Stage, PREV } from '../js/stage.js';
-import { tilt } from '../js/spin.js';
+import { tilt, spinTilt, spinOf, seamsMove } from '../js/spin.js';
+import { cross, norm } from '../js/math3.js';
 import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE, MITT, FIGURE, KNEE, LETTERS, figure, onPicture, drawBatter } from '../js/tracker.js';
 import { SPOTS, spotXZ } from '../js/atbat.js';
 import { LEAGUE } from '../js/league.js';
@@ -385,6 +386,30 @@ test('tilt reads like a clock from behind the pitcher', () => {
   assert.ok(ffL >= 645 && ffL <= 675, `left-handed four-seam at ${tilt(BY_CODE.FF, 'L').text}`);
   const cu = minutes(tilt(BY_CODE.CU, 'R').text);
   assert.ok(cu >= 7 * 60 && cu <= 7 * 60 + 45, `curve at ${tilt(BY_CODE.CU, 'R').text}`);
+});
+
+// The clock's arrow is where the pitch moves, by Statcast's movement; its thin line, where the spin itself points, by
+// Hawk-Eye's spin direction (js/numbers.js); and the ball, on the card and in flight, turns on an axis square to that.
+test('the clock\'s arrow and thin line, and the ball\'s axis, are drawn from the numbers', () => {
+  const deg = a => (a * 180) / Math.PI;
+  const near = (a, b, by, what) => { const d = Math.abs(((a - b + 540) % 360) - 180); assert.ok(d <= by, `${what}: ${a.toFixed(1)}° drawn, ${b.toFixed(1)}° in the numbers`); };
+  for (const p of steady) {
+    for (const hand of ['R', 'L']) {
+      const flip = a => (hand === 'R' ? a : 360 - a);
+      near(deg(tilt(p, hand).angle), flip(deg(Math.atan2(p.n.arm, p.n.rise))), 0.01, `${p.code} ${hand}, the arrow`);
+      const st = spinTilt(p, hand);
+      if (p.n.spin == null) { assert.equal(st, null, `${p.code} has a thin line with no spin direction`); continue; }
+      near(deg(st.angle), flip(p.n.spin), 0.01, `${p.code} ${hand}, the thin line`);
+      // The part of the axis that does the pushing is square to the push: crossed with the flight, it points along it.
+      const { axis } = spinOf(p, hand), along = norm(cross(axis, [0, -1, 0]));
+      near(deg(Math.atan2(-along[0], along[2])), flip(p.n.spin), 0.01, `${p.code} ${hand}, the axis the ball turns on`);
+      assert.deepEqual(throwPitch(p, { hand, rng: () => 0.5 }).axis, axis, `${p.code} ${hand}: the ball in flight turns on another axis`);
+    }
+  }
+  // Half an hour or more apart as they read, the card says the seams add the rest: the sinker's spin points to 1:30 and
+  // it moves toward 2:00; the four-seamer's are a quarter of an hour apart.
+  assert.deepEqual([spinTilt(BY_CODE.SI).text, tilt(BY_CODE.SI).text, seamsMove(BY_CODE.SI)], ['1:30', '2:00', true]);
+  assert.deepEqual([spinTilt(BY_CODE.FF).text, tilt(BY_CODE.FF).text, seamsMove(BY_CODE.FF)], ['1:15', '1:00', false]);
 });
 
 test('the offline copy lists every script and font', async () => {
