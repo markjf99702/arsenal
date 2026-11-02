@@ -198,19 +198,22 @@ export function note(ab) {
     const apart = prev && Math.hypot(last.plate[0] - prev.plate[0], last.plate[1] - prev.plate[1]);
     if (prev && !last.picked && last.code !== prev.code && last.tunnel != null && last.tunnel < 0.6 && apart >= Math.max(2 * last.tunnel, 8 / 12)) {
       lead = `The ${X} looked just like the ${NAME[prev.code]} before it until the decision point, ${inches(last.tunnel)} apart there, then finished ${inches(apart)} away.`;
-    // A much slower pitch, when it's what beat him: he was out in front of it, not knowing what it was. (If he was on
-    // time, or recognised it, the last pitch's why says so, and the speed wasn't it.)
-    } else if (prev && Math.round(prev.mph - last.mph) >= 6 && last.early > 0.008 && !last.picked) lead = `The ${X} was ${mph(Math.round(prev.mph - last.mph))} slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
-    else if (last.result === 'tip') lead = `He got only a piece of the ${X}, and the catcher held on for strike three.`;
+    } else if (prev && Math.round(prev.mph - last.mph) >= 6 && last.early > 0.008 && !last.picked) {
+      // A much slower pitch, when it's what beat him: he was out in front of it, not knowing what it was. (If he was on
+      // time, or recognised it, the last pitch's why says so, and the speed wasn't it.)
+      lead = `The ${X} was ${mph(Math.round(prev.mph - last.mph))} slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
+    } else if (last.result === 'tip') lead = `He got only a piece of the ${X}, and the catcher held on for strike three.`;
     else if (!last.inZone) lead = `He chased the ${X} for strike three.`;
     else lead = `The ${X} beat him in the zone.`;
   } else if (r === 'BB') {
-    const out = ps.filter(p => !p.inZone).length, chased = ps.filter(p => p.swing && !p.inZone).length;
-    lead = `${out === n ? `All ${all(n)}` : `${cap(few(out))} of his ${n}`} missed the zone, and he ${chased ? `chased only ${few(chased)}` : 'didn’t chase any'}.`;
+    const out = ps.filter(p => !p.inZone).length, chased = ps.filter(p => p.swing && !p.inZone).length, swung = ps.some(p => p.swing);
+    // The lead has the pitches and the chases, and the rest what he did with the bat. If every pitch missed and he didn't
+    // chase, he never swung: that's said. If he never swung at all, that leads, and there's nothing more to say.
+    lead = !swung && out < n ? `He never swung: ${few(out)} of his ${n} missed the zone.`
+      : `${out === n ? `All ${all(n)}` : `${cap(few(out))} of his ${n}`} missed the zone, and he ${chased ? `chased only ${few(chased)}` : 'didn’t chase any'}.`;
     // Ball four in the zone was the umpire's call, and that comes first.
     if (last.inZone) lead = `Ball four caught the edge, but the umpire called it a ball. ${lead}`;
-    // The lead has the pitches and the chases. If every pitch missed and he didn't chase, he never swung: it's said.
-    rest = out === n && !chased ? '' : tally(ps, { count: false, chase: false });
+    rest = !swung ? '' : tally(ps, { count: false, chase: false });
   } else if (r === 'HBP') {
     const { balls, strikes } = last.before;
     lead = `The ${balls || strikes ? `${balls}-${strikes}` : 'first-pitch'} ${X}, meant to be ${spotName(last.spot)}, got away and hit him.`;

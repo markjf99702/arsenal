@@ -110,8 +110,14 @@ test('the at-bat’s words read cleanly over thousands of at-bats', () => {
 test('the scout’s note says what decided the at-bat', () => {
   for (const ab of PLAYED) {
     const text = note(ab), last = ab.pitches.at(-1), prev = ab.pitches.at(-2), at = `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}: ${text}`;
-    // The walk's lead counts the pitches and the chases, so the rest doesn't count them again.
-    if (ab.result === 'BB') assert.equal((text.match(/chase/g) || []).length, 1, at);
+    // The walk's lead counts the pitches and the chases, so the rest doesn't count them again. If he never swung, and
+    // not every pitch missed the zone, that leads, and there's no tally to come.
+    if (ab.result === 'BB') {
+      const swung = ab.pitches.some(p => p.swing), allOut = ab.pitches.every(p => !p.inZone);
+      if (!swung && !allOut) assert.match(text, /^(Ball four caught the edge, but the umpire called it a ball\. )?He never swung: (none|one|\d+) of his \d+ missed the zone\.$/, at);
+      else assert.equal((text.match(/chase/g) || []).length, 1, at);
+      assert.ok((text.match(/never swung/gi) || []).length <= 1, at);
+    }
     // A foul tip is contact: the tally counts it apart, not as a miss.
     if (last.result === 'tip') {
       assert.match(text, /tipped/, at);
