@@ -1782,6 +1782,36 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.locator('#ab-batter [data-v="R"]').click();
 }
 
+// At Slow, from the decision point until the ball gets to the plate, the hitter's read is over the bottom of the
+// picture: the pitch he's sitting on, and whether he swings. Not at real speed, and not once the pitch is in.
+{
+  const watch = (code, spot) => page.evaluate(([code, spot]) => new Promise(resolve => {
+    const frame = document.getElementById('ab-flight').parentElement, { stage, state } = window.arsenal.atBat, on = [];
+    window.arsenal.atBat.throw(code, spot);
+    const rec = state.ab.pitches.at(-1);
+    const tick = () => {
+      if (frame.classList.contains('deciding')) on.push(stage.gameTime());
+      if (state.busy) { requestAnimationFrame(tick); return; }
+      import(new URL('js/atbat-words.js', location.href)).then(({ NAME }) => resolve({
+        on: on.length ? { from: +(rec.path.T - Math.min(...on)).toFixed(3), to: +(rec.path.T - Math.max(...on)).toFixed(3) } : null,
+        said: document.getElementById('ab-cue').textContent, want: `Sitting on the ${NAME[rec.sat.code]}\u00a0· ${rec.swing ? 'swings' : 'takes'}`,
+        after: frame.classList.contains('deciding'),
+      }));
+    };
+    requestAnimationFrame(tick);
+  }), [code, spot]);
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.FF6.*/, ''));
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const real = await watch('FF', '1m1');
+  assert.deepEqual([real.on, real.after], [null, false], 'the hitter\'s read at real speed');
+  await page.locator('#ab-speed [data-v="0.25"]').click();
+  const slow = await watch('SL', 'm12');
+  assert.ok(slow.on && slow.on.from <= 0.175 && slow.on.from > 0.15 && slow.on.to >= 0 && slow.on.to < 0.03, `the hitter's read at Slow, from ${JSON.stringify(slow.on)} s before the plate`);
+  assert.deepEqual([slow.said, slow.after], [slow.want, false], 'the hitter\'s read at Slow');
+  await page.locator('#ab-speed [data-v="1"]').click();
+}
+
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
   const showing = () => page.evaluate(() => {

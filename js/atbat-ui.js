@@ -6,6 +6,7 @@ import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
 import { COUNTS, HITTERS } from './league.js';
+import { DECIDE } from './flight.js';
 
 const $ = id => document.getElementById(id);
 const pct = v => `${Math.round(v * 100)}%`;
@@ -208,6 +209,7 @@ export function setupAtBat({ dark = false } = {}) {
     readout(`Pitch ${rec.n}`);
     board(rec);
     drawPicture();
+    cue(rec);
     stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
     stage.show([rec.path]);
   }
@@ -218,6 +220,8 @@ export function setupAtBat({ dark = false } = {}) {
     const calling = $('ab-callbox').contains(document.activeElement);
     S.pending = null;
     S.busy = false;
+    // The hitter's read goes as the ball gets to the plate (cue).
+    cueFrame.classList.remove('deciding');
     // Its mark grows in as it lands, as what happened comes up in the readout.
     stage.set({ marks: marks(S.ab.pitches), grow: true });
     drawState();
@@ -316,6 +320,23 @@ export function setupAtBat({ dark = false } = {}) {
     // The key to what's drawn faint and dashed, once there's a pitch: the last pitch's path, and the decision ring.
     const key = (prev ? '<span><i class="ln prev"></i>Last pitch</span>' : '') + (last ? '<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>' : '');
     if ($('ab-legend').innerHTML !== key) $('ab-legend').innerHTML = key;
+  }
+
+  // At Slow, as the ball reaches the decision point, the hitter's read comes up over the bottom of the picture, as the
+  // explorer's "Decide now" does there: the pitch he's sitting on, and whether he swings. It goes as the ball gets to
+  // the plate. (At real speed it would be up for less than a fifth of a second.) It's for the eye: a screen reader hears
+  // what he was looking for in the line that says why, once the pitch is in.
+  let cueRaf = 0;
+  const cueFrame = $('ab-flight').parentElement;
+  function cue(rec) {
+    cancelAnimationFrame(cueRaf);
+    $('ab-cue').textContent = `Sitting on the ${NAME[rec.sat.code]}\u00a0· ${rec.swing ? 'swings' : 'takes'}`;
+    const tick = () => {
+      const t = stage.gameTime(), on = S.pending === rec && S.speed < 1 && t >= rec.path.T - DECIDE && t < rec.path.T;
+      if (cueFrame.classList.contains('deciding') !== on) cueFrame.classList.toggle('deciding', on);
+      if (S.pending === rec) cueRaf = requestAnimationFrame(tick);
+    };
+    cueRaf = requestAnimationFrame(tick);
   }
 
   function drawState() {

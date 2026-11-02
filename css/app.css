@@ -495,6 +495,8 @@ p { margin: 0; }
 .bat-stage .legend { position: static; margin-right: 2px; }
 .bat-stage .legend:empty { display: none; }
 .legend .ln.prev { background: #ffd23f; opacity: .55; }
+/* The hitter's read at the decision point, at Slow, over the bottom of the picture. */
+.bat-stage .cue { bottom: 8px; }
 /* Where the picture is narrower, on a phone, a phone held sideways, a tablet or a small window, the readout keeps to its
    top-left corner, clear of the zone and the pitcher's hand: the balls and strikes stacked beside the count. */
 @container ab-frame (max-width: 599px) {
@@ -507,6 +509,7 @@ p { margin: 0; }
   .bat-stage #ab-ro { font-size: 14px; line-height: 1.25; margin-top: 4px; }
   .bat-stage .corner { right: 5px; top: 5px; max-width: calc(var(--rb-max, 100%) - 5px); gap: 4px; }
   .bat-stage .board { padding: 1px 5px 5px; border-radius: 9px; }
+  .bat-stage .cue { font-size: 14px; padding: 5px 10px; }
   .board .speed b { font-size: 28px; }
   .board .speed span, .board .nm { font-size: 14px; }
 }
