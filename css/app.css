@@ -618,6 +618,9 @@ p { margin: 0; }
   .spots-wrap { gap: 4px; }
   .choice { line-height: 1.25; }
   .callbox > #ab-key { order: 1; }
+  /* The hundred throws' button wraps to two lines on the narrower phones, and after the at-bat on most: its words keep
+     to the left, and its corners are the pitches' rounded ones, so it doesn't turn into a lozenge. */
+  .hundred .plain { text-align: left; border-radius: 16px; }
 }
 /* Held sideways, the grid's spots are as big as on a computer, and a little smaller where the call box is narrowest, so
    the grid fits in it. */

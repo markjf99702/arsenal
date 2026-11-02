@@ -1275,6 +1275,15 @@ for (const [width, height] of [[390, 750], [360, 640], [320, 640]]) {
   await ph.goto(base + STRIKEOUT);
   await ph.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
   if (width === 390 || width === 320) assert.deepEqual(await reach(), [], `${at}, at the end of an at-bat, taps 22px above or below the middle of these go elsewhere`);
+  // The hundred throws' button, on two lines after the at-bat, keeps its words to the left, and has the chips' rounded
+  // corners rather than a lozenge's.
+  const run = await ph.evaluate(() => {
+    const b = document.getElementById('ab-run'), cs = getComputedStyle(b), r = document.createRange();
+    r.selectNodeContents(b);
+    const lines = [...r.getClientRects()].filter(x => x.width > 0);
+    return { lines: lines.length > 1, starts: [...new Set(lines.map(l => Math.round(l.left)))].length, radius: cs.borderTopLeftRadius };
+  });
+  assert.deepEqual(run, { lines: true, starts: 1, radius: '16px' }, `${at}, the hundred throws' button`);
   await narrowCtx.close();
 }
 
