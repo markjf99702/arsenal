@@ -1255,6 +1255,26 @@ for (const [width, height] of [[390, 750], [360, 640], [320, 640]]) {
     return { heights: [...new Set(all.map(c => Math.round(c.getBoundingClientRect().height)))], name: kc.textContent.trim(), lines: [...r.getClientRects()].filter(x => x.width > 1).length };
   });
   assert.deepEqual(chips, { heights: [48], name: 'Knuckle curve', lines: 1 }, `${at}, Nola's pitches`);
+  // The lists are in 16px words, which an iPhone doesn't zoom into when they're tapped.
+  assert.deepEqual(await ph.evaluate(() => ['pair', 'ab-pitcher'].map(id => getComputedStyle(document.getElementById(id)).fontSize)), ['16px', '16px'], `${at}, the lists' words`);
+  // Everything to tap reaches 44px tall: a tap at the top and the bottom of that is its own, not a neighbour's. Then the
+  // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
+  const reach = () => ph.evaluate(() => {
+    const short = [];
+    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy')) {
+      if (!el.offsetParent) continue;
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const r = el.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
+      const miss = [mid - 21.5, mid + 21.5].map(y => document.elementFromPoint(x, y)).filter(hit => !el.contains(hit));
+      if (miss.length) short.push(`${el.id || el.textContent}: ${miss.map(hit => hit?.id || hit?.textContent.slice(0, 20)).join(', ')}`);
+    }
+    return short;
+  });
+  if (width === 390 || width === 320) assert.deepEqual(await reach(), [], `${at}, taps 22px above or below the middle of these go elsewhere`);
+  await ph.goto('about:blank');
+  await ph.goto(base + STRIKEOUT);
+  await ph.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  if (width === 390 || width === 320) assert.deepEqual(await reach(), [], `${at}, at the end of an at-bat, taps 22px above or below the middle of these go elsewhere`);
   await narrowCtx.close();
 }
 

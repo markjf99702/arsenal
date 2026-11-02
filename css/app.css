@@ -193,9 +193,18 @@ p { margin: 0; }
   padding: 10px 16px 10px 13px;
 }
 .throw svg { width: 16px; height: 16px; fill: currentColor; }
+/* Throw, the plain buttons and the segmented buttons (and on a phone the pitches up top) reach 44px tall, as Apple's
+   guidelines and WCAG 2.2's enhanced target size (SC 2.5.5) ask, with a see-through layer above and below rather than
+   padding, so nothing looks or sits any different. Each row of them has 8px or more between it and the next, so no
+   reach takes another's taps. */
+.throw, .plain, .seg button { position: relative; }
+.throw::after, .plain::after, .seg button::after { content: ''; position: absolute; left: 0; right: 0; top: min(0px, calc(50% - 22px)); bottom: min(0px, calc(50% - 22px)); }
 .throw:active { transform: translateY(1px); }
-/* Positioned, so a tap on one of these is always its own, even where the No-spin ghost checkbox's reach overlaps it. */
+/* Positioned, so a tap on one of these is always its own, even where the No-spin ghost checkbox's reach overlaps it.
+   The pill clips its buttons only sideways (where a label too long for a narrow phone is cut off), so their reach
+   above and below shows through; the rounded ends are the end buttons' own. */
 .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; background: var(--card); position: relative; }
+@supports (overflow: clip) { .seg { overflow: visible; overflow-x: clip; } }
 .seg button { border: 0; background: transparent; padding: 7px 11px; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
@@ -244,11 +253,8 @@ p { margin: 0; }
 .panel p.small { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
 .seg.mini { justify-self: center; margin-top: -2px; max-width: 100%; min-width: 0; }
 .seg.mini button { font-size: 12.5px; padding: 5px 9px; position: relative; }
-/* Padding would grow the dark pressed button, so these reach 8px above and below it with a see-through layer instead.
-   For that the pill clips only sideways (where a label too long for a narrow phone is cut off, as before), and the
-   rounded ends are the end buttons' own, as on every pill. */
-.seg.mini button::after { content: ''; position: absolute; inset: -8px 0; }
-@supports (overflow: clip) { .seg.mini { overflow: visible; overflow-x: clip; } }
+/* These are smaller still, so they reach 8px above and below (44px in all), with the same see-through layer. */
+.seg.mini button::after { inset: -8px 0; }
 @media (max-width: 480px) { .seg.mini { justify-self: stretch; } .seg.mini button { flex: 1; padding: 5px 2px; font-size: 12px; } }
 /* Up to 370px wide "From behind" and "From the side" don't fit side by side, so there they're "Behind" and "Side". */
 .seg.mini .short { display: none; }
@@ -375,16 +381,23 @@ p { margin: 0; }
   .card { padding: 14px; }
   .card h2 { font-size: 34px; }
   .stats b { font-size: 21px; }
-  .picker { flex-wrap: nowrap; overflow-x: auto; margin-left: -16px; margin-right: -16px; padding: 2px 16px 6px; scrollbar-width: none; }
+  /* A row that scrolls sideways clips what's above and below it too, so it has room for the pitches' reach (44px tall,
+     like Throw's), 4px above them, 2px of it from the margin above. */
+  .picker { flex-wrap: nowrap; overflow-x: auto; margin-top: 6px; margin-left: -16px; margin-right: -16px; padding: 4px 16px 6px; scrollbar-width: none; }
+  .picker .chip { position: relative; }
+  .picker .chip::after { content: ''; position: absolute; left: 0; right: 0; top: min(0px, calc(50% - 22px)); bottom: min(0px, calc(50% - 22px)); }
   .picker::-webkit-scrollbar { display: none; }
   .group { flex-wrap: nowrap; }
-  .controls { gap: 8px; }
+  /* 10px between the rows, so the buttons' reach (see Throw's) stays clear of the row above and below. */
+  .controls { gap: 10px 8px; }
   .seg button { padding: 7px 9px; font-size: 13.5px; }
   /* "Throw with" gets a row of its own, and the list the rest of it, so the controls stay the same size whichever pitch
      is up and a long name like "Four-seam fastball (usual partner)" has room. On the narrowest phones the list gives
      way, not the label. */
   .pairpick { flex-basis: 100%; white-space: nowrap; }
-  .pairpick select { width: 100%; min-width: 0; }
+  /* 16px, as the link field is: an iPhone zooms the page into a form field set smaller than that when it's tapped,
+     and doesn't zoom back out. The padding gives back what the bigger words take, so it stays as tall. */
+  .pairpick select { width: 100%; min-width: 0; font-size: 16px; padding-block: 5px; }
 }
 /* On the narrowest phones the card's big numbers are a size smaller, and smaller again where even that doesn't fit, so
    "2,605 rpm", "↓ 10.3 in" and "10 ft 11 in" stay on one line. */
@@ -588,6 +601,10 @@ p { margin: 0; }
 }
 @media (max-width: 340px) {
   .ab-chips .ab-chip { font-size: 14px; padding-left: 24px; }
+  /* The pitcher list's words are 16px (see "Throw with"), so here it goes under "Pitching", to have room for the
+     longest of them, "Jacob Misiorowski – power arm". */
+  .bat-stage .pairpick { flex-wrap: wrap; row-gap: 4px; }
+  .bat-stage .pairpick select { flex: 1 0 100%; }
 }
 /* On a phone the picture stays at the top of the screen while you call the pitch, and the call fits under it: from the
    first pitch to Throw on an iPhone 14 once Safari has tucked its bars away (750px tall). The pitches are two lines
