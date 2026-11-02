@@ -507,6 +507,16 @@ test('a hundred of each from here: every pitch in the arsenal, every outcome cou
   assert.ok(t.FS.whiff > t.FF.whiff, `splitter ${t.FS.whiff} misses, four-seamer ${t.FF.whiff}`);
 });
 
+// The hundred throws face the hitter as he stands: one who has seen four curves down and away this at-bat is looking for
+// a fifth there, so it's missed less and hit more than by one who has seen only the last of them.
+test('the hundred throws face a hitter who remembers the whole at-bat, not just its last pitch', () => {
+  const ab = startAtBat({ pitcher: pitcherByKey('misiorowski'), batter: 'R', seed: 1 });
+  for (let i = 0; i < 4; i++) { throwCall(ab, { code: 'CU', spot: spotById('m11') }); ab.balls = 0; ab.strikes = 0; ab.result = null; }
+  ab.balls = 1; ab.strikes = 1;
+  const seen = whatIf(ab, spotById('m11'), 400, 1).CU, once = whatIf({ ...ab, pitches: ab.pitches.slice(-1) }, spotById('m11'), 400, 1).CU;
+  assert.ok(seen.whiff < once.whiff && seen.hit > once.hit, `after four curves ${seen.whiff} misses and ${seen.hit} hits in 400; after one, ${once.whiff} and ${once.hit}`);
+});
+
 // The page throws each pitch 400 times, a slice of 100 at a time, and shows it per 100: at 100 throws a pitch's misses
 // per 100 wander by about 8 either way from chart to chart, enough to put the wrong pitch on top. Paul Skenes to a
 // right-handed batter, 1-2 after a four-seamer up and in, down and off the plate away: over 20,000 throws the slider is

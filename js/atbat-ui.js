@@ -324,7 +324,7 @@ export function setupAtBat({ dark = false } = {}) {
   // ---------------------------------------------------------------- the hundred throws
   // From the count and spot as they stand, before the next pitch. Once the at-bat is over there's no next pitch, so it
   // looks back at the last one instead: the same count, the same spot and the pitch before it, with every pitch he
-  // could have thrown there. (whatIf reads only the pitcher, the batter, the knobs, the count and the pitch before.)
+  // could have thrown there. (whatIf reads the pitcher, the batter, the knobs, the count and the pitches before.)
   // Each pitch is thrown 400 times and shown per 100: at 100 throws a pitch's misses wander by about 8 either way from
   // one chart to the next, enough to put the wrong pitch on top. They're thrown a slice of 100 at a time, one slice a
   // frame, so the page keeps moving and the bars fill as they go; with reduced motion they're drawn once, full.
