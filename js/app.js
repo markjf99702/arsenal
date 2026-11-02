@@ -411,7 +411,7 @@ function follow(link) {
 // Pitch to a hitter. A link like #ab.v3.skenes.R.k3x9a.FF6.SL23 replays one at-bat, #inning.v3.skenes.R.k3x9a.FF6... a
 // whole inning, and one starting #ab. or #inning. that can't be read opens a new one that says so (load).
 const atBat = setupAtBat({ dark: isDark() });
-// Be the hitter: name a pitch from behind the plate.
+// Be the hitter: name a pitch from behind the plate, or step in against one.
 const hit = setupHit({ dark: isDark() });
 addEventListener('hashchange', () => {
   const h = location.hash.slice(1);

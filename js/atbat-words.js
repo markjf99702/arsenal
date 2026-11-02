@@ -270,3 +270,44 @@ export function note(ab) {
   if (n === 1) rest = r === 'HBP' ? '' : 'He swung at the first pitch.';
   return `${lead} ${rest}`.trim();
 }
+
+// ---------------------------------------------------------------- you at the plate
+// What you did with a pitch in Step in (js/atbat.js, swingAt), in the same words as the hitter's: where you swung
+// against where it crossed ("You swung 3 inches under it, 20 ms late."), or what you took.
+export function yourWhy(p, batter) {
+  if (!p.swing) {
+    if (p.result === 'hbp') return 'It got away inside and hit you.';
+    if (p.result === 'ball') return p.inZone ? 'You took it, and it caught the edge, but the umpire called it a ball.' : `You took it: ${offBy(p, batter, 'was')}.`;
+    return p.inZone ? 'You took it, and it was a strike.' : `You took it: ${offBy(p, batter, 'was')}, but the umpire gave the pitcher the strike.`;
+  }
+  const out = [];
+  if (!p.inZone) out.push(`You chased: ${offBy(p, batter, 'finished')}.`);
+  const [h, v] = p.miss, t = p.early;
+  const where = Math.abs(v) >= 0.12 ? `${inches(v)} ${v < 0 ? 'over' : 'under'} it` : Math.abs(h) >= 0.2 ? `${inches(h)} ${(batter === 'R') === (h > 0) ? 'inside of' : 'outside of'} it` : '';
+  const when = { early: `${ms(t)} early`, late: `${ms(t)} late` }[timing(p)] || '';
+  if (p.result === 'whiff') {
+    if (where && when) out.push(`You swung ${where}, ${when}.`);
+    else if (where) out.push(`You swung ${where}.`);
+    else if (when) out.push(`You were ${when}.`);
+    else out.push('You were on it, and it still beat you.');
+  } else if (p.result === 'tip') out.push('You got a piece of it, and the catcher held on.');
+  else if (p.result === 'foul') out.push(`${p.before.strikes === 2 ? 'You fouled it off to stay alive' : 'You got a piece of it'}${when ? `, ${when}` : ''}.`);
+  else {
+    const s = p.contact;
+    out.push({
+      HR: 'You hit it right on the barrel.', '3B': 'You hit it between the outfielders and kept running.', '2B': 'You hit it hard, between the outfielders.',
+      '1B': s > 0.6 ? 'You lined it into the outfield.' : 'You hit it between the fielders.',
+      out: s > 0.75 ? 'You hit it hard, but right at someone.' : `You put it in play${when ? `, ${when}` : ''}, and they made the play.`,
+    }[p.play]);
+  }
+  return out.join(' ');
+}
+
+// At the end of your at-bat: how many pitches, and what you did with the bat.
+export function yourNote(ab) {
+  const ps = ab.pitches, swings = ps.filter(p => p.swing).length, misses = ps.filter(p => p.result === 'whiff').length;
+  const chased = ps.filter(p => p.swing && !p.inZone).length, looked = ps.filter(p => !p.swing && p.result === 'called').length;
+  const n = `${ps.length} pitch${ps.length === 1 ? '' : 'es'}`;
+  if (!swings) return `${n}: you never swung${looked ? `, and took ${few(looked)} for ${looked === 1 ? 'a strike' : 'strikes'}` : ''}.`;
+  return `${n}: you swung at ${few(swings)}${misses ? ` and missed ${misses === swings && swings > 1 ? (swings === 2 ? 'both' : 'every one') : few(misses)}` : ' and never missed'}${chased ? `, chasing ${few(chased)} out of the zone` : ''}${looked ? `, and took ${few(looked)} for ${looked === 1 ? 'a strike' : 'strikes'}` : ''}.`;
+}

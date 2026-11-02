@@ -185,7 +185,7 @@
   <section class="bat hit" id="hit" aria-labelledby="hit-title">
     <header class="bat-head">
       <h2 id="hit-title">Be the hitter</h2>
-      <p class="intro">A big-league pitch gets to the plate in about 0.4 seconds, and a hitter has to know what it is before then. Watch one come in from behind the plate and name it.</p>
+      <p class="intro">A big-league pitch gets to the plate in about 0.4 seconds, and a hitter has to know what it is before then. Watch one come in from behind the plate and name it, or step in and try to hit it.</p>
     </header>
     <div class="bat-grid">
       <div class="bat-stage">
@@ -201,6 +201,10 @@
           <p class="sr" id="hit-live" aria-live="polite"></p>
         </div>
         <div class="controls">
+          <div class="seg" role="group" aria-label="Game" id="hit-game">
+            <button type="button" data-v="name" aria-pressed="true">Name that pitch</button>
+            <button type="button" data-v="step" aria-pressed="false">Step in</button>
+          </div>
           <label class="pairpick">Facing <select id="hit-pitcher"></select></label>
           <div class="seg" role="group" aria-label="Batter" id="hit-batter">
             <button type="button" data-v="R" aria-pressed="true">Bat righty</button>
@@ -226,6 +230,24 @@
             <div class="ab-chips" id="hit-answers" role="group" aria-labelledby="hit-ask-title"></div>
           </div>
           <p class="said" id="hit-said"></p>
+        </div>
+        <div class="callbox" id="hit-step" hidden>
+          <h3 id="hit-step-title">Step in</h3>
+          <p class="small">He calls every pitch. To swing, tap the picture where the ball will cross the plate, just as it gets there; don’t, and you take it. How close you were, in place and in time, decides it, as it does for the hitter in Pitch to a hitter. Swing, or Space while the ball is in the air, swings down the middle.</p>
+          <div class="call-row">
+            <button class="throw" id="hit-pitch" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>Next pitch</button>
+            <button class="plain" id="hit-swing" type="button">Swing</button>
+          </div>
+          <p class="said" id="hit-what"></p>
+          <div class="end" id="hit-end" hidden>
+            <h3 class="end-result" id="hit-result" tabindex="-1"></h3>
+            <p id="hit-note"></p>
+            <div class="call-row">
+              <button class="throw" id="hit-again" type="button">Step in again</button>
+            </div>
+            <p class="small" id="hit-tally"></p>
+          </div>
+          <ol class="log" id="hit-log" aria-label="Pitches so far"></ol>
         </div>
       </div>
     </div>

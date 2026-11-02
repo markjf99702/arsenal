@@ -142,6 +142,22 @@ export function markAt(cam, [x, z]) {
   return { x: p.x, y: Math.min(p.y, floor) };
 }
 
+// Where on the plate a point of the picture is ([x, z] in feet, at the front of the plate), the other way from
+// cam.project: a tap on the picture, as where a swing goes. A few steps of Newton's method from the middle of the zone.
+export function plateAt(cam, px, py) {
+  let x = 0, z = 2.4;
+  for (let i = 0; i < 8; i++) {
+    const p = cam.project([x, PLATE_Y, z]), h = 0.01;
+    const ax = cam.project([x + h, PLATE_Y, z]), az = cam.project([x, PLATE_Y, z + h]);
+    const a = (ax.x - p.x) / h, b = (az.x - p.x) / h, c = (ax.y - p.y) / h, d = (az.y - p.y) / h, det = a * d - b * c;
+    if (!det) break;
+    const ex = px - p.x, ey = py - p.y;
+    x += (d * ex - b * ey) / det;
+    z += (-c * ex + a * ey) / det;
+  }
+  return [x, z];
+}
+
 // The catcher's target: a mitt where the pitch is called, as a broadcast's command graphic shows it, seen from behind
 // him with its thumb to the right. Brown leather with a paler pocket and a white edge, so it shows on the dirt and the
 // grass alike, and looks nothing like the dashed ring of the decision point. Its pocket is on the spot.

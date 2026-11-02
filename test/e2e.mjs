@@ -1427,7 +1427,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
   const reach = () => ph.evaluate(() => {
     const short = [];
-    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button')) {
+    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button, #hit-game button')) {
       if (!el.offsetParent) continue;
       el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
@@ -2104,6 +2104,64 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.locator('#hit-pitcher').selectOption('rogers');
   h = await hit();
   assert.deepEqual([h.phase, h.answers, h.said], ['ready', ['SI', 'SL'], ''], 'Name that pitch against Rogers');
+}
+
+// Be the hitter, Step in: the pitcher calls each pitch, only the ball comes in, and a tap on the picture is a swing where
+// it's tapped, when it's tapped; no tap by just after the ball is in is a take. A tap on the ball as it gets there is
+// on time and on the ball. Swing, or Space while the ball is in the air, swings down the middle. Each pitch is marked,
+// logged and said in words, and the at-bat ends with its card and the visit's tally.
+{
+  const ready = () => page.waitForFunction(() => ['ready', 'over'].includes(window.arsenal.hit.state.phase), null, { timeout: 15000 });
+  const last = () => page.evaluate(() => {
+    const { state, stage } = window.arsenal.hit, p = state.ab.pitches.at(-1);
+    return { n: state.ab.pitches.length, result: p.result, swing: p.swing, early: p.early, miss: p.miss.map(v => Math.abs(v * 12)), at: p.swungAt, marks: stage.opts.marks.length, what: document.getElementById('hit-what').textContent, log: document.querySelectorAll('#hit-log li').length, over: !!state.ab.result };
+  });
+  await page.goto('about:blank');
+  await page.goto(base);
+  await page.evaluate(() => document.getElementById('hit').scrollIntoView());
+  await page.locator('#hit-game [data-v="step"]').click();
+  await page.locator('#hit-pitcher').selectOption('average');
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('hit-name').hidden, document.getElementById('hit-step').hidden, document.getElementById('hit-readout').hidden]), [true, false, false], 'Step in picked');
+  // A tap on the ball the moment it gets to the plate.
+  await page.locator('#hit-pitch').click();
+  assert.equal(await page.evaluate(() => [window.arsenal.hit.state.phase, window.arsenal.hit.stage.opts.bare].join()), 'flying,true', 'while the pitch flies');
+  const box = await page.locator('#hit-flight').boundingBox();
+  const aim = await page.evaluate(() => {
+    const { state, stage } = window.arsenal.hit, c = document.getElementById('hit-flight'), k = c.width / c.getBoundingClientRect().width;
+    const p = stage.camera().project([state.pitch.plate[0], 17 / 12, state.pitch.plate[1]]);
+    return { x: p.x / k, y: p.y / k, T: state.pitch.flight.T };
+  });
+  await page.waitForFunction(T => window.arsenal.hit.stage.gameTime() >= T, aim.T, { timeout: 10000, polling: 'raf' });
+  await page.mouse.click(box.x + aim.x, box.y + aim.y);
+  await ready();
+  let l = await last();
+  assert.ok(l.swing && l.early <= 0 && l.early > -0.1 && Math.max(...l.miss) < 1, `a tap on the ball as it got there: ${Math.round(l.early * 1000)} ms, ${l.miss.map(v => v.toFixed(1)).join(' and ')} inches off`);
+  assert.deepEqual([l.n, l.marks, l.log, l.what.length > 10, await page.evaluate(() => window.arsenal.hit.stage.opts.bare)], [1, 1, 1, true, false], 'once the swing is settled');
+  // No tap: taken.
+  if (!l.over) {
+    await page.locator('#hit-pitch').click();
+    await ready();
+    l = await last();
+    assert.deepEqual([l.swing, ['ball', 'called', 'hbp'].includes(l.result), /^(You took it|It got away inside)/.test(l.what)], [false, true, true], 'a pitch not swung at');
+  }
+  // From the keyboard: Enter for the next pitch, Space while it flies to swing down the middle.
+  const byKeys = !l.over;
+  for (let i = 0; i < 30 && !l.over; i++) {
+    await page.locator('#hit-pitch').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.arsenal.hit.stage.gameTime() > 0.15, null, { timeout: 10000 });
+    await page.keyboard.press(' ');
+    await ready();
+    l = await last();
+    assert.ok(l.swing, 'Space while the ball flew didn\'t swing');
+    assert.deepEqual(l.at.map(v => +v.toFixed(3)), (await page.evaluate(async () => (await import(new URL('js/atbat.js', location.href))).spotXZ({ c: 0, r: 0 }, 'R'))).map(v => +v.toFixed(3)), 'Space swings down the middle');
+  }
+  assert.ok(l.over, 'the at-bat never ended');
+  const end = await page.evaluate(() => ({ shown: !document.getElementById('hit-end').hidden, result: document.getElementById('hit-result').textContent, tally: document.getElementById('hit-tally').textContent, focus: document.activeElement.id, next: document.getElementById('hit-pitch').checkVisibility() }));
+  // Focus was on Next pitch, which went with the end card's coming: it's on how it ended.
+  assert.deepEqual([end.shown, byKeys ? end.focus : 'hit-result', end.next, /^This visit: 1 time up · \d H · \d BB( · 1 HBP)? · \d K\.$/.test(end.tally)], [true, 'hit-result', false, true], `the end of the at-bat: ${end.result}, ${end.tally}`);
+  await page.locator('#hit-again').click();
+  assert.deepEqual(await page.evaluate(() => [window.arsenal.hit.state.ab.pitches.length, document.getElementById('hit-end').hidden, document.querySelectorAll('#hit-log li').length, document.activeElement.id]), [0, true, 0, 'hit-pitch'], 'Step in again');
 }
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
