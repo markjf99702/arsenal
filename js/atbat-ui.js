@@ -5,6 +5,7 @@ import { resultWord, why, note, calledLine, ENDING, NAME, timing, thoughtMiss, c
 import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
+import { makeSound } from './sound.js';
 import { COUNTS, HITTERS, LEAGUE } from './league.js';
 import { DECIDE } from './flight.js';
 
@@ -80,6 +81,11 @@ export function setupAtBat({ dark = false } = {}) {
   $('ab-hitter').innerHTML = HITTER_TYPES.map(h => `<option value="${h.key}">${h.name}</option>`).join('');
   $('ab-hitter').addEventListener('change', e => { S.hitter = hitterByKey(e.target.value).key; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
+  // Sound, off to start with: once it's on, a pitch thrown with Throw is heard as it gets to the plate (js/sound.js).
+  // Arsenal saves nothing, so it's off again on the next visit.
+  const sound = makeSound();
+  let loud = null; // the pitch in the air that will be heard landing
+  $('ab-sound').addEventListener('change', e => sound.set(e.target.checked));
   // One at-bat, or a whole inning: batter after batter, all of this side and kind, until three are out.
   seg('ab-mode', v => { S.mode = v; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   $('ab-throw').addEventListener('click', () => pitch());
@@ -220,6 +226,8 @@ export function setupAtBat({ dark = false } = {}) {
     if (S.open != null) openRow(null);
     const call = { code: S.code, spot: S.spot };
     const rec = throwCall(S.ab, call);
+    // The tap on Throw is what lets the page make a sound, as this one lands.
+    loud = sound.wake() ? rec : null;
     S.ab.here = true;
     stamp();
     stopChart();
@@ -249,6 +257,7 @@ export function setupAtBat({ dark = false } = {}) {
   // The ball has reached the plate: show what happened.
   function land() {
     if (!S.pending) return;
+    if (S.pending === loud) sound.play(S.pending.result);
     const calling = $('ab-callbox').contains(document.activeElement);
     S.pending = null;
     S.busy = false;
@@ -831,7 +840,7 @@ export function setupAtBat({ dark = false } = {}) {
 
   fresh();
   return {
-    stage, state: S, load, link: () => code(),
+    stage, state: S, load, link: () => code(), sound,
     setDark(d) { stage.set({ dark: d }); },
     throw: (code, spotId) => { S.code = code; S.spot = spotById(spotId); drawCall(); pitch(); },
   };

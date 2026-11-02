@@ -1446,13 +1446,18 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     });
     assert.deepEqual(box, { rows: 3, oneLine: true, above: true, width: true, align: batter === 'R' ? 'left' : 'right' }, `${at}, the call box for a ${batter === 'R' ? 'right' : 'left'}-handed batter`);
   }
-  // With a keyboard, Shift+Tab back from the pitches reaches the speed buttons, which had scrolled away under the
-  // picture: they come out from behind it, as the call box's buttons do.
+  // With a keyboard, Shift+Tab back from the pitches reaches Sound and the speed buttons, which had scrolled away under
+  // the picture: each comes out from behind it, as the call box's buttons do.
   await ph.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
   await ph.locator('#ab-pitches .ab-chip').first().focus();
-  await ph.keyboard.press('Shift+Tab');
-  const shifted = await ph.evaluate(() => ({ on: document.activeElement.closest('#ab-speed') ? 'speed' : document.activeElement.textContent, top: document.activeElement.getBoundingClientRect().top, picture: document.getElementById('ab-flight').getBoundingClientRect().bottom }));
-  assert.ok(shifted.on === 'speed' && shifted.top >= shifted.picture, `${at}, Shift+Tab to ${shifted.on} put it at ${Math.round(shifted.top)}px, behind a picture ending at ${Math.round(shifted.picture)}px`);
+  for (const want of ['Sound', 'speed']) {
+    await ph.keyboard.press('Shift+Tab');
+    const shifted = await ph.evaluate(() => {
+      const a = document.activeElement;
+      return { on: a.closest('#ab-speed') ? 'speed' : a.labels?.[0]?.textContent.trim() || a.textContent, top: a.getBoundingClientRect().top, picture: document.getElementById('ab-flight').getBoundingClientRect().bottom };
+    });
+    assert.ok(shifted.on === want && shifted.top >= shifted.picture, `${at}, Shift+Tab to ${shifted.on} put it at ${Math.round(shifted.top)}px, behind a picture ending at ${Math.round(shifted.picture)}px`);
+  }
   assert.equal(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${at}, the page scrolls sideways`);
   await phoneCtx.close();
 }
@@ -2007,6 +2012,58 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.waitForTimeout(2500);
   assert.deepEqual(await page.evaluate(() => { const { state, stage } = window.arsenal.atBat; return { watching: state.watching, busy: state.busy, marks: stage.opts.marks.length, n: state.ab.pitches.length, lit: document.querySelectorAll('#ab-log [aria-current]').length }; }),
     { watching: null, busy: false, marks: 0, n: 0, lit: 0 }, 'Next hitter while it was being watched again');
+}
+
+// Sound, off to start with: nothing is made or played, not even with Sound on, until Throw is tapped with it on; then
+// the pitch is heard as it lands, with the sound for what it did: the mitt for a ball, a called strike or a swing and
+// miss, the bat for a foul or a ball in play, a tick and then the mitt for a foul tip, a thud for a hit batter. Turned
+// off, the next pitch is silent, and a link's pitch thrown again isn't heard. (Headless Chromium plays to no speaker:
+// what's counted is the sounds started.)
+{
+  const soundCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  await soundCtx.addInitScript(() => {
+    window.heard = { made: 0, started: 0 };
+    const Real = window.AudioContext;
+    window.AudioContext = class extends Real { constructor(...a) { super(...a); window.heard.made++; } };
+    const start = AudioScheduledSourceNode.prototype.start;
+    AudioScheduledSourceNode.prototype.start = function (...a) { window.heard.started++; return start.apply(this, a); };
+  });
+  const p = await soundCtx.newPage();
+  watch(p);
+  await p.goto(base + `#ab.v${VERSION}.average.R.2gbo`); // the README's hitter
+  const idle = () => p.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const heard = () => p.evaluate(() => ({ ...window.heard, played: window.arsenal.atBat.sound.played, last: window.arsenal.atBat.sound.last }));
+  const call = async (code, spot) => {
+    await p.locator(`#ab-pitches [data-code="${code}"]`).click();
+    await p.locator(`#ab-spots [data-spot="${spot}"]`).click();
+    await p.locator('#ab-throw').click();
+    await idle();
+  };
+  assert.deepEqual([await p.locator('#ab-sound').isChecked(), (await p.locator('#ab-sound').evaluate(i => i.labels[0].textContent)).trim()], [false, 'Sound'], 'Sound to start with');
+  await call('FF', '1m1');
+  assert.deepEqual(await heard(), { made: 0, started: 0, played: 0, last: null }, 'a pitch thrown with Sound off');
+  await p.locator('#ab-sound').check();
+  assert.deepEqual(await heard(), { made: 0, started: 0, played: 0, last: null }, 'Sound turned on, before Throw');
+  await call('SL', 'm21');
+  const kind = await p.evaluate(async () => (await import(new URL('js/sound.js', location.href))).soundFor(window.arsenal.atBat.state.ab.pitches.at(-1).result));
+  let h = await heard();
+  assert.deepEqual({ ...h, started: h.started > 0 }, { made: 1, started: true, played: 1, last: kind }, 'a pitch thrown with Sound on');
+  await p.locator('#ab-sound').uncheck();
+  await call('CH', 'm1m1');
+  assert.deepEqual({ ...(await heard()), made: undefined }, { ...h, made: undefined }, 'a pitch thrown after Sound was turned off');
+  // Back on, a link changed to in this tab throws its last pitch again: not a pitch thrown here, so not heard.
+  await p.locator('#ab-sound').check();
+  h = await heard();
+  await p.evaluate(v => { location.hash = `ab.v${v}.average.R.2gbo.FF6.SL23.CH16`; }, VERSION);
+  await p.waitForFunction(() => window.arsenal.atBat.state.busy, null, { timeout: 5000 }).catch(() => {});
+  await idle();
+  assert.deepEqual(await heard(), h, 'a link\'s pitch thrown again');
+  await call('FF', '22');
+  assert.equal((await heard()).played, h.played + 1, 'a pitch thrown after the link, with Sound on');
+  // What each result sounds like.
+  const sounds = await p.evaluate(async () => { const { soundFor } = await import(new URL('js/sound.js', location.href)); return Object.fromEntries(['ball', 'called', 'whiff', 'tip', 'foul', 'inplay', 'hbp'].map(r => [r, soundFor(r)])); });
+  assert.deepEqual(sounds, { ball: 'pop', called: 'pop', whiff: 'pop', tip: 'tip', foul: 'crack', inplay: 'crack', hbp: 'thud' }, 'the sound for each result');
+  await soundCtx.close();
 }
 
 // Under Next hitter, a line on how this visit has gone: every at-bat that ended on a pitch thrown here, with the share
