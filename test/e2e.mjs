@@ -1597,6 +1597,10 @@ for (const [hash, name] of [['#Sweeper', /^Sweeper/i], ['#sweeper)', /^Sweeper/i
   await page.goto(base + hash);
   assert.match(await heading(), name, hash);
 }
+// A link made with a long run of full stops and a letter after it opens at once, rather than freezing the page.
+await page.goto('about:blank');
+await page.goto(base + `#sweeper${'.'.repeat(300000)}x`, { timeout: 10000 });
+assert.match(await heading(), /^Sweeper/i, '#sweeper and 300,000 full stops');
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);
 // The knuckleball's speed is its one regular thrower's, not dragged down by position players' lobs, so there's no

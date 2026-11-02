@@ -7,6 +7,7 @@ import { drawGrip } from './grip.js';
 import { movementChart, lineupTable, famName, shareText } from './charts.js';
 import { DECIDE, throwPitch } from './flight.js';
 import { setupAtBat } from './atbat-ui.js';
+import { trimmed } from './atbat.js';
 
 const $ = id => document.getElementById(id);
 // Inches and mph keep their one decimal place ("↑ 1.0 in", "89.0 mph"), as the speed does; rpm (fmt(v, 0)) has none and
@@ -377,7 +378,7 @@ function address() {
 function readLink(h) {
   if (/^ab\./i.test(h)) return null;
   try { h = decodeURIComponent(h); } catch {}
-  const [pitches, ...more] = h.toLowerCase().replace(/[^0-9a-z]+$/, '').split('.');
+  const [pitches, ...more] = trimmed(h.toLowerCase()).split('.');
   const [first, second] = pitches.split('+');
   const pitch = BY_SLUG[first], pair = BY_SLUG[second];
   if (!pitch) return null;

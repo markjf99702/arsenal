@@ -301,6 +301,11 @@ test('a link with something stuck on the end reads the same, and one cut off rea
   assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { pitcherKey: 'skenes', batter: 'L', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
   // A spot off the grid is read as no spot, for the page to say so.
   assert.deepEqual(parseLink('#ab.average.R.9.FF6.SL40').calls, [{ code: 'FF', spot: SPOTS[6] }, { code: 'SL', spot: undefined }]);
+  // A link made with a long run of full stops and a letter after it reads at once, rather than freezing the page that
+  // opens it: dropping what's on the end takes one pass, not one for every stop.
+  const t0 = Date.now(), long = parseLink(`#ab.skenes.L.k3x9a.FF6${'.'.repeat(300000)}x`), took = Date.now() - t0;
+  assert.deepEqual(long.calls, [{ code: 'FF', spot: SPOTS[6] }]);
+  assert.ok(took < 1000, `${took} ms to read a link with 300,000 full stops in it`);
 });
 
 test('the log says where a pitch crossed when it went to another box than the one called', () => {
