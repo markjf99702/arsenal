@@ -1,6 +1,6 @@
 // The big canvas: throws the pitch and draws it from the chosen camera.
 import {
-  throwPitch, apex, catcherCamera, sideCamera, topCamera, palette,
+  throwPitch, apex, catcherCamera, sideCamera, topCamera, palette, lineWidth,
   drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
@@ -160,7 +160,7 @@ export class Stage {
     if (!this.flights.length) { this.drawMarks(ctx, cam); return; }
 
     const t = this.gameTime();
-    const lw = Math.max(1.5, W / 520);
+    const lw = lineWidth(W, cam.dpr);
     const colorsFor = i => (i === 0 ? this.opts.color || '#ffd166' : this.opts.pairColor || '#ffffff');
     // On the light palette's pale sky the yellow, the pale blue and the white would all but vanish, so each path, its
     // dots and its decision ring get a thin dark halo, about 2 CSS pixels wider. The dark palette needs none.

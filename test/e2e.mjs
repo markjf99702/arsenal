@@ -363,7 +363,7 @@ assert.equal(flights[0].x, flights[1].x);
     const stage = window.arsenal.stage, cam = stage.camera(), ctx = document.getElementById('flight').getContext('2d');
     const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
     const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
-    const lw = Math.max(1.5, cam.W / 520) * 1.2, out = [];
+    const lw = Math.max(1.5, cam.W / cam.dpr / 520) * cam.dpr * 1.2, out = [];
     // Each throw is scattered at random, so now and then the other pitch's line, with its halo (lw + 2 CSS px wide), runs
     // right beside this one where it's looked at: that side is against the other line, not the sky, and is skipped.
     const reach = lw / 2 + cam.dpr + 1;

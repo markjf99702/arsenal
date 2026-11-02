@@ -140,6 +140,10 @@ export function topCamera(W, H) {
 
 // ---------------------------------------------------------------- scenery
 
+// A line's width in device pixels: `per`-th of the picture's width in CSS pixels and never under `least`, so it's as
+// thick on a phone, with two or three device pixels to each CSS pixel, as on a computer with one.
+export const lineWidth = (W, dpr = 1, per = 520, least = 1.5) => Math.max(least, W / dpr / per) * dpr;
+
 export function palette(dark) {
   return dark
     ? { skyTop: '#0b1020', skyLow: '#1d2a44', stands: '#0e1422', wall: '#123326', grassFar: '#1c4a2b', grassNear: '#1f5530', dirt: '#6b4a32', dirtDark: '#5a3e2a', chalk: 'rgba(240,236,226,.85)', plate: '#f2eee4', zone: 'rgba(255,255,255,.55)', zoneFill: 'rgba(255,255,255,.06)', text: '#e9e5dc', ghost: 'rgba(235,235,235,.75)', lights: true }
@@ -233,7 +237,7 @@ export function drawZone(ctx, cam, c) {
   pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
   ctx.closePath();
   ctx.fillStyle = c.zoneFill; ctx.fill();
-  ctx.strokeStyle = c.zone; ctx.lineWidth = Math.max(1, cam.W / 600); ctx.stroke();
+  ctx.strokeStyle = c.zone; ctx.lineWidth = lineWidth(cam.W, cam.dpr, 600, 1); ctx.stroke();
   // Thirds, faintly.
   ctx.save();
   ctx.globalAlpha = 0.35;
@@ -267,7 +271,7 @@ export function drawSideField(ctx, cam, c) {
   ctx.fillStyle = c.plate; ctx.fillRect(p0.x, cam.ground - 2, Math.max(3, p1.x - p0.x), 3);
   const zb = cam.project([0, PLATE_Y, ZONE.bottom]), zt = cam.project([0, PLATE_Y, ZONE.top]);
   ctx.fillStyle = c.zoneFill; ctx.fillRect(zb.x - 3, zt.y, Math.max(6, p1.x - p0.x + 6), zb.y - zt.y);
-  ctx.strokeStyle = c.zone; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = c.zone; ctx.lineWidth = 1.5 * (cam.dpr || 1);
   ctx.strokeRect(zb.x - 3, zt.y, Math.max(6, p1.x - p0.x + 6), zb.y - zt.y);
   // Distance marks every 10 feet.
   ctx.fillStyle = c.text; ctx.globalAlpha = 0.7;
@@ -284,7 +288,7 @@ export function drawSideField(ctx, cam, c) {
 // `clear`: where the page's words sit over the picture, in CSS pixels from its top left (the speed and the time in the
 // top-left corner, the legend in the top-right), so the label up the screen keeps clear of them.
 export function drawTopField(ctx, cam, c, hand = 'R', clear = {}) {
-  const { W, H } = cam;
+  const { W, H } = cam, dpr = cam.dpr || 1;
   ctx.fillStyle = c.grassNear; ctx.fillRect(0, 0, W, H);
   const P = (x, y) => cam.project([x, y, 0]);
   // Mowing stripes every 10 feet.
@@ -299,7 +303,7 @@ export function drawTopField(ctx, cam, c, hand = 'R', clear = {}) {
   ctx.fillStyle = c.chalk;
   const r0 = P(-1, RUBBER_Y), r1 = P(1, RUBBER_Y + 0.5);
   ctx.fillRect(Math.min(r0.x, r1.x), Math.min(r0.y, r1.y), Math.abs(r1.x - r0.x), Math.abs(r1.y - r0.y));
-  ctx.strokeStyle = c.chalk; ctx.lineWidth = Math.max(1.5, W / 500);
+  ctx.strokeStyle = c.chalk; ctx.lineWidth = lineWidth(W, dpr, 500);
   for (const sx of [1, -1]) {
     const a = P(sx * 1.208, -2.29), b = P(sx * 5.208, 3.71);
     ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
@@ -310,14 +314,13 @@ export function drawTopField(ctx, cam, c, hand = 'R', clear = {}) {
   ctx.closePath(); ctx.fill();
   // Straight line from rubber to plate, for reference.
   ctx.save();
-  ctx.setLineDash([4, 6]); ctx.strokeStyle = c.chalk; ctx.globalAlpha = 0.45; ctx.lineWidth = 1;
+  ctx.setLineDash([4 * dpr, 6 * dpr]); ctx.strokeStyle = c.chalk; ctx.globalAlpha = 0.45; ctx.lineWidth = dpr;
   const a = P(0, RUBBER_Y), b = P(0, 0);
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   ctx.restore();
   // Which side is which. Up the screen is first base. The top label sits along the top edge, clear of every path,
   // and starts past the speed readout the page puts in the top-left corner (about 114px wide, more with two pitches'
   // speeds). Where that would run into the legend in the top-right, it goes just under the readout instead.
-  const dpr = cam.dpr || 1;
   ctx.fillStyle = 'rgba(255,255,255,.9)';
   ctx.font = `600 ${Math.round(Math.max(12 * dpr, W / 60))}px "Barlow Condensed", system-ui, sans-serif`;
   ctx.textAlign = 'left';

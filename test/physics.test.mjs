@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
-import { throwPitch, sideCamera, catcherCamera, PLATE_Y, G } from '../js/flight.js';
+import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
+import { Stage } from '../js/stage.js';
 import { tilt } from '../js/spin.js';
 import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW } from '../js/tracker.js';
 
@@ -89,22 +90,76 @@ test('the at-bat view marks a pitch that crosses at the ground and shows the hig
   assert.ok(wide > 0.78 && wide < 0.86, `the computer's at-bat view is ${wide.toFixed(2)} of the explorer's`);
 });
 
-// A stand-in for a canvas's 2D context that records each circle filled or stroked: where, how big, in what colour.
+// A stand-in for a canvas's 2D context that records what's filled or stroked: each circle (where, how big), or a line,
+// in what colour and how wide. Anything else it's asked to do, it does nothing.
 function recorder() {
-  const drawn = [];
+  const drawn = [], nothing = { addColorStop() {}, width: 0 };
   let path = [];
   const ctx = new Proxy({}, {
     get(t, k) {
       if (k in t) return t[k];
       if (k === 'beginPath') return () => { path = []; };
       if (k === 'arc') return (x, y, r) => path.push({ x, y, r });
-      if (k === 'fill' || k === 'stroke') return () => { for (const a of path) drawn.push({ ...a, op: k, color: k === 'fill' ? t.fillStyle : t.strokeStyle, width: t.lineWidth }); };
-      return () => {};
+      if (k === 'fill' || k === 'stroke' || k === 'strokeRect') {
+        return () => {
+          const was = { op: k, color: k === 'fill' ? t.fillStyle : t.strokeStyle, width: t.lineWidth };
+          if (k === 'strokeRect' || !path.some(a => a.r)) drawn.push(was);
+          else for (const a of path) drawn.push({ ...a, ...was });
+        };
+      }
+      return () => nothing;
     },
     set(t, k, v) { t[k] = v; return true; },
   });
   return { ctx, drawn };
 }
+
+// The scenery's lines and the paths are as thick, in CSS pixels, on a phone with two device pixels to each CSS pixel
+// as on a computer with one, and on a computer with two: a phone's picture, 358 x 235 CSS pixels, and a computer's,
+// 650 x 447. On a phone they were half as thick.
+const SCREENS = [['phone', 358, 235, 2], ['computer', 650, 447, 1], ['computer at 2x', 650, 447, 2]];
+const css = (drawn, pick) => { const d = drawn.find(pick); return d && +(d.width / d.dpr).toFixed(2); };
+test('the strike zone, the side view’s zone and the chalk from above are as thick on a phone as on a computer', () => {
+  const widths = SCREENS.map(([, w, h, dpr]) => {
+    const out = {};
+    for (const [kind, make, draw, pick] of [
+      ['zone', () => catcherCamera(w * dpr, h * dpr), (ctx, cam) => drawZone(ctx, cam, palette(false)), d => d.op === 'stroke'],
+      ['side', () => sideCamera(w * dpr, h * dpr, { dpr }), (ctx, cam) => drawSideField(ctx, cam, palette(false)), d => d.op === 'strokeRect'],
+      ['above', () => topCamera(w * dpr, h * dpr), (ctx, cam) => drawTopField(ctx, cam, palette(false)), d => d.op === 'strokeRect'],
+    ]) {
+      const cam = make(), { ctx, drawn } = recorder();
+      cam.dpr = dpr;
+      draw(ctx, cam);
+      out[kind] = css(drawn.map(d => ({ ...d, dpr })), pick);
+    }
+    return out;
+  });
+  for (const [i, [name]] of SCREENS.entries()) assert.ok(widths[i].zone >= 1 && widths[i].side >= 1.5 && widths[i].above >= 1.5, `${name}: ${JSON.stringify(widths[i])} CSS px`);
+  assert.deepEqual(widths[2], widths[1], 'a computer at 2x draws them at another width');
+  assert.deepEqual(widths[0].side, widths[1].side, 'the side view’s zone on a phone and a computer');
+});
+
+test('the paths, the ghost and the decision ring are as thick on a phone as on a computer', () => {
+  const widths = SCREENS.map(([, w, h, dpr]) => {
+    // The page's stage on a canvas of that size, with nothing to watch it resize or animate it, drawn once the pitch is in.
+    const { ctx, drawn } = recorder();
+    Object.assign(globalThis, {
+      window: { devicePixelRatio: dpr }, matchMedia: () => ({ matches: false }), ResizeObserver: class { observe() {} },
+      requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
+      document: { createElement: () => ({ getContext: () => recorder().ctx }) },
+    });
+    const stage = new Stage({ width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => ({ width: w, height: h, left: 0, top: 0 }) });
+    stage.set({ view: 'catcher', color: '#ffd23f', ghost: true });
+    stage.throw(BY_CODE.SL);
+    stage.clock = 5;
+    drawn.length = 0;
+    stage.draw();
+    const lines = drawn.filter(d => d.op === 'stroke').map(d => ({ ...d, dpr }));
+    return { path: css(lines, d => d.color === '#ffd23f' && !d.r), ring: css(lines, d => d.color === '#ffd23f' && d.r), ghost: css(lines, d => d.color === palette(false).ghost && !d.r) };
+  });
+  for (const [i, [name]] of SCREENS.entries()) assert.ok(widths[i].path >= 1.8 && widths[i].ring >= 1.5 && widths[i].ghost >= 1.35, `${name}: ${JSON.stringify(widths[i])} CSS px`);
+  assert.deepEqual(widths[0], widths[1], 'a phone and a computer draw them at different widths');
+});
 
 test('the newest mark grows in as it lands, settling to its size, and the others stay as they are', () => {
   assert.equal(growth(0), 1.5);
