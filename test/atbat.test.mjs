@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
-import { TARGET, run, checks, SEEDS } from './lab.mjs';
+import { TARGET, run, checks, SEEDS, measure } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
 import { rng } from '../js/rng.js';
@@ -377,6 +377,15 @@ test('in every count, hitters swing and miss about as often as they really do', 
 test('each kind of pitch gets missed about as often as it really does, and lands in the zone as often', () => holds('types'));
 
 test('each real pitcher’s pitches get missed about as often as his really did', () => holds('pitchers'));
+
+// Fouls follow the count, a knob for each (js/atbat-params.js, fairBy): less of his contact goes fair in one, and more
+// of it is fouled off there, and in no other count.
+test('how much contact goes foul is set count by count', () => {
+  const fouls = params => measure(params, 2500, 7).counts;
+  const base = fouls(PARAMS), more = fouls({ ...PARAMS, fairBy: { ...PARAMS.fairBy, '1-1': PARAMS.fairBy['1-1'] * 0.6 } });
+  assert.ok(more['1-1'].foul > base['1-1'].foul + 0.1, `1-1: ${base['1-1'].foul.toFixed(3)}, then ${more['1-1'].foul.toFixed(3)}`);
+  assert.ok(Math.abs(more['0-0'].foul - base['0-0'].foul) < 0.02, `0-0: ${base['0-0'].foul.toFixed(3)}, then ${more['0-0'].foul.toFixed(3)}`);
+});
 
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {

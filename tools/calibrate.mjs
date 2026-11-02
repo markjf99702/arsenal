@@ -81,10 +81,11 @@ function nudge(m) {
     if (!TYPES[t] || v.swings < 120) continue;
     P.stuff[t] = clamp(P.stuff[t] * Math.exp(0.8 * (logit(TYPES[t].whiff) - logit(Math.min(0.95, Math.max(0.02, v.whiff))))), 0.5, 2);
   }
-  // Fouls: the chance that square-enough contact goes fair, and how much more he spoils with two strikes (which is
-  // most of what makes an at-bat long).
-  P.fair.gain = clamp(P.fair.gain * ((1 - TARGET.foul) / (1 - m.foul)) ** 0.8, 0.05, 1.5);
-  P.fair.twoStrike = clamp(P.fair.twoStrike * (m.ppa / TARGET.ppa) ** 1.5, 0.5, 1.1);
+  // Fouls: the chance that square-enough contact goes fair, in each count, until as much of it is fouled off as in
+  // 2026 (about half, in every count).
+  for (const [c, v] of Object.entries(m.counts)) {
+    if (v.pitches * v.swing * (1 - v.whiff) > 150) P.fairBy[c] = clamp(P.fairBy[c] * ((1 - COUNTS[c].foul) / Math.max(0.05, 1 - v.foul)) ** 0.8, 0.3, 2);
+  }
   P.hbp.at = clamp(P.hbp.at + 0.08 * Math.log(Math.max(0.001, m.hbp) / TARGET.hbp), 1.2, 2.6);
 }
 

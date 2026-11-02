@@ -257,8 +257,8 @@ export function throwCall(ab, call) {
     if (!R.chance(pContact)) out.result = 'whiff';
     else {
       const square = Math.exp(-((missBy / P.fair.miss) ** 2) - (early / P.fair.timing) ** 2 - (reach / P.fair.reach) ** 2);
-      // With two strikes he's protecting the plate: more of his contact is spoiled foul.
-      const fair = (P.fair.base + (1 - P.fair.base) * square * P.fair.gain) * (before.strikes === 2 ? P.fair.twoStrike : 1);
+      // How much of his contact goes foul, count by count, as it did in 2026.
+      const fair = (P.fair.base + (1 - P.fair.base) * square * P.fair.gain) * P.fairBy[`${before.balls}-${before.strikes}`];
       if (!R.chance(fair)) {
         out.result = before.strikes === 2 && R.chance(P.tip) ? 'tip' : 'foul';
       } else {
