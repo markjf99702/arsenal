@@ -34,8 +34,8 @@ const batterWords = (side, hitter) => {
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
-  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null };
-  const stage = new Stage($('ab-flight'), { onArrive: () => land() });
+  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null, watching: null };
+  const stage = new Stage($('ab-flight'), { onArrive: () => (S.watching ? watched() : land()) });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
   // away to a lefty, which are in the same place, and wrap to fit (--ro-max, css/app.css); the radar board in its
@@ -129,6 +129,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-throw').focus({ preventScroll: true });
   });
   $('ab-copy').addEventListener('click', copyLink);
+  for (const id of ['ab-watch', 'ab-watch-link']) $(id).addEventListener('click', () => watch());
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
   $('ab-run').addEventListener('click', () => { if (!S.busy && !S.charting) hundred(); });
@@ -164,6 +165,7 @@ export function setupAtBat({ dark = false } = {}) {
     if (!keepCalls) S.calls = [];
     S.code = S.pitcher.pitches[0].code;
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
+    stopWatch();
     S.busy = false;
     S.pending = null;
     S.open = null;
@@ -183,6 +185,7 @@ export function setupAtBat({ dark = false } = {}) {
     buildCall();
     drawState();
     $('ab-notice').textContent = '';
+    $('ab-watch-link').hidden = true;
     $('ab-version').textContent = '';
     if (picked) {
       const said = `New at-bat: ${who()} to ${batterWords(S.batter, S.hitter)}.`;
@@ -207,6 +210,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-hint').textContent = '';
     // A link's notice was about what it replayed; from here on the at-bat is this one.
     $('ab-notice').textContent = '';
+    $('ab-watch-link').hidden = true;
     $('ab-version').textContent = '';
     fly(rec);
   }
@@ -270,11 +274,11 @@ export function setupAtBat({ dark = false } = {}) {
   // What a screen reader hears as a pitch lands: which pitch, where it was called (and crossed, if somewhere else), what
   // happened and the count, then why, so even three fouls in a row are three new lines. At the end, how it ended and
   // the scout's note.
-  function say() {
-    const ab = S.ab, last = ab.pitches.at(-1);
-    $('ab-live').textContent = ab.result
-      ? `${ENDING[ab.result]} on a ${last.before.balls}-${last.before.strikes} pitch. ${note(ab)}`
-      : `Pitch ${last.n}, ${NAME[last.code]}, ${calledLine(last, ab.batter)}: ${lower(resultWord(last))}. ${last.after.balls} and ${last.after.strikes}. ${why(last, ab.pitches.at(-2), ab.batter)}`;
+  function say(i = S.ab.pitches.length - 1) {
+    const ab = S.ab, p = ab.pitches[i];
+    $('ab-live').textContent = ab.result && i === ab.pitches.length - 1
+      ? `${ENDING[ab.result]} on a ${p.before.balls}-${p.before.strikes} pitch. ${note(ab)}`
+      : `Pitch ${p.n}, ${NAME[p.code]}, ${calledLine(p, ab.batter)}: ${lower(resultWord(p))}. ${p.after.balls} and ${p.after.strikes}. ${why(p, ab.pitches[i - 1], ab.batter)}`;
   }
 
   // ---------------------------------------------------------------- drawing
@@ -325,17 +329,20 @@ export function setupAtBat({ dark = false } = {}) {
   // took thinking it would miss, where he thought it would cross. Only the last pitch's, so the picture doesn't clutter,
   // or with a row of the log open, that pitch's: where it was called, its line and where he swung.
   function drawPicture() {
-    const p = S.pending, open = !p && S.open != null ? S.ab.pitches[S.open] : null, last = p ? null : open || S.ab.pitches.at(-1);
-    const spot = p ? p.spot : open ? open.spot : S.spot;
+    const w = S.watching, ps = S.ab.pitches;
+    // Watching it again, the pitch being thrown again stands for the last: in the air (`p`), or once it's in.
+    const p = w ? (w.landed ? null : ps[w.i]) : S.pending;
+    const open = !w && !p && S.open != null ? ps[S.open] : null, last = p ? null : w ? ps[w.i] : open || ps.at(-1);
+    const spot = p ? p.spot : w ? last.spot : open ? open.spot : S.spot;
     const missed = last && last.spot.id === spot.id && Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]) > MISSED;
     let swing = null;
     if (last?.swing) swing = { at: [last.plate[0] - last.miss[0], last.plate[1] - last.miss[1]], to: last.plate, tag: last.result === 'whiff' ? timing(last) : '' };
     else if (last?.result === 'called' && last.inZone && thoughtMiss(last)) swing = { at: last.judged, to: last.plate, tag: 'his read' };
     // And the pitch before, faint under it, so two out of the same tunnel are seen to split only after the decision point.
-    const prev = S.ab.pitches.at(-2) || null;
+    const prev = (w ? ps[w.i - 1] : ps.at(-2)) || null;
     stage.set({ target: spotXZ(spot, S.batter), miss: missed ? last.plate : null, swing, prev: prev?.path || null });
     // The key to what's drawn faint and dashed, once there's a pitch: the last pitch's path, and the decision ring.
-    const key = (prev ? '<span><i class="ln prev"></i>Last pitch</span>' : '') + (S.ab.pitches.length ? '<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>' : '');
+    const key = (prev ? '<span><i class="ln prev"></i>Last pitch</span>' : '') + (ps.length ? '<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>' : '');
     if ($('ab-legend').innerHTML !== key) $('ab-legend').innerHTML = key;
   }
 
@@ -349,11 +356,22 @@ export function setupAtBat({ dark = false } = {}) {
     cancelAnimationFrame(cueRaf);
     $('ab-cue').textContent = `Sitting on the ${NAME[rec.sat.code]}\u00a0· ${rec.swing ? 'swings' : 'takes'}`;
     const tick = () => {
-      const t = stage.gameTime(), on = S.pending === rec && S.speed < 1 && t >= rec.path.T - DECIDE && t < rec.path.T;
+      const flying = S.pending === rec || (!!S.watching && !S.watching.landed && S.ab.pitches[S.watching.i] === rec);
+      const t = stage.gameTime(), on = flying && S.speed < 1 && t >= rec.path.T - DECIDE && t < rec.path.T;
       if (cueFrame.classList.contains('deciding') !== on) cueFrame.classList.toggle('deciding', on);
-      if (S.pending === rec) cueRaf = requestAnimationFrame(tick);
+      if (flying) cueRaf = requestAnimationFrame(tick);
     };
     cueRaf = requestAnimationFrame(tick);
+  }
+
+  // The count after `last` (a pitch, or nothing before the first), or once it's `over`, the scorebook's mark for how it
+  // ended and the count it ended on. The count is read as "1 ball, 2 strikes", not "1-2, B, S".
+  function drawCount(last, over) {
+    const balls = last ? last.after.balls : 0, strikes = last ? last.after.strikes : 0, r = S.ab.result;
+    const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
+    $('ab-count').innerHTML = over
+      ? `<span class="ct${r === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[r]}">${SCOREBOOK[r]}</span><span class="on">on a ${last.before.balls}-${last.before.strikes} pitch</span>`
+      : `<span class="sr">${plural(balls, 'ball')}, ${plural(strikes, 'strike')}</span><span class="ct" aria-hidden="true">${balls}-${strikes}</span><span class="dots" aria-hidden="true"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots" aria-hidden="true"><b>S</b>${dots(strikes, 2, 's')}</span>`;
   }
 
   function drawState() {
@@ -361,14 +379,8 @@ export function setupAtBat({ dark = false } = {}) {
     const shown = S.pending ? ab.pitches.slice(0, -1) : ab.pitches;
     const last = shown.at(-1);
     const over = ab.result && !S.pending;
-    const balls = last ? last.after.balls : 0, strikes = last ? last.after.strikes : 0;
-    const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
-    // Once it's over, the count gives way to the scorebook's mark for how it ended, and the count it ended on.
-    const ended = over && `${last.before.balls}-${last.before.strikes}`, on = over && `on a ${ended} pitch`;
-    // The count is read as "1 ball, 2 strikes", not "1-2, B, S".
-    $('ab-count').innerHTML = over
-      ? `<span class="ct${ab.result === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[ab.result]}">${SCOREBOOK[ab.result]}</span><span class="on">${on}</span>`
-      : `<span class="sr">${plural(balls, 'ball')}, ${plural(strikes, 'strike')}</span><span class="ct" aria-hidden="true">${balls}-${strikes}</span><span class="dots" aria-hidden="true"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots" aria-hidden="true"><b>S</b>${dots(strikes, 2, 's')}</span>`;
+    const ended = over && `${last.before.balls}-${last.before.strikes}`;
+    drawCount(last, over);
     if (last) {
       // Once it's over the end card has the headline, so this only says why the last pitch went how it did.
       const head = over ? '<p class="lbl">Last pitch</p>' : `<p class="res res-${markKind(last.result)}">${resultWord(last)}</p>`;
@@ -436,6 +448,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-throw').setAttribute('aria-disabled', String(S.busy || !!S.ab.result));
     $('ab-suggest').setAttribute('aria-disabled', String(S.busy));
     $('ab-run').setAttribute('aria-disabled', String(S.busy || !!S.charting));
+    for (const id of ['ab-watch', 'ab-watch-link']) $(id).setAttribute('aria-disabled', String(S.busy));
   }
 
   // ---------------------------------------------------------------- the hundred throws
@@ -538,6 +551,67 @@ export function setupAtBat({ dark = false } = {}) {
     });
   }
 
+  // ---------------------------------------------------------------- watching it again
+  // The at-bat's pitches thrown again from the first, one after another, at the speed picked. They're the ones in the
+  // record, not thrown anew, so it's the same at-bat, and the link doesn't change. Each pitch's row in the log is lit
+  // while it flies and once it's in, its mark goes on as it lands, and the count, what happened and the radar board over
+  // the picture follow it, as does a screen reader. Once the last is in, the page is as it was. Next hitter, or another
+  // pitcher, batter or kind of hitter, stops it.
+  const GAP = 1100; // ms from one pitch landing to the next leaving his hand
+  let watchTimer = 0;
+  function watch() {
+    if (S.busy || !S.ab.pitches.length) return;
+    if (S.open != null) openRow(null);
+    stopChart();
+    $('ab-chart').replaceChildren();
+    S.watching = { i: 0, landed: false };
+    S.busy = true;
+    waiting();
+    throwAgain();
+  }
+  function throwAgain() {
+    const w = S.watching, ps = S.ab.pitches, rec = ps[w.i];
+    w.landed = false;
+    drawCount(ps[w.i - 1], false);
+    readout(`Pitch ${rec.n}`);
+    board(rec);
+    lightRow(w.i);
+    drawPicture();
+    cue(rec);
+    stage.set({ marks: marks(ps.slice(0, w.i)) });
+    stage.show([rec.path]);
+  }
+  function watched() {
+    const w = S.watching, ps = S.ab.pitches, rec = ps[w.i], end = w.i === ps.length - 1 && !!S.ab.result;
+    w.landed = true;
+    cueFrame.classList.remove('deciding');
+    stage.set({ marks: marks(ps.slice(0, w.i + 1)), grow: true });
+    drawCount(rec, end);
+    if (end) readout(ENDING[S.ab.result], `${ps.length} pitch${ps.length === 1 ? '' : 'es'}`, markKind(rec.result));
+    else readout(resultWord(rec), '', markKind(rec.result));
+    drawPicture();
+    say(w.i);
+    watchTimer = setTimeout(() => {
+      if (w.i + 1 < ps.length) { w.i++; throwAgain(); return; }
+      stopWatch();
+      drawState();
+      stage.set({ marks: markList(ps) });
+    }, GAP);
+  }
+  // Stops a watch partway, or ends one that's done; the caller draws the page as it is.
+  function stopWatch() {
+    clearTimeout(watchTimer);
+    if (!S.watching) return;
+    S.watching = null;
+    S.busy = false;
+    lightRow(null);
+    waiting();
+  }
+  // The row of the pitch being watched again, lit; with null, none.
+  function lightRow(i) {
+    [...$('ab-log').children].forEach((li, k) => { if (k === i) li.firstElementChild.setAttribute('aria-current', 'step'); else li.firstElementChild.removeAttribute('aria-current'); });
+  }
+
   // ---------------------------------------------------------------- links
   // #ab.v<version>.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat on the same version of
   // the hitter (linkFor, js/atbat.js).
@@ -610,6 +684,9 @@ export function setupAtBat({ dark = false } = {}) {
     const n = S.ab.pitches.length;
     if (n) said.unshift(`Replayed from the link: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
+    // Under it, a way to watch the link's at-bat from its first pitch, when there's more than the one it throws again.
+    // Once it's over the end card has its own.
+    $('ab-watch-link').hidden = n < 2 || !!S.ab.result;
     // Made against another version of the hitter, the calls are thrown to today's, who may not play them the same way.
     $('ab-version').textContent = n && link.version !== VERSION
       ? `Pitched against ${link.version < VERSION ? 'an earlier' : 'a newer'} version of the hitter, so the same calls may play out differently.` : '';

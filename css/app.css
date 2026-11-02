@@ -560,6 +560,8 @@ p { margin: 0; }
 /* What a link asked for that couldn't be done: a pitcher not here, or pitches left out. */
 .notice { font-size: 14px; color: var(--ink-2); background: var(--paper); border-radius: 10px; padding: 10px 12px; }
 .notice:empty { display: none; }
+/* Watching a link's at-bat from the first pitch: right under the notice that says it's from a link. */
+.watch-link { justify-self: start; margin-top: -6px; }
 
 .last:empty { display: none; }
 #ab-version:empty { display: none; }
@@ -578,6 +580,9 @@ p { margin: 0; }
 }
 @media (hover: hover) { .log .row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); } }
 .log .row[aria-expanded="true"] { background: var(--paper); }
+/* The pitch being watched again: lit in the accent's colour, its number's mark ringed in it. */
+.log .row[aria-current] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.log .row[aria-current] .n { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .log .row:focus-visible { outline-offset: -2px; }
 .log .more { flex: none; align-self: center; width: 7px; height: 7px; margin: 0 3px 4px auto; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .log .row[aria-expanded="true"] .more { transform: rotate(-135deg); margin-bottom: 0; margin-top: 4px; }

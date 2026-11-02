@@ -1426,7 +1426,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
   const reach = () => ph.evaluate(() => {
     const short = [];
-    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy')) {
+    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy, #ab-watch')) {
       if (!el.offsetParent) continue;
       el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
@@ -1855,6 +1855,67 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.evaluate(() => window.arsenal.atBat.throw('FF', '00'));
   assert.equal((await rows()).whys, 0, 'a row stayed open once the next pitch was thrown');
   await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+}
+
+// Watch it again, on the end card: the at-bat's pitches thrown again from the first, at the speed picked, the record's
+// own flights rather than new ones. Each pitch's row is lit while it flies and once it's in, its mark goes on as it
+// lands, and the count and what happened over the picture follow; once the last is in, the page is as it was. A shared
+// link with more than one pitch offers it under the line saying it's from a link, and Next hitter stops it.
+{
+  const watchAll = button => page.evaluate(id => new Promise(resolve => {
+    const out = [], heard = [], { state, stage } = window.arsenal.atBat, live = document.getElementById('ab-live');
+    const said = new MutationObserver(() => heard.push(live.textContent));
+    said.observe(live, { childList: true, characterData: true, subtree: true });
+    let same = true;
+    document.getElementById(id).click();
+    const tick = () => {
+      const w = state.watching;
+      if (w) {
+        same &&= stage.flights[0] === state.ab.pitches[w.i].path;
+        const lit = [...document.querySelectorAll('#ab-log .row')].flatMap((b, i) => (b.hasAttribute('aria-current') ? [i] : []));
+        const k = `${w.i + 1}${w.landed ? ' in' : ''}: ${document.querySelector('#ab-count .ct').textContent} ${document.getElementById('ab-ro').textContent} · ${stage.opts.marks.length} marks · lit ${lit.join()}`;
+        if (k !== out.at(-1)) out.push(k);
+        requestAnimationFrame(tick);
+      } else { said.disconnect(); resolve({ out, same, heard: heard.length, busy: state.busy }); }
+    };
+    tick();
+  }), button);
+  const looks = () => page.evaluate(() => ({
+    count: document.getElementById('ab-count').innerHTML, ro: document.getElementById('ab-ro').innerHTML, log: document.getElementById('ab-log').innerHTML,
+    marks: window.arsenal.atBat.stage.opts.marks.map(m => m.n).join(), end: !document.getElementById('ab-end').hidden, call: !document.getElementById('ab-callbox').hidden,
+  }));
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  assert.equal(await page.locator('#ab-watch-link').isHidden(), true, 'the link\'s own way to watch it again shows with the end card\'s');
+  const before = await looks();
+  const w = await watchAll('ab-watch');
+  assert.deepEqual(w, {
+    out: [
+      '1: 0-0 Pitch 1 · 0 marks · lit 0', '1 in: 0-1 Foul · 1 marks · lit 0', '2: 0-1 Pitch 2 · 1 marks · lit 1', '2 in: 1-1 Ball · 2 marks · lit 1',
+      '3: 1-1 Pitch 3 · 2 marks · lit 2', '3 in: 1-2 Foul · 3 marks · lit 2', '4: 1-2 Pitch 4 · 3 marks · lit 3', '4 in: 1-2 Foul · 4 marks · lit 3',
+      '5: 1-2 Pitch 5 · 4 marks · lit 4', '5 in: 2-2 Ball · 5 marks · lit 4', '6: 2-2 Pitch 6 · 5 marks · lit 5', '6 in: K Strikeout swinging · 6 pitches · 6 marks · lit 5',
+    ], same: true, heard: 6, busy: false,
+  }, 'watching the README\'s strikeout again');
+  assert.deepEqual(await looks(), before, 'the page once it had been watched again');
+  // Partway through, from a link: offered under the notice, and the call box is back once it's done.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.SL24\.CU22$/, ''));
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  assert.deepEqual(await page.evaluate(() => { const b = document.getElementById('ab-watch-link'); return [b.checkVisibility(), b.previousElementSibling.id, b.textContent]; }), [true, 'ab-notice', 'Watch it from the first pitch'], 'a link\'s way to watch it from the first pitch');
+  const part = await looks();
+  assert.equal((await watchAll('ab-watch-link')).out.length, 8, 'the four pitches watched again from the link');
+  assert.deepEqual(await looks(), part, 'the page once the link\'s pitches had been watched again');
+  // Next hitter partway through stops it, and the new at-bat is clean.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  await page.locator('#ab-watch').click();
+  await page.waitForFunction(() => window.arsenal.atBat.state.watching?.i === 2, null, { timeout: 15000 });
+  await page.locator('#ab-next').click();
+  await page.waitForTimeout(2500);
+  assert.deepEqual(await page.evaluate(() => { const { state, stage } = window.arsenal.atBat; return { watching: state.watching, busy: state.busy, marks: stage.opts.marks.length, n: state.ab.pitches.length, lit: document.querySelectorAll('#ab-log [aria-current]').length }; }),
+    { watching: null, busy: false, marks: 0, n: 0, lit: 0 }, 'Next hitter while it was being watched again');
 }
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
