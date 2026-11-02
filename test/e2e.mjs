@@ -1292,6 +1292,38 @@ for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [
   await roCtx.close();
 }
 
+// On a computer the at-bat's picture starts part-way through a pixel, and its frame's grass green, there until the
+// picture is drawn, showed as a line along the bottom, bright on the dark palette's dirt. Neither picture has any of it
+// along its bottom edge, in either palette, wherever it is on the screen. (Each palette is a page of its own: switching
+// the palette of a page already open repaints it and hid the line.)
+for (const colorScheme of ['light', 'dark']) {
+  const deskCtx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme, serviceWorkers: 'block' });
+  const desk = await deskCtx.newPage();
+  watch(desk);
+  await desk.goto(base + STRIKEOUT);
+  await desk.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  for (const [id, from] of [['ab-flight', 40], ['ab-flight', 100], ['ab-flight', 250], ['flight', 12], ['flight', 40]]) {
+    await desk.evaluate(([id, from]) => { const f = document.getElementById(id); scrollTo(0, scrollY + f.getBoundingClientRect().top - from); }, [id, from]);
+    await desk.waitForTimeout(200);
+    const shot = (await desk.screenshot()).toString('base64');
+    const green = await desk.evaluate(async ({ id, shot }) => {
+      const f = document.getElementById(id).parentElement.getBoundingClientRect(), img = new Image();
+      img.src = `data:image/png;base64,${shot}`;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d');
+      x.drawImage(img, 0, 0);
+      const rows = x.getImageData(Math.ceil(f.left + 20), Math.floor(f.bottom) - 2, Math.floor(f.width - 40), 4).data;
+      let n = 0;
+      for (let i = 0; i < rows.length; i += 4) if (Math.abs(rows[i] - 63) < 4 && Math.abs(rows[i + 1] - 133) < 4 && Math.abs(rows[i + 2] - 64) < 4) n++;
+      return n;
+    }, { id, shot });
+    assert.equal(green, 0, `${colorScheme}: ${green} pixels of the frame's green along the bottom of #${id} at 1280x800, ${from}px down the screen`);
+  }
+  await deskCtx.close();
+}
+
 // The address follows the at-bat once a pitch is thrown, so a reload, or a phone's Share, has the at-bat being played.
 {
   const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });

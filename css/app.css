@@ -144,7 +144,10 @@ p { margin: 0; }
   .stage { position: sticky; top: 12px; }
 }
 
-.frame { position: relative; border-radius: 14px; overflow: hidden; background: #3f8540; box-shadow: var(--shadow); }
+/* The grass green shows on each picture until it's drawn. It's the canvas's own, not the frame's: a frame that starts
+   part-way through a pixel showed its green as a line along the bottom of the picture. */
+.frame { position: relative; border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+#flight, #ab-flight { background: #3f8540; }
 #flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
 @media (max-width: 640px) { #flight { aspect-ratio: 4 / 3.6; } }
 /* A phone held sideways is a short screen: there the picture is no taller than it, with a little room above and below,
