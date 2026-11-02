@@ -54,6 +54,8 @@ node tools/calibrate.mjs      # retunes the at-bat model to js/league.js and wri
 npm run build                 # dist/arsenal.html, the whole thing in one file
 ```
 
+The retuning is seeded (seed 1, or `--seed=N` for another search) and dated by `js/league.js`, so the same league numbers and the same starting knobs write the same `js/atbat-params.js`, byte for byte; `--out=PATH` writes it somewhere else, to compare two runs. It starts from the knobs already in that file, so a second run into it moves them again, and new knobs change how old at-bat links replay.
+
 To put it online with GitHub Pages: **Settings → Pages → Build and deployment → Deploy from a branch**, then pick `main` and `/ (root)`.
 
 ### Files

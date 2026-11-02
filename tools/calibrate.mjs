@@ -1,17 +1,31 @@
-// Tunes the at-bat model's knobs until simulated at-bats come out like the real league:  node tools/calibrate.mjs [rounds]
-// Writes js/atbat-params.js. The targets are js/league.js (tools/league.mjs makes it from Statcast).
+// Tunes the at-bat model's knobs until simulated at-bats come out like the real league:
+//   node tools/calibrate.mjs [rounds] [--seed=N] [--out=PATH]
+// Writes js/atbat-params.js (or PATH). The targets are js/league.js (tools/league.mjs makes it from Statcast).
 // Each round: the pitcher's aim by count and pitch type, the hitter's swing by count, the umpire, and hit-by-pitches
 // are nudged straight toward their targets; then the contact and recognition knobs are searched at random,
 // keeping a change only when it lowers the total error; then the outcomes of balls in play are matched by quantile.
-import { writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+// The random search is seeded (js/rng.js, seed 1 unless --seed says otherwise) and the file's date is js/league.js's,
+// so the same league numbers and the same starting knobs write the same file, byte for byte. It starts from the knobs
+// in js/atbat-params.js, so a second run into that file moves them again, and new knobs change how old at-bat links
+// replay.
+import { readFile, writeFile } from 'node:fs/promises';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEAGUE, COUNTS, TYPES } from '../js/league.js';
 import { measure, measurePitchers, TARGET } from '../test/lab.mjs';
 import { PARAMS as START } from '../js/atbat-params.js';
+import { rng } from '../js/rng.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const rounds = Number(process.argv[2]) || 8;
+const args = process.argv.slice(2), flag = name => args.find(a => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
+const rounds = Number(args.find(a => !a.startsWith('--'))) || 8;
+const seed0 = Number(flag('seed') ?? 1);
+if (!Number.isInteger(seed0)) throw new Error('--seed takes a whole number, like --seed=2');
+const random = rng(seed0);
+const out = flag('out') ? resolve(flag('out')) : join(root, 'js/atbat-params.js');
+// The day the league numbers were gathered, from js/league.js's first line.
+const made = (await readFile(join(root, 'js/league.js'), 'utf8')).match(/^\/\/ Made by .* on (\d{4}-\d{2}-\d{2})/)?.[1];
+if (!made) throw new Error('js/league.js has no "Made by ... on YYYY-MM-DD" line to date the knobs by');
 const PA = 9000;
 const logit = p => Math.log(p / (1 - p));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -97,7 +111,7 @@ for (let round = 1; round <= rounds; round++) {
   best = measure(P, PA, seed); bestErr = error(best);
   for (let i = 0; i < 40; i++) {
     const trial = clone(P);
-    for (const [path, step] of KNOBS) if (Math.random() < 0.35) set(trial, path, get(trial, path) * Math.exp((Math.random() * 2 - 1) * step));
+    for (const [path, step] of KNOBS) if (random() < 0.35) set(trial, path, get(trial, path) * Math.exp((random() * 2 - 1) * step));
     const m = measure(trial, PA, seed);
     const e = error(m);
     if (e < bestErr) { P = trial; best = m; bestErr = e; }
@@ -125,9 +139,9 @@ for (let i = 0; i < 3; i++) nudge(measure(P, PA * 4, seed + 1 + i));
 outcomes(measure(P, PA * 4, seed));
 
 const round3 = o => JSON.parse(JSON.stringify(o, (k, v) => (typeof v === 'number' ? Math.round(v * 10000) / 10000 : v)));
-const js = `// Made by tools/calibrate.mjs on ${new Date().toISOString().slice(0, 10)}: the at-bat model's knobs, tuned so simulated
+const js = `// Made by tools/calibrate.mjs on ${made}: the at-bat model's knobs, tuned so simulated
 // at-bats match the league in js/league.js. Distances in feet, times in seconds. See js/atbat.js for what each does.
 export const PARAMS = ${JSON.stringify(round3(P), null, 1)};
 `;
-await writeFile(join(root, 'js/atbat-params.js'), js);
-console.log('wrote js/atbat-params.js');
+await writeFile(out, js);
+console.log(`wrote ${out}`);
