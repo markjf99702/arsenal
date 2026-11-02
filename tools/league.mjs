@@ -1,10 +1,11 @@
 // Refreshes js/league.js, the numbers the at-bat model is calibrated to, from Baseball Savant:
 //   node tools/league.mjs [season] [--cache=DIR]
-// League totals, the same split by count, by pitch type and by where pitches crossed the plate, and the arsenals of the
-// pitchers you can pitch as. Then, from Statcast's pitch-by-pitch rows: each of those pitchers' speeds pitch to pitch,
-// from all of his; and from every sixth day of the season (about a sixth of its pitches, every day of the week in
-// turn), the strike zone's average top and bottom, how much a pitcher's speed varies pitch to pitch, how often hitters
-// missed a pitch right after one of another speed or the same kind, and what Statcast's wOBA counts each hit as.
+// League totals, the same split by count, by pitch type, by where pitches crossed the plate and by the hands of pitcher
+// and batter, and the arsenals of the pitchers you can pitch as. Then, from Statcast's pitch-by-pitch rows: each of
+// those pitchers' speeds pitch to pitch, from all of his; and from every sixth day of the season (about a sixth of its
+// pitches, every day of the week in turn), the strike zone's average top and bottom, how much a pitcher's speed varies
+// pitch to pitch, how often hitters missed a pitch right after one of another speed or the same kind, and what
+// Statcast's wOBA counts each hit as.
 // --cache=DIR keeps every download in DIR and reads it back on the next run.
 import { writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
@@ -94,6 +95,25 @@ for (const t of TYPES) {
   };
 }
 
+// The platoon split: each hand of pitcher to each side of the plate (RL is a right-hander to left-handed batters), with
+// the strikeouts, walks, batters hit and hits, and the swings and misses in the zone and out of it; and, for each kind of
+// pitch, the share of right-handers' pitches it was to right-handed batters and to left-handed ones (mix), so the
+// league-average righty's mix can follow the batter.
+console.log('platoon');
+const SIDES = ['R', 'L'];
+league.platoon = {};
+for (const h of SIDES) for (const b of SIDES) {
+  const hand = [['pitcher_throws', h], ['batter_stands', b]], z = await one([...hand, ['hfZ', IN_ZONE]]);
+  league.platoon[h + b] = {
+    ...pick(await one(hand), ['pitches', 'pa', 'so', 'bb', 'bip', 'singles', 'doubles', 'triples', 'hrs', 'swings', 'whiffs']),
+    hbp: n(await one([['hfPR', ['hit_by_pitch']], ...hand])), zone: { pitches: n(z), swings: num(z.swings) || 0, whiffs: num(z.whiffs) || 0 },
+  };
+}
+for (const [t, v] of Object.entries(types)) {
+  v.mix = {};
+  for (const b of SIDES) v.mix[b] = round(n(await one([['hfPT', [t]], ['pitcher_throws', 'R'], ['batter_stands', b]])) / league.platoon[`R${b}`].pitches, 4);
+}
+
 // How much a pitcher's speed varies from pitch to pitch, for each kind of pitch: the spread about his average in each
 // game, so a slow April or a tired September doesn't count as spread. `spreads` gathers pitch-by-pitch rows, by pitcher,
 // game and kind of pitch, and `sd` gives the spread for each kind, pooled over every pitcher and game.
@@ -145,6 +165,12 @@ const inZone = {};
 for (const t of TYPES) {
   for (const r of await search(season, [['hfPT', [t]], ['hfZ', IN_ZONE]], 'name')) (inZone[r.player_id] ||= {})[t] = n(r);
 }
+// And each pitcher's batters and pitches on each side of the plate: all his pitches, and of each kind.
+const toSide = { R: {}, L: {} };
+for (const b of SIDES) {
+  for (const r of await search(season, [['batter_stands', b]], 'name')) Object.assign(toSide[b][r.player_id] ||= {}, { pa: num(r.pa), all: n(r) });
+  for (const t of TYPES) for (const r of await search(season, [['hfPT', [t]], ['batter_stands', b]], 'name')) (toSide[b][r.player_id] ||= {})[t] = n(r);
+}
 const pitchers = PITCHERS.map(([id, key, line, tag]) => {
   const mine = rows[id] || [];
   const total = mine.reduce((s, x) => s + n(x.r), 0);
@@ -155,7 +181,7 @@ const pitchers = PITCHERS.map(([id, key, line, tag]) => {
     key, line, tag,
     name: mine[0].r.player_name.split(', ').reverse().join(' '),
     hand: sideOf < 0 ? 'R' : 'L',
-    pa: num(t.pa), so: num(t.so), bb: num(t.bb), hbp: hbpOf[id] || 0,
+    pa: num(t.pa), paBy: Object.fromEntries(SIDES.map(b => [b, toSide[b][id]?.pa || 0])), so: num(t.so), bb: num(t.bb), hbp: hbpOf[id] || 0,
     bip: num(t.bip), singles: num(t.singles), doubles: num(t.doubles), triples: num(t.triples), hrs: num(t.hrs),
     pitches: mine
       // A pitch he throws at least one time in twenty-five, or a hundred times.
@@ -173,6 +199,7 @@ const pitchers = PITCHERS.map(([id, key, line, tag]) => {
         extension: round(num(r.release_extension), 2),
         whiff: round(num(r.whiffs) / num(r.swings), 3),
         zone: round((inZone[id]?.[t] || 0) / n(r), 3),
+        mix: Object.fromEntries(SIDES.map(b => [b, round((toSide[b][id]?.[t] || 0) / (toSide[b][id]?.all || 1), 3)])),
         bip: num(r.bip), hits: num(r.hits), hrs: num(r.hrs),
         sd: own[id][t] ?? null,
       })),
@@ -236,11 +263,14 @@ const js = `// Made by tools/league.mjs from Baseball Savant's Statcast search o
 // from his average pitch to pitch (mph). after, in LEAGUE and each of TYPES, from every sixth day: lor, how much likelier
 // a swing missed right after a pitch at least 6 mph faster or slower than right after the same kind of pitch (the log
 // of the odds ratio, within the same pitcher, kind of pitch, count and height; 0 is no different), and the swings
-// compared. ZONES: each Statcast zone.
-// PITCHERS: the arsenals you can pitch as, with their season's plate appearances, strikeouts, walks, batters hit by a
-// pitch, balls in play, and singles, doubles, triples and home runs against them. side is feet from the middle of the
-// rubber at release, toward the arm side; sd as TYPES's, from all of his pitches; zone, the share of the pitch that
-// crossed in the zone; bip, hits and hrs, its balls in play, and the hits and home runs among them.
+// compared. ZONES: each Statcast zone. platoon, in LEAGUE: each hand of pitcher to each side of the plate (RL, a
+// right-hander to left-handed batters); mix, in each of TYPES: the share of right-handers' pitches to right-handed (R)
+// and left-handed (L) batters that were that kind.
+// PITCHERS: the arsenals you can pitch as, with their season's plate appearances (paBy: to right- and left-handed
+// batters), strikeouts, walks, batters hit by a pitch, balls in play, and singles, doubles, triples and home runs
+// against them. side is feet from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of
+// his pitches; zone, the share of the pitch that crossed in the zone; bip, hits and hrs, its balls in play, and the hits
+// and home runs among them; mix, its share of his pitches to right-handed (R) and left-handed (L) batters.
 export const LEAGUE = ${JSON.stringify(league)};
 export const COUNTS = ${JSON.stringify(counts, null, 1)};
 export const TYPES = ${JSON.stringify(types, null, 1)};

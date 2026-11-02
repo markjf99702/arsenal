@@ -7,12 +7,15 @@
 // from his average pitch to pitch (mph). after, in LEAGUE and each of TYPES, from every sixth day: lor, how much likelier
 // a swing missed right after a pitch at least 6 mph faster or slower than right after the same kind of pitch (the log
 // of the odds ratio, within the same pitcher, kind of pitch, count and height; 0 is no different), and the swings
-// compared. ZONES: each Statcast zone.
-// PITCHERS: the arsenals you can pitch as, with their season's plate appearances, strikeouts, walks, batters hit by a
-// pitch, balls in play, and singles, doubles, triples and home runs against them. side is feet from the middle of the
-// rubber at release, toward the arm side; sd as TYPES's, from all of his pitches; zone, the share of the pitch that
-// crossed in the zone; bip, hits and hrs, its balls in play, and the hits and home runs among them.
-export const LEAGUE = {"pitches":714483,"pa":183849,"so":40700,"bb":16337,"hits":39849,"singles":26110,"doubles":7493,"triples":671,"hrs":5575,"swings":340741,"whiffs":85444,"takes":373742,"bip":124611,"hbp":2119,"called":115698,"balls":255886,"tips":7514,"zone":{"pitches":339240,"swings":226357,"whiffs":36416,"called":105034},"after":{"lor":-0.175,"apart":8877,"same":8330},"woba":{"BB":0.7,"HBP":0.7,"1B":0.9,"2B":1.25,"3B":1.6,"HR":2},"sz":{"top":3.215,"bottom":1.622,"days":32,"pitches":121091}};
+// compared. ZONES: each Statcast zone. platoon, in LEAGUE: each hand of pitcher to each side of the plate (RL, a
+// right-hander to left-handed batters); mix, in each of TYPES: the share of right-handers' pitches to right-handed (R)
+// and left-handed (L) batters that were that kind.
+// PITCHERS: the arsenals you can pitch as, with their season's plate appearances (paBy: to right- and left-handed
+// batters), strikeouts, walks, batters hit by a pitch, balls in play, and singles, doubles, triples and home runs
+// against them. side is feet from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of
+// his pitches; zone, the share of the pitch that crossed in the zone; bip, hits and hrs, its balls in play, and the hits
+// and home runs among them; mix, its share of his pitches to right-handed (R) and left-handed (L) batters.
+export const LEAGUE = {"pitches":714483,"pa":183849,"so":40700,"bb":16337,"hits":39849,"singles":26110,"doubles":7493,"triples":671,"hrs":5575,"swings":340741,"whiffs":85444,"takes":373742,"bip":124611,"hbp":2119,"called":115698,"balls":255886,"tips":7514,"zone":{"pitches":339240,"swings":226357,"whiffs":36416,"called":105034},"platoon":{"RR":{"pitches":221988,"pa":57947,"so":13043,"bb":4486,"bip":39563,"singles":8377,"doubles":2258,"triples":132,"hrs":1735,"swings":106741,"whiffs":27501,"hbp":824,"zone":{"pitches":105973,"swings":70321,"whiffs":11305}},"RL":{"pitches":278149,"pa":70795,"so":15262,"bb":7046,"bip":47809,"singles":9854,"doubles":2962,"triples":322,"hrs":2287,"swings":131741,"whiffs":32205,"hbp":644,"zone":{"pitches":130876,"swings":88027,"whiffs":13922}},"LR":{"pitches":142135,"pa":36244,"so":7975,"bb":3315,"bip":24572,"singles":5093,"doubles":1613,"triples":114,"hrs":1108,"swings":68159,"whiffs":16971,"hbp":369,"zone":{"pitches":66653,"swings":44929,"whiffs":7295}},"LL":{"pitches":72211,"pa":18863,"so":4420,"bb":1490,"bip":12667,"singles":2786,"doubles":660,"triples":103,"hrs":445,"swings":34100,"whiffs":8767,"hbp":282,"zone":{"pitches":35738,"swings":23080,"whiffs":3894}}},"after":{"lor":-0.175,"apart":8877,"same":8330},"woba":{"BB":0.7,"HBP":0.7,"1B":0.9,"2B":1.25,"3B":1.6,"HR":2},"sz":{"top":3.215,"bottom":1.622,"days":32,"pitches":121091}};
 export const COUNTS = {
  "0-0": {
   "pitches": 183681,
@@ -145,6 +148,10 @@ export const TYPES = {
   "zoneWhiff": 0.172,
   "chaseSwing": 0.277,
   "chaseWhiff": 0.343,
+  "mix": {
+   "R": 0.273,
+   "L": 0.3393
+  },
   "sd": 0.94,
   "after": {
    "lor": -0.193,
@@ -161,6 +168,10 @@ export const TYPES = {
   "zoneWhiff": 0.099,
   "chaseSwing": 0.256,
   "chaseWhiff": 0.25,
+  "mix": {
+   "R": 0.2201,
+   "L": 0.1114
+  },
   "sd": 0.9,
   "after": {
    "lor": 0.122,
@@ -177,6 +188,10 @@ export const TYPES = {
   "zoneWhiff": 0.159,
   "chaseSwing": 0.29,
   "chaseWhiff": 0.401,
+  "mix": {
+   "R": 0.0819,
+   "L": 0.0886
+  },
   "sd": 1.06,
   "after": {
    "lor": 0.183,
@@ -193,6 +208,10 @@ export const TYPES = {
   "zoneWhiff": 0.18,
   "chaseSwing": 0.338,
   "chaseWhiff": 0.57,
+  "mix": {
+   "R": 0.1649,
+   "L": 0.0994
+  },
   "sd": 1.12,
   "after": {
    "lor": -0.269,
@@ -209,6 +228,10 @@ export const TYPES = {
   "zoneWhiff": 0.167,
   "chaseSwing": 0.319,
   "chaseWhiff": 0.524,
+  "mix": {
+   "R": 0.1202,
+   "L": 0.0574
+  },
   "sd": 1.09,
   "after": {
    "lor": -0.194,
@@ -225,6 +248,10 @@ export const TYPES = {
   "zoneWhiff": 0.139,
   "chaseSwing": 0.3,
   "chaseWhiff": 0.512,
+  "mix": {
+   "R": 0.0401,
+   "L": 0.0757
+  },
   "sd": 1.15,
   "after": {
    "lor": -0.411,
@@ -241,6 +268,10 @@ export const TYPES = {
   "zoneWhiff": 0.144,
   "chaseSwing": 0.35,
   "chaseWhiff": 0.558,
+  "mix": {
+   "R": 0.0168,
+   "L": 0.0238
+  },
   "sd": 1.17,
   "after": {
    "lor": -1.106,
@@ -257,6 +288,10 @@ export const TYPES = {
   "zoneWhiff": 0.122,
   "chaseSwing": 0.306,
   "chaseWhiff": 0.518,
+  "mix": {
+   "R": 0.0029,
+   "L": 0.0025
+  },
   "sd": 1.02,
   "after": {
    "lor": 0.286,
@@ -273,6 +308,10 @@ export const TYPES = {
   "zoneWhiff": 0.211,
   "chaseSwing": 0.353,
   "chaseWhiff": 0.441,
+  "mix": {
+   "R": 0.0469,
+   "L": 0.1435
+  },
   "sd": 1.01,
   "after": {
    "lor": -0.113,
@@ -289,6 +328,10 @@ export const TYPES = {
   "zoneWhiff": 0.208,
   "chaseSwing": 0.364,
   "chaseWhiff": 0.502,
+  "mix": {
+   "R": 0.0266,
+   "L": 0.0533
+  },
   "sd": 1,
   "after": {
    "lor": -0.248,
@@ -305,6 +348,10 @@ export const TYPES = {
   "zoneWhiff": 0.19,
   "chaseSwing": 0.301,
   "chaseWhiff": 0.663,
+  "mix": {
+   "R": 0.0008,
+   "L": 0.001
+  },
   "sd": 1.18,
   "after": {
    "lor": null,
@@ -321,6 +368,10 @@ export const TYPES = {
   "zoneWhiff": 0.122,
   "chaseSwing": 0.254,
   "chaseWhiff": 0.362,
+  "mix": {
+   "R": 0.0006,
+   "L": 0.0006
+  },
   "sd": 3.41,
   "after": {
    "lor": null,
@@ -469,6 +520,10 @@ export const PITCHERS = [
   "name": "Paul Skenes",
   "hand": "R",
   "pa": 712,
+  "paBy": {
+   "R": 297,
+   "L": 415
+  },
   "so": 200,
   "bb": 49,
   "hbp": 11,
@@ -490,6 +545,10 @@ export const PITCHERS = [
     "extension": 6.77,
     "whiff": 0.297,
     "zone": 0.525,
+    "mix": {
+     "R": 0.346,
+     "L": 0.452
+    },
     "bip": 175,
     "hits": 58,
     "hrs": 13,
@@ -507,6 +566,10 @@ export const PITCHERS = [
     "extension": 6.73,
     "whiff": 0.286,
     "zone": 0.517,
+    "mix": {
+     "R": 0.272,
+     "L": 0.08
+    },
     "bip": 51,
     "hits": 12,
     "hrs": 3,
@@ -524,6 +587,10 @@ export const PITCHERS = [
     "extension": 6.72,
     "whiff": 0.374,
     "zone": 0.236,
+    "mix": {
+     "R": 0.06,
+     "L": 0.17
+    },
     "bip": 55,
     "hits": 20,
     "hrs": 1,
@@ -541,6 +608,10 @@ export const PITCHERS = [
     "extension": 6.74,
     "whiff": 0.149,
     "zone": 0.532,
+    "mix": {
+     "R": 0.176,
+     "L": 0.077
+    },
     "bip": 70,
     "hits": 25,
     "hrs": 2,
@@ -558,6 +629,10 @@ export const PITCHERS = [
     "extension": 6.74,
     "whiff": 0.177,
     "zone": 0.43,
+    "mix": {
+     "R": 0.057,
+     "L": 0.131
+    },
     "bip": 59,
     "hits": 21,
     "hrs": 0,
@@ -575,6 +650,10 @@ export const PITCHERS = [
     "extension": 6.77,
     "whiff": 0.358,
     "zone": 0.406,
+    "mix": {
+     "R": 0.09,
+     "L": 0.084
+    },
     "bip": 40,
     "hits": 10,
     "hrs": 1,
@@ -589,6 +668,10 @@ export const PITCHERS = [
   "name": "Jacob Misiorowski",
   "hand": "R",
   "pa": 665,
+  "paBy": {
+   "R": 299,
+   "L": 366
+  },
   "so": 252,
   "bb": 44,
   "hbp": 9,
@@ -610,6 +693,10 @@ export const PITCHERS = [
     "extension": 7.57,
     "whiff": 0.402,
     "zone": 0.532,
+    "mix": {
+     "R": 0.626,
+     "L": 0.639
+    },
     "bip": 180,
     "hits": 60,
     "hrs": 8,
@@ -627,6 +714,10 @@ export const PITCHERS = [
     "extension": 7.57,
     "whiff": 0.209,
     "zone": 0.503,
+    "mix": {
+     "R": 0.129,
+     "L": 0.148
+    },
     "bip": 70,
     "hits": 11,
     "hrs": 3,
@@ -644,6 +735,10 @@ export const PITCHERS = [
     "extension": 7.49,
     "whiff": 0.353,
     "zone": 0.483,
+    "mix": {
+     "R": 0.172,
+     "L": 0.059
+    },
     "bip": 63,
     "hits": 17,
     "hrs": 3,
@@ -661,6 +756,10 @@ export const PITCHERS = [
     "extension": 7.27,
     "whiff": 0.439,
     "zone": 0.371,
+    "mix": {
+     "R": 0.07,
+     "L": 0.136
+    },
     "bip": 42,
     "hits": 8,
     "hrs": 0,
@@ -675,6 +774,10 @@ export const PITCHERS = [
   "name": "Kevin Gausman",
   "hand": "R",
   "pa": 750,
+  "paBy": {
+   "R": 326,
+   "L": 424
+  },
   "so": 184,
   "bb": 47,
   "hbp": 1,
@@ -696,6 +799,10 @@ export const PITCHERS = [
     "extension": 6.73,
     "whiff": 0.15,
     "zone": 0.638,
+    "mix": {
+     "R": 0.496,
+     "L": 0.515
+    },
     "bip": 306,
     "hits": 110,
     "hrs": 13,
@@ -713,6 +820,10 @@ export const PITCHERS = [
     "extension": 6.77,
     "whiff": 0.429,
     "zone": 0.261,
+    "mix": {
+     "R": 0.322,
+     "L": 0.445
+    },
     "bip": 178,
     "hits": 55,
     "hrs": 8,
@@ -730,6 +841,10 @@ export const PITCHERS = [
     "extension": 6.69,
     "whiff": 0.362,
     "zone": 0.299,
+    "mix": {
+     "R": 0.158,
+     "L": 0.024
+    },
     "bip": 28,
     "hits": 12,
     "hrs": 5,
@@ -744,6 +859,10 @@ export const PITCHERS = [
   "name": "Cristopher Sánchez",
   "hand": "L",
   "pa": 857,
+  "paBy": {
+   "R": 665,
+   "L": 192
+  },
   "so": 231,
   "bb": 45,
   "hbp": 6,
@@ -765,6 +884,10 @@ export const PITCHERS = [
     "extension": 6.88,
     "whiff": 0.119,
     "zone": 0.601,
+    "mix": {
+     "R": 0.407,
+     "L": 0.586
+    },
     "bip": 310,
     "hits": 119,
     "hrs": 12,
@@ -782,6 +905,10 @@ export const PITCHERS = [
     "extension": 6.99,
     "whiff": 0.46,
     "zone": 0.326,
+    "mix": {
+     "R": 0.434,
+     "L": 0.129
+    },
     "bip": 180,
     "hits": 54,
     "hrs": 4,
@@ -799,6 +926,10 @@ export const PITCHERS = [
     "extension": 6.82,
     "whiff": 0.431,
     "zone": 0.446,
+    "mix": {
+     "R": 0.159,
+     "L": 0.285
+    },
     "bip": 84,
     "hits": 31,
     "hrs": 3,
@@ -813,6 +944,10 @@ export const PITCHERS = [
   "name": "Chris Sale",
   "hand": "L",
   "pa": 648,
+  "paBy": {
+   "R": 486,
+   "L": 162
+  },
   "so": 200,
   "bb": 31,
   "hbp": 15,
@@ -834,6 +969,10 @@ export const PITCHERS = [
     "extension": 6.61,
     "whiff": 0.275,
     "zone": 0.557,
+    "mix": {
+     "R": 0.459,
+     "L": 0.272
+    },
     "bip": 157,
     "hits": 51,
     "hrs": 9,
@@ -851,6 +990,10 @@ export const PITCHERS = [
     "extension": 6.42,
     "whiff": 0.382,
     "zone": 0.427,
+    "mix": {
+     "R": 0.403,
+     "L": 0.387
+    },
     "bip": 134,
     "hits": 46,
     "hrs": 0,
@@ -868,6 +1011,10 @@ export const PITCHERS = [
     "extension": 6.67,
     "whiff": 0.303,
     "zone": 0.426,
+    "mix": {
+     "R": 0.133,
+     "L": 0.011
+    },
     "bip": 65,
     "hits": 19,
     "hrs": 1,
@@ -885,6 +1032,10 @@ export const PITCHERS = [
     "extension": 6.64,
     "whiff": 0.106,
     "zone": 0.594,
+    "mix": {
+     "R": 0.005,
+     "L": 0.33
+    },
     "bip": 46,
     "hits": 13,
     "hrs": 0,
@@ -899,6 +1050,10 @@ export const PITCHERS = [
   "name": "Aaron Nola",
   "hand": "R",
   "pa": 744,
+  "paBy": {
+   "R": 286,
+   "L": 458
+  },
   "so": 177,
   "bb": 59,
   "hbp": 2,
@@ -920,6 +1075,10 @@ export const PITCHERS = [
     "extension": 6.76,
     "whiff": 0.411,
     "zone": 0.38,
+    "mix": {
+     "R": 0.359,
+     "L": 0.318
+    },
     "bip": 148,
     "hits": 44,
     "hrs": 10,
@@ -937,6 +1096,10 @@ export const PITCHERS = [
     "extension": 6.94,
     "whiff": 0.141,
     "zone": 0.528,
+    "mix": {
+     "R": 0.185,
+     "L": 0.27
+    },
     "bip": 111,
     "hits": 44,
     "hrs": 11,
@@ -954,6 +1117,10 @@ export const PITCHERS = [
     "extension": 6.99,
     "whiff": 0.122,
     "zone": 0.533,
+    "mix": {
+     "R": 0.268,
+     "L": 0.133
+    },
     "bip": 109,
     "hits": 46,
     "hrs": 12,
@@ -971,6 +1138,10 @@ export const PITCHERS = [
     "extension": 6.9,
     "whiff": 0.256,
     "zone": 0.339,
+    "mix": {
+     "R": 0.071,
+     "L": 0.216
+    },
     "bip": 88,
     "hits": 20,
     "hrs": 1,
@@ -988,6 +1159,10 @@ export const PITCHERS = [
     "extension": 6.89,
     "whiff": 0.256,
     "zone": 0.43,
+    "mix": {
+     "R": 0.098,
+     "L": 0.063
+    },
     "bip": 43,
     "hits": 21,
     "hrs": 2,
@@ -1002,6 +1177,10 @@ export const PITCHERS = [
   "name": "Mason Miller",
   "hand": "R",
   "pa": 272,
+  "paBy": {
+   "R": 122,
+   "L": 150
+  },
   "so": 129,
   "bb": 26,
   "hbp": 2,
@@ -1023,6 +1202,10 @@ export const PITCHERS = [
     "extension": 6.78,
     "whiff": 0.563,
     "zone": 0.457,
+    "mix": {
+     "R": 0.502,
+     "L": 0.493
+    },
     "bip": 46,
     "hits": 17,
     "hrs": 1,
@@ -1040,6 +1223,10 @@ export const PITCHERS = [
     "extension": 6.76,
     "whiff": 0.365,
     "zone": 0.458,
+    "mix": {
+     "R": 0.496,
+     "L": 0.473
+    },
     "bip": 67,
     "hits": 19,
     "hrs": 1,
@@ -1054,6 +1241,10 @@ export const PITCHERS = [
   "name": "Tyler Rogers",
   "hand": "R",
   "pa": 294,
+  "paBy": {
+   "R": 131,
+   "L": 163
+  },
   "so": 40,
   "bb": 22,
   "hbp": 2,
@@ -1075,6 +1266,10 @@ export const PITCHERS = [
     "extension": 6.06,
     "whiff": 0.12,
     "zone": 0.595,
+    "mix": {
+     "R": 0.636,
+     "L": 0.862
+    },
     "bip": 179,
     "hits": 50,
     "hrs": 2,
@@ -1092,6 +1287,10 @@ export const PITCHERS = [
     "extension": 6.05,
     "whiff": 0.234,
     "zone": 0.437,
+    "mix": {
+     "R": 0.364,
+     "L": 0.138
+    },
     "bip": 49,
     "hits": 11,
     "hrs": 0,
@@ -1106,6 +1305,10 @@ export const PITCHERS = [
   "name": "Matt Waldron",
   "hand": "R",
   "pa": 194,
+  "paBy": {
+   "R": 87,
+   "L": 107
+  },
   "so": 33,
   "bb": 11,
   "hbp": 2,
@@ -1127,6 +1330,10 @@ export const PITCHERS = [
     "extension": 6.41,
     "whiff": 0.21,
     "zone": 0.495,
+    "mix": {
+     "R": 0.266,
+     "L": 0.327
+    },
     "bip": 43,
     "hits": 17,
     "hrs": 2,
@@ -1144,6 +1351,10 @@ export const PITCHERS = [
     "extension": 6.62,
     "whiff": 0.163,
     "zone": 0.462,
+    "mix": {
+     "R": 0.154,
+     "L": 0.25
+    },
     "bip": 31,
     "hits": 11,
     "hrs": 0,
@@ -1161,6 +1372,10 @@ export const PITCHERS = [
     "extension": 6.67,
     "whiff": 0.2,
     "zone": 0.463,
+    "mix": {
+     "R": 0.178,
+     "L": 0.178
+    },
     "bip": 24,
     "hits": 10,
     "hrs": 2,
@@ -1178,6 +1393,10 @@ export const PITCHERS = [
     "extension": 6.75,
     "whiff": 0.175,
     "zone": 0.611,
+    "mix": {
+     "R": 0.238,
+     "L": 0.111
+    },
     "bip": 30,
     "hits": 13,
     "hrs": 1,
@@ -1195,6 +1414,10 @@ export const PITCHERS = [
     "extension": 6.69,
     "whiff": 0.1,
     "zone": 0.535,
+    "mix": {
+     "R": 0.164,
+     "L": 0.134
+    },
     "bip": 20,
     "hits": 6,
     "hrs": 2,
