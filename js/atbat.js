@@ -253,14 +253,13 @@ function read(ab, f, t, prev) {
 }
 
 // Throw one pitch. `call` is { code, spot } (a spot from SPOTS). Returns what happened, and updates the count.
-export function throwCall(ab, call) {
+// The pitch on its way, whoever is hitting: where it's aimed, how far it misses the spot, how fast it comes and its
+// flight, drawn from the at-bat's luck in the same order every time.
+function deliver(ab, call) {
   if (ab.result) throw new Error('the at-bat is over');
   const P = ab.params, R = ab.rand;
   const entry = entryOf(ab.pitcher, call.code);
   if (!entry) throw new Error(`${ab.pitcher.name} doesn't throw ${call.code}`);
-  const before = { balls: ab.balls, strikes: ab.strikes };
-  const prev = ab.pitches.at(-1) || null;
-
   // Command: it misses the spot a little, more for some pitches (the knuckleball most, as wild as Waldron's was: as many
   // of his in the zone), and more or less for each real pitcher (pitcherCommand), so he walks as many as he did.
   const aim = spotXZ(call.spot, ab.batter);
@@ -271,9 +270,77 @@ export function throwCall(ab, call) {
   const sd = (entry.sd ?? 0) * P.speedSpread;
   const mph = sd ? entry.mph + sd * Math.max(-2.5, Math.min(2.5, R.normal())) : entry.mph;
   const flight = throwPitch(pitchFor(ab.pitcher, { ...entry, mph }, target), { hand: ab.pitcher.hand, rng: R });
-  const plate = [flight.end[0], flight.end[2]];
-  const td = flight.T - DECIDE;
-  const atDecide = flight.pos(td);
+  return { call, entry, aim, target, mph, flight, plate: [flight.end[0], flight.end[2]], atDecide: flight.pos(flight.T - DECIDE), before: { balls: ab.balls, strikes: ab.strikes } };
+}
+
+// A pitch taken: it hits him, well inside at body height, or the umpire calls it, his zone shifting with the count: in
+// 2026 they called more strikes at 3-0 and fewer at 0-2.
+function taken(ab, plate, before) {
+  const P = ab.params, R = ab.rand;
+  const towardHim = ab.batter === 'R' ? -plate[0] : plate[0];
+  if (plate[1] > 0.6 && plate[1] < 5.5 && R.chance(sigmoid((towardHim - P.hbp.at) / P.hbp.width))) return 'hbp';
+  return R.chance(sigmoid((margin(plate[0], plate[1]) - P.ump.shift - P.umpBy[`${before.balls}-${before.strikes}`]) / P.ump.width)) ? 'called' : 'ball';
+}
+
+// A swing that has been made: whether it touches the ball (pContact), and if it does, foul or fair and how hard, from how
+// far off it was in place (missBy, feet) and time (early, seconds), how far the pitch was off the plate (reach), and
+// where the hitter reckoned it was crossing (at). `side` is the matchup (sideOf) and H his kind (hitters).
+function swung(ab, out, { pContact, missBy, early, reach, at, side, H }) {
+  const P = ab.params, R = ab.rand, plate = out.plate, before = out.before;
+  // A miss now and then nicks the ball straight into the catcher's glove: a foul tip, a strike in any count (strike
+  // three with two strikes), and one of Statcast's whiffs, so it comes as often among misses as it did in 2026.
+  if (!R.chance(pContact)) out.result = R.chance(TIPS) ? 'tip' : 'whiff';
+  else {
+    const square = Math.exp(-((missBy / P.fair.miss) ** 2) - (early / P.fair.timing) ** 2 - (reach / P.fair.reach) ** 2);
+    // How much of his contact goes foul, count by count, as it did in 2026.
+    const fair = (P.fair.base + (1 - P.fair.base) * square * P.fair.gain) * P.fairBy[`${before.balls}-${before.strikes}`];
+    if (!R.chance(fair)) out.result = 'foul';
+    else {
+      out.result = 'inplay';
+      // How hard: squared up, and how hittable the spot was (the middle of the zone is where damage happens).
+      const middle = Math.hypot(plate[0] / 0.9, (plate[1] - MID) / 0.9);
+      const q = Math.exp(-((missBy / P.quality.miss) ** 2) - (early / P.quality.timing) ** 2) * Math.exp(-((middle / P.quality.middle) ** 2));
+      // And where pitches have been crossing this at-bat, he's ready for one there: each earlier pitch that crossed
+      // within about 7 inches of where he reads this one crossing adds to how hard he hits it (notice.where).
+      const ready = ab.pitches.reduce((a, e) => a + Math.exp(-((e.plate[0] - at[0]) ** 2 + (e.plate[1] - at[1]) ** 2) / 0.36), 0);
+      // A hitter on the pitcher's side of the plate hits him softer, one on the other side harder (platoon); a power
+      // hitter harder still (hitters).
+      const sc = q + P.notice.where * ready - side * P.platoon.damage + H.damage + R.normal() * P.quality.noise;
+      const O = P.outcome;
+      let play;
+      if (sc > O.hr) play = 'HR';
+      else if (sc > O.xbh) play = R.chance(O.triple) ? '3B' : '2B';
+      else play = R.chance(O.single[0] + O.single[1] * Math.max(0, sc)) ? '1B' : 'out';
+      // A real pitcher gives up more or fewer hits on balls in play than the league (pitcherContact, a factor on them),
+      // wherever they crossed, so his damage on contact comes to his own: fewer, and a hit is caught now and then;
+      // more, and a ball that would have been caught falls for a single.
+      const f = P.pitcherContact[ab.pitcher.key] ?? 1;
+      if (f < 1 && play !== 'out' && !R.chance(f)) play = 'out';
+      else if (f > 1 && play === 'out' && R.chance((f - 1) * TARGET_HITS)) play = '1B';
+      out.play = play;
+      out.contact = sc;
+    }
+  }
+}
+
+// The count after a pitch, and how the at-bat ended, if it did.
+function counted(ab, out) {
+  if (out.result === 'ball') ab.balls++;
+  else if (out.result === 'called' || out.result === 'whiff' || out.result === 'tip') ab.strikes++;
+  else if (out.result === 'foul' && ab.strikes < 2) ab.strikes++;
+  out.after = { balls: ab.balls, strikes: ab.strikes };
+  if (out.result === 'hbp') ab.result = 'HBP';
+  else if (ab.balls === 4) ab.result = 'BB';
+  else if (ab.strikes === 3) ab.result = out.result === 'called' ? 'KL' : 'K';
+  else if (out.result === 'inplay') ab.result = out.play;
+  ab.pitches.push(out);
+  return out;
+}
+
+export function throwCall(ab, call) {
+  const P = ab.params, R = ab.rand;
+  const prev = ab.pitches.at(-1) || null;
+  const { entry, aim, target, mph, flight, plate, atDecide, before } = deliver(ab, call);
 
   // What he was looking for, and whether he picked up what it really was.
   const sat = guess(ab);
@@ -308,14 +375,8 @@ export function throwCall(ab, call) {
     flight: { target, T: flight.T }, path: flight, result: null, play: null,
   };
 
-  // Hit by the pitch: well inside, at body height.
-  const towardHim = ab.batter === 'R' ? -plate[0] : plate[0];
-  if (!swing && plate[1] > 0.6 && plate[1] < 5.5 && R.chance(sigmoid((towardHim - P.hbp.at) / P.hbp.width))) {
-    out.result = 'hbp';
-  } else if (!swing) {
-    // The umpire's zone, which shifts with the count: in 2026 they called more strikes at 3-0 and fewer at 0-2.
-    out.result = R.chance(sigmoid((margin(plate[0], plate[1]) - P.ump.shift - P.umpBy[`${before.balls}-${before.strikes}`]) / P.ump.width)) ? 'called' : 'ball';
-  } else {
+  if (!swing) out.result = taken(ab, plate, before);
+  else {
     // Contact: how far off his swing is in place and time, how far he has to reach, and the pitch's stuff:
     // what makes one kind of pitch, or one pitcher's version of it, harder to square up than its speed and
     // movement alone say (late break, a hidden release, spin he can't read). It comes from how often hitters
@@ -338,53 +399,43 @@ export function throwCall(ab, call) {
       * Math.exp(-((reach / P.contact.reach) ** 2))
       * Math.exp(-Math.max(0, entry.mph - 93) * P.contact.velo)
       * Math.exp(-P.contact.edge * toCorner(plate))) ** stuff;
-    // A miss now and then nicks the ball straight into the catcher's glove: a foul tip, a strike in any count (strike
-    // three with two strikes), and one of Statcast's whiffs, so it comes as often among misses as it did in 2026.
-    if (!R.chance(pContact)) out.result = R.chance(TIPS) ? 'tip' : 'whiff';
-    else {
-      const square = Math.exp(-((missBy / P.fair.miss) ** 2) - (early / P.fair.timing) ** 2 - (reach / P.fair.reach) ** 2);
-      // How much of his contact goes foul, count by count, as it did in 2026.
-      const fair = (P.fair.base + (1 - P.fair.base) * square * P.fair.gain) * P.fairBy[`${before.balls}-${before.strikes}`];
-      if (!R.chance(fair)) out.result = 'foul';
-      else {
-        out.result = 'inplay';
-        // How hard: squared up, and how hittable the spot was (the middle of the zone is where damage happens).
-        const middle = Math.hypot(plate[0] / 0.9, (plate[1] - MID) / 0.9);
-        const q = Math.exp(-((missBy / P.quality.miss) ** 2) - (early / P.quality.timing) ** 2) * Math.exp(-((middle / P.quality.middle) ** 2));
-        // And where pitches have been crossing this at-bat, he's ready for one there: each earlier pitch that crossed
-        // within about 7 inches of where he reads this one crossing adds to how hard he hits it (notice.where).
-        const ready = ab.pitches.reduce((a, e) => a + Math.exp(-((e.plate[0] - r.at[0]) ** 2 + (e.plate[1] - r.at[1]) ** 2) / 0.36), 0);
-        // A hitter on the pitcher's side of the plate hits him softer, one on the other side harder (platoon); a power
-        // hitter harder still (hitters).
-        const s = q + P.notice.where * ready - side * P.platoon.damage + H.damage + R.normal() * P.quality.noise;
-        const O = P.outcome;
-        let play;
-        if (s > O.hr) play = 'HR';
-        else if (s > O.xbh) play = R.chance(O.triple) ? '3B' : '2B';
-        else play = R.chance(O.single[0] + O.single[1] * Math.max(0, s)) ? '1B' : 'out';
-        // A real pitcher gives up more or fewer hits on balls in play than the league (pitcherContact, a factor on them),
-        // wherever they crossed, so his damage on contact comes to his own: fewer, and a hit is caught now and then;
-        // more, and a ball that would have been caught falls for a single.
-        const f = P.pitcherContact[ab.pitcher.key] ?? 1;
-        if (f < 1 && play !== 'out' && !R.chance(f)) play = 'out';
-        else if (f > 1 && play === 'out' && R.chance((f - 1) * TARGET_HITS)) play = '1B';
-        out.play = play;
-        out.contact = s;
-      }
-    }
+    swung(ab, out, { pContact, missBy, early, reach, at: r.at, side, H });
   }
 
-  // The count.
-  if (out.result === 'ball') ab.balls++;
-  else if (out.result === 'called' || out.result === 'whiff' || out.result === 'tip') ab.strikes++;
-  else if (out.result === 'foul' && ab.strikes < 2) ab.strikes++;
-  out.after = { balls: ab.balls, strikes: ab.strikes };
-  if (out.result === 'hbp') ab.result = 'HBP';
-  else if (ab.balls === 4) ab.result = 'BB';
-  else if (ab.strikes === 3) ab.result = out.result === 'called' ? 'KL' : 'K';
-  else if (out.result === 'inplay') ab.result = out.play;
-  ab.pitches.push(out);
-  return out;
+  return counted(ab, out);
+}
+
+// ---------------------------------------------------------------- the hitter's side
+
+// You at the plate: the pitcher calls (autoCall) and throws (pitchTo), and you swing or take (swingAt, once for each
+// pitch). The pitch, the umpire and what a swing does once it's made are the model's. Your swing is where you tapped
+// (`at`, [x, z] on the plate in feet) and when (`early`, seconds: more than 0 before the ball got there, less after),
+// in place of the model hitter's read, with his contact: the pitch's stuff, the count, how far it was off the plate,
+// its speed and the corners all count as they do for him, and the platoon split holds. Not his floor, though: a swing
+// nowhere near the ball misses it. And a miss across the plate counts for ACROSS of one up or down, the bat being long
+// that way. You're no kind of hitter but yourself, so none of the kinds' changes apply.
+export const ACROSS = 0.5;
+export const pitchTo = (ab, call) => ({ ...deliver(ab, call), n: ab.pitches.length + 1 });
+export function swingAt(ab, pitch, swing) {
+  if (ab.result || pitch.n !== ab.pitches.length + 1) throw new Error('that pitch has been swung at');
+  const P = ab.params, { call, entry, aim, target, mph, flight, plate, atDecide, before } = pitch;
+  const at = swing?.at ?? null, early = swing ? swing.early : 0;
+  const miss = at ? [plate[0] - at[0], plate[1] - at[1]] : [0, 0], missBy = Math.hypot(miss[0] * ACROSS, miss[1]);
+  const out = {
+    n: pitch.n, code: call.code, spot: call.spot, mph, before, aim, plate, atDecide, miss, missBy, early, swing: !!swing, swungAt: at,
+    inZone: inZone(plate[0], plate[1]), flight: { target, T: flight.T }, path: flight, result: null, play: null, you: true,
+  };
+  if (!swing) out.result = taken(ab, plate, before);
+  else {
+    const side = sideOf(ab), reach = Math.max(0, -margin(plate[0], plate[1]));
+    const stuff = (P.stuff[call.code] ?? 1) * (P.pitcherStuff[ab.pitcher.key]?.[call.code] ?? 1) * (before.strikes === 2 ? P.pitcherPutaway[ab.pitcher.key] ?? 1 : 1) * Math.exp(side * P.platoon.stuff);
+    const k = stuff * (P.approach[`${before.balls}-${before.strikes}`] ?? 1);
+    const read = Math.exp(-(((missBy * k) / P.contact.miss) ** 2)) * Math.exp(-(((early * k) / P.contact.timing) ** 2));
+    const pContact = (P.contact.max * read * Math.exp(-((reach / P.contact.reach) ** 2)) * Math.exp(-Math.max(0, entry.mph - 93) * P.contact.velo) * Math.exp(-P.contact.edge * toCorner(plate))) ** stuff;
+    out.stuff = stuff;
+    swung(ab, out, { pContact, missBy, early, reach, at, side, H: NO_TYPE });
+  }
+  return counted(ab, out);
 }
 
 // ---------------------------------------------------------------- the ABS challenge

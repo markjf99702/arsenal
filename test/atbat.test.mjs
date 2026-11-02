@@ -1,7 +1,7 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES, batterSeed, outsIn, playInning, OUTS, challenge, challengeable, challengesLeft, throwLinked, CHALLENGES, CLOSE, margin } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES, batterSeed, outsIn, playInning, OUTS, challenge, challengeable, challengesLeft, throwLinked, CHALLENGES, CLOSE, margin, pitchTo, swingAt, inZone } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL, LEAGUE } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { TARGET, run, checks, SEEDS, measure, measurePitchers, measureHitters } from './lab.mjs';
@@ -388,6 +388,44 @@ test('a challenged ball is overturned when it touched the zone, and the link rep
   assert.equal(challengesLeft([{ pitches: [{ challenge: 'upheld' }] }, { pitches: [{ challenge: 'upheld' }] }]), 0);
   assert.equal(parseLink('#ab.v3.average.R.3.FF23c').calls[0].challenge, true);
   assert.equal('challenge' in parseLink('#ab.v3.average.R.3.FF23').calls[0], false);
+});
+
+// The hitter's side, Step in: the pitcher calls and throws, and you tap to swing, when and where. A tap at real speed is
+// neither trivially easy nor impossible: one that's well timed, by a person's spread (30 ms either way of the ball's
+// arrival, and 2 inches from where it crosses, each way), touches 55% to 90% of the league-average righty's pitches in
+// the zone, and fewer of real pitchers' with better stuff; one tapped anywhere at any time while the ball is in the air
+// touches few. A pitch not swung at is the umpire's.
+test('a tapped swing at real speed is neither trivially easy nor impossible', () => {
+  const R = rng(17);
+  const normal = () => Math.sqrt(-2 * Math.log(1 - R())) * Math.cos(2 * Math.PI * R());
+  const taps = {
+    timed: p => ({ at: [p.plate[0] + (normal() * 2) / 12, p.plate[1] + (normal() * 2) / 12], early: normal() * 0.03 }),
+    random: p => ({ at: [(R() * 2 - 1) * 1.65, 0.5 + R() * 3.6], early: p.flight.T - R() * (p.flight.T + 0.2) }),
+  };
+  const touched = (pitcher, tap, zoneOnly) => {
+    let n = 0, hit = 0;
+    for (let i = 0; i < 3000; i++) {
+      const ab = startAtBat({ pitcher, batter: i % 2 ? 'L' : 'R', seed: 1 + i * 7 });
+      const pitch = pitchTo(ab, autoCall(ab));
+      if (zoneOnly && !inZone(...pitch.plate)) continue;
+      const r = swingAt(ab, pitch, tap(pitch));
+      n++;
+      if (!['whiff', 'tip'].includes(r.result)) hit++;
+    }
+    return hit / n;
+  };
+  const timed = touched(AVERAGE, taps.timed, true), random = touched(AVERAGE, taps.random, false);
+  assert.ok(timed >= 0.55 && timed <= 0.9, `a well-timed tap touches ${(timed * 100).toFixed(1)}% of the league-average righty's pitches in the zone`);
+  assert.ok(random < 0.1, `a tap at random touches ${(random * 100).toFixed(1)}%`);
+  for (const key of ['miller', 'misiorowski']) {
+    const real = touched(pitcherByKey(key), taps.timed, true);
+    assert.ok(real < timed, `${key}: a well-timed tap touches ${(real * 100).toFixed(1)}% of his, against ${(timed * 100).toFixed(1)}% of the average righty's`);
+  }
+  // Taken, it's a ball, a called strike or a hit batter, and the count follows.
+  const ab = startAtBat({ pitcher: AVERAGE, batter: 'R', seed: 4 });
+  const r = swingAt(ab, pitchTo(ab, { code: 'FF', spot: spotById('00') }), null);
+  assert.ok(['ball', 'called', 'hbp'].includes(r.result) && r.you && !r.swing);
+  assert.throws(() => swingAt(ab, { n: 1 }, null), /swung at/);
 });
 
 // Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 3 of the hitter plays them.
