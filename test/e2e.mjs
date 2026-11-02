@@ -364,25 +364,37 @@ assert.equal(flights[0].x, flights[1].x);
     const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
     const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
     const lw = Math.max(1.5, cam.W / 520) * 1.2, out = [];
+    // Each throw is scattered at random, so now and then the other pitch's line, with its halo (lw + 2 CSS px wide), runs
+    // right beside this one where it's looked at: that side is against the other line, not the sky, and is skipped.
+    const reach = lw / 2 + cam.dpr + 1;
+    let looked = 0;
     stage.flights.forEach((f, i) => {
       const color = i === 0 ? [0xff, 0xd2, 0x3f] : [0x7f, 0xd3, 0xff];
+      const other = stage.flights[1 - i], path = [];
+      if (other) for (let s = 0; s <= other.T; s += 0.001) path.push(cam.project(other.pos(s)));
+      const byOther = (x, y) => path.some(q => Math.hypot(q.x - x, q.y - y) < reach);
       for (const t of [5.5 / 30, 8.5 / 30]) {
         const a = cam.project(f.pos(t - 0.005)), b = cam.project(f.pos(t + 0.005)), p = cam.project(f.pos(t));
         const len = Math.hypot(b.x - a.x, b.y - a.y), nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
         // Out from the middle of the line to a pixel past where its halo ends, the most it stands off anything there.
         for (const side of [1, -1]) {
+          const probes = [];
+          for (let d = lw / 2; d <= lw / 2 + 1.5 * cam.dpr; d += 0.5) probes.push([p.x + side * nx * d, p.y + side * ny * d]);
+          if (probes.some(([x, y]) => byOther(x, y))) continue;
+          looked++;
           let best = 0, at = null;
-          for (let d = lw / 2; d <= lw / 2 + 1.5 * cam.dpr; d += 0.5) {
-            const px = [...ctx.getImageData(Math.round(p.x + side * nx * d), Math.round(p.y + side * ny * d), 1, 1).data].slice(0, 3);
+          for (const [x, y] of probes) {
+            const px = [...ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data].slice(0, 3);
             if (ratio(color, px) > best) { best = ratio(color, px); at = px; }
           }
           if (best < 3) out.push(`${f.p.short} at ${t.toFixed(2)} s: ${best.toFixed(2)} to 1 against rgb(${at})`);
         }
       }
     });
-    return out;
+    return { out, looked };
   });
-  assert.deepEqual(low, [], 'the paths against what’s beside them on the light sky');
+  assert.deepEqual(low.out, [], 'the paths against what’s beside them on the light sky');
+  assert.ok(low.looked >= 2, `only ${low.looked} of the 8 sides looked at were clear of the other line`);
   const halos = await page.evaluate(() => [...document.querySelectorAll('.readout, .legend')].map(el => getComputedStyle(el).textShadow.split(/,(?![^(]*\))/).length));
   assert.ok(halos.every(n => n >= 3), `the words over the pictures have a halo of ${halos.join(', ')} shadows`);
   await page.locator('#ghost').check();
