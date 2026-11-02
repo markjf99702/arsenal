@@ -515,7 +515,7 @@ export function setupAtBat({ dark = false } = {}) {
     if (link.rest) said.push('The rest of the link couldn’t be read, so it was left out.');
     // First, what this is: a screen reader hears it rather than the result of the pitch before the one thrown again.
     const n = S.ab.pitches.length;
-    if (n) said.unshift(`A shared at-bat: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
+    if (n) said.unshift(`Replayed from the link: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
     // Made against another version of the hitter, the calls are thrown to today's, who may not play them the same way.
     $('ab-version').textContent = n && link.version !== VERSION

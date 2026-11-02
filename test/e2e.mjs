@@ -830,7 +830,7 @@ assert.match(await heading(), /^Forkball/i);
   await idle();
   assert.equal(await page.locator('#ab-log').innerText(), log, 'the link replayed a different at-bat');
   // Over the call box it says what this is, and that's all it says for a link that played as it was.
-  assert.equal(await page.locator('#ab-notice').textContent(), `A shared at-bat: the league-average righty to a right-handed batter, ${m.n} pitches.`, 'the notice over a link that played as it was');
+  assert.equal(await page.locator('#ab-notice').textContent(), `Replayed from the link: the league-average righty to a right-handed batter, ${m.n} pitches.`, 'the notice over a link that played as it was');
   // A link asking for what can't be done still opens, and says so over the call box, or over the end card, after what
   // it is.
   for (const [hash, shared, said] of [
@@ -848,7 +848,7 @@ assert.match(await heading(), /^Forkball/i);
     await page.goto('about:blank');
     await page.goto(base + hash);
     await idle();
-    assert.equal(await page.locator('#ab-notice').textContent(), `A shared at-bat: ${shared}. ${said}`, hash);
+    assert.equal(await page.locator('#ab-notice').textContent(), `Replayed from the link: ${shared}. ${said}`, hash);
     assert.equal(await page.locator('#ab-notice').isVisible(), true, `${hash}: the notice is hidden`);
   }
   // Where the at-bat is, and what it says over it, once the address changes. A link opened in a new tab or changed in
@@ -859,7 +859,7 @@ assert.match(await heading(), /^Forkball/i);
   await page.goto('about:blank');
   await page.goto(base + `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22.`);
   await idle();
-  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22`, top: 12, notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
+  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22`, top: 12, notice: 'Replayed from the link: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
   // Cut off before its seed, there's nothing to replay: a new at-bat, which says why, and the address is its own.
   await page.goto('about:blank');
   await page.goto(base + '#ab.skenes');
@@ -873,7 +873,7 @@ assert.match(await heading(), /^Forkball/i);
   await page.evaluate(() => scrollTo(0, 0));
   await change(`#ab.v${VERSION}.skenes.L.b.FF6.S`);
   await idle();
-  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.skenes.L.b.FF6`, top: 12, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
+  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.skenes.L.b.FF6`, top: 12, notice: 'Replayed from the link: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
   await page.evaluate(() => scrollTo(0, 0));
   await change(`#ab.v${VERSION}.skenes.X.b.FF6`);
   await idle();
@@ -1049,11 +1049,11 @@ assert.match(await heading(), /^Forkball/i);
   await page.reload();
   await idle();
   const back = () => page.evaluate(() => ({ hitter: window.arsenal.atBat.state.hitter, shown: document.getElementById('ab-hitter').value, n: window.arsenal.atBat.state.ab.pitches.length, notice: document.getElementById('ab-notice').textContent, hash: location.hash }));
-  assert.deepEqual(await back(), { hitter: 'patient', shown: 'patient', n: 1, notice: 'A shared at-bat: the league-average righty to a patient right-handed hitter, 1 pitch.', hash }, 'reloaded');
+  assert.deepEqual(await back(), { hitter: 'patient', shown: 'patient', n: 1, notice: 'Replayed from the link: the league-average righty to a patient right-handed hitter, 1 pitch.', hash }, 'reloaded');
   await page.goto('about:blank');
   await page.goto(base + `#ab.v${VERSION}.skenes.L-slugger.b.FF6`);
   await idle();
-  assert.deepEqual(await back(), { hitter: 'average', shown: 'average', n: 1, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. There’s no kind of hitter called “slugger” here, so this is the average one.', hash: `#ab.v${VERSION}.skenes.L.b.FF6` }, 'a link with a kind of hitter the page doesn’t know');
+  assert.deepEqual(await back(), { hitter: 'average', shown: 'average', n: 1, notice: 'Replayed from the link: Paul Skenes to a left-handed batter, 1 pitch. There’s no kind of hitter called “slugger” here, so this is the average one.', hash: `#ab.v${VERSION}.skenes.L.b.FF6` }, 'a link with a kind of hitter the page doesn’t know');
   assert.deepEqual(problems.slice(before), [], 'problems with the kinds of hitter');
 }
 
@@ -1174,7 +1174,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     };
   });
   assert.ok(replay.busy, `${at}, the link's last pitch had landed before it could be checked`);
-  assert.deepEqual(replay.heard, { live: '', notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.' }, `${at}, what a screen reader is told as a link opens`);
+  assert.deepEqual(replay.heard, { live: '', notice: 'Replayed from the link: the league-average righty to a right-handed batter, 6 pitches.' }, `${at}, what a screen reader is told as a link opens`);
   assert.deepEqual(replay.count2, { said: '2 balls, 2 strikes', hidden: true }, `${at}, the count as a screen reader reads it`);
   assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 78.6 mph' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
