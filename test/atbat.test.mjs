@@ -406,6 +406,17 @@ test('each kind of pitch can be chased and taken in its own way', () => {
   assert.ok(Math.abs(chased.SI.chaseSwing - base.SI.chaseSwing) < 0.02, `sinkers chased ${base.SI.chaseSwing.toFixed(3)}, then ${chased.SI.chaseSwing.toFixed(3)}`);
 });
 
+// Where a pitch crosses moves how often he misses it and how hard he hits it (js/atbat-params.js, contact.edge and
+// quality.middle): with more for the corners he misses them more against the middle, and with the middle's damage
+// spread wider, one over the middle does less harm against one off the plate.
+test('where a pitch crosses moves his misses and his damage', () => {
+  const by = params => measure(params, 3000, 10).groups, ratio = (g, k) => g.corner[k] / g.middle[k];
+  const base = by(PARAMS), edged = by({ ...PARAMS, contact: { ...PARAMS.contact, edge: PARAMS.contact.edge + 0.3 } });
+  assert.ok(ratio(edged, 'whiff') > ratio(base, 'whiff') * 1.3, `corner misses against the middle's: ${ratio(base, 'whiff').toFixed(2)}, then ${ratio(edged, 'whiff').toFixed(2)}`);
+  const flat = by({ ...PARAMS, quality: { ...PARAMS.quality, middle: PARAMS.quality.middle * 3 } }), harm = g => g.middle.wobacon / g.out.wobacon;
+  assert.ok(harm(flat) < harm(base) * 0.8, `wOBA on contact over the middle against off the plate: ${harm(base).toFixed(2)}, then ${harm(flat).toFixed(2)}`);
+});
+
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {
     let swings = 0, whiffs = 0;

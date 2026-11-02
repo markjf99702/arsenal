@@ -119,6 +119,13 @@ export function pitchFor(pitcher, entry, plate) {
 
 // ---------------------------------------------------------------- the zone
 
+// How far toward a corner of the zone a point is: 0 at its middle, 1 at the middle of an edge, 2 at a corner, and
+// no more past them.
+export function toCorner([x, z]) {
+  const dx = Math.min(1, Math.abs(x) / ZONE.half), dz = Math.min(1, Math.abs(z - (ZONE.top + ZONE.bottom) / 2) / ((ZONE.top - ZONE.bottom) / 2));
+  return dx * dx + dz * dz;
+}
+
 // How far inside the zone a point is (feet): positive inside, negative outside.
 export function margin(x, z) {
   const dx = ZONE.half - Math.abs(x), dz = Math.min(z - ZONE.bottom, ZONE.top - z);
@@ -255,10 +262,13 @@ export function throwCall(ab, call) {
     // His approach by count: a full swing early in the count, shortened up to protect with two strikes.
     const k = stuff * (P.approach[`${before.balls}-${before.strikes}`] ?? 1);
     const read = Math.exp(-(((missBy * k) / P.contact.miss) ** 2)) * Math.exp(-(((early * k) / P.contact.timing) ** 2));
+    // And where it crosses: in 2026 hitters missed a pitch on the corners of the zone almost twice as often as one over
+    // the middle (edge, by how far toward a corner it is, 0 at the middle and 2 at a corner or past it).
     const pContact = (P.contact.max
       * (P.contact.floor + (1 - P.contact.floor) * read)
       * Math.exp(-((reach / P.contact.reach) ** 2))
-      * Math.exp(-Math.max(0, entry.mph - 93) * P.contact.velo)) ** stuff;
+      * Math.exp(-Math.max(0, entry.mph - 93) * P.contact.velo)
+      * Math.exp(-P.contact.edge * toCorner(plate))) ** stuff;
     if (!R.chance(pContact)) out.result = 'whiff';
     else {
       const square = Math.exp(-((missBy / P.fair.miss) ** 2) - (early / P.fair.timing) ** 2 - (reach / P.fair.reach) ** 2);

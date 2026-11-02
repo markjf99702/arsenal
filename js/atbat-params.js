@@ -107,7 +107,8 @@ export const PARAMS = {
   "timing": 0.0528,
   "reach": 0.4579,
   "velo": 0.0058,
-  "floor": 0.3758
+  "floor": 0.3758,
+  "edge": 0
  },
  "fair": {
   "base": 0.5713,

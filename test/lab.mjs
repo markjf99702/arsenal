@@ -1,8 +1,8 @@
 // The at-bat lab: plays thousands of at-bats with the pitcher choosing for himself, and measures them the way
 // Statcast measures the league. Used by tools/calibrate.mjs and test/atbat.test.mjs, which hold the hitter to the same
 // checks (checks, below): the test fails on knobs that miss them, and the calibrator won't write them.
-import { LEAGUE, COUNTS, TYPES } from '../js/league.js';
-import { autoAtBat, LEAGUE_ARM, PITCHERS } from '../js/atbat.js';
+import { LEAGUE, COUNTS, TYPES, ZONES } from '../js/league.js';
+import { autoAtBat, LEAGUE_ARM, PITCHERS, ZONE, inZone } from '../js/atbat.js';
 
 const L = LEAGUE;
 const outOfZone = L.pitches - L.zone.pitches;
@@ -25,9 +25,27 @@ function* atBats(pitcher, params, pas, seeds) {
   for (const seed of [seeds].flat()) for (let i = 0; i < pas; i++) yield autoAtBat({ pitcher, batter: i % 5 < 3 ? 'R' : 'L', seed: (seed * 1000003 + i * 7919) >>> 0, params });
 }
 
+// Where a pitch crossed, as Statcast's zones put it: 'middle' (zone 5), 'edge' (2, 4, 6, 8, the middle of each side),
+// 'corner' (1, 3, 7, 9), or 'out' of the zone (11 to 14). And 2026's swings, whiffs, balls in play and their wOBA in
+// each (wOBA on contact: Statcast's weights for each hit, summed over balls in play).
+export function zoneGroup(x, z) {
+  if (!inZone(x, z)) return 'out';
+  const third = (v, lo, hi) => Math.min(2, Math.max(0, Math.floor((3 * (v - lo)) / (hi - lo))));
+  const c = third(x, -ZONE.half, ZONE.half), r = third(z, ZONE.bottom, ZONE.top);
+  return c === 1 && r === 1 ? 'middle' : c === 1 || r === 1 ? 'edge' : 'corner';
+}
+const W = LEAGUE.woba, wobaOf = play => ({ '1B': W['1B'], '2B': W['2B'], '3B': W['3B'], HR: W.HR }[play] || 0);
+export const GROUPS = {};
+for (const [zn, v] of Object.entries(ZONES)) {
+  const g = GROUPS[zn === '5' ? 'middle' : Number(zn) > 9 ? 'out' : ['1', '3', '7', '9'].includes(zn) ? 'corner' : 'edge'] ||= { pitches: 0, swings: 0, whiffs: 0, bip: 0, w: 0 };
+  g.pitches += v.pitches; g.swings += v.swings; g.whiffs += v.whiffs; g.bip += v.bip;
+  g.w += W['1B'] * v.singles + W['2B'] * v.doubles + W['3B'] * v.triples + W.HR * v.hrs;
+}
+for (const g of Object.values(GROUPS)) Object.assign(g, { whiff: g.whiffs / g.swings, wobacon: g.w / g.bip });
+
 export function measure(params, pas = 6000, seed = 1) {
   const c = { pa: 0, pitches: 0, k: 0, bb: 0, hbp: 0, swing: 0, whiff: 0, zone: 0, zoneSwing: 0, zoneWhiff: 0, chaseSwing: 0, chaseWhiff: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0, contact: 0, foul: 0, bip: 0, hits: 0, hr: 0, ab: 0 };
-  const counts = {}, types = {}, contactScores = [];
+  const counts = {}, types = {}, groups = {}, contactScores = [];
   for (const ab of atBats(LEAGUE_ARM, params, pas, seed)) {
     c.pa++;
     if (ab.result === 'K' || ab.result === 'KL') c.k++;
@@ -38,7 +56,10 @@ export function measure(params, pas = 6000, seed = 1) {
       const ck = `${p.before.balls}-${p.before.strikes}`;
       const cc = counts[ck] ||= { pitches: 0, swings: 0, zone: 0, whiffs: 0, fouls: 0, contact: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0 };
       const tc = types[p.code] ||= { pitches: 0, swings: 0, whiffs: 0, zone: 0, zoneSwings: 0 };
-      cc.pitches++; tc.pitches++;
+      const gc = groups[zoneGroup(p.plate[0], p.plate[1])] ||= { pitches: 0, swings: 0, whiffs: 0, bip: 0, w: 0 };
+      cc.pitches++; tc.pitches++; gc.pitches++;
+      if (p.swing) { gc.swings++; if (p.result === 'whiff') gc.whiffs++; }
+      if (p.result === 'inplay') { gc.bip++; gc.w += wobaOf(p.play); }
       if (p.inZone) { c.zone++; cc.zone++; tc.zone++; }
       if (p.swing) {
         c.swing++; cc.swings++; tc.swings++; if (p.inZone) tc.zoneSwings++;
@@ -73,6 +94,7 @@ export function measure(params, pas = 6000, seed = 1) {
       pitches: v.pitches, swings: v.swings, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings,
       zonePitches: v.zone, zoneSwing: v.zoneSwings / v.zone, chaseSwing: (v.swings - v.zoneSwings) / (v.pitches - v.zone),
     }])),
+    groups: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, { pitches: v.pitches, swings: v.swings, bip: v.bip, whiff: v.whiffs / v.swings, wobacon: v.w / v.bip }])),
     contactScores,
   };
 }

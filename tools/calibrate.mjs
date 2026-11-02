@@ -15,7 +15,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEAGUE, COUNTS, TYPES } from '../js/league.js';
-import { measure, measurePitchers, TARGET, checks, SEEDS } from '../test/lab.mjs';
+import { measure, measurePitchers, TARGET, checks, SEEDS, GROUPS } from '../test/lab.mjs';
 import { PARAMS as START } from '../js/atbat-params.js';
 import { rng } from '../js/rng.js';
 
@@ -111,6 +111,16 @@ function nudge(m) {
     if (v.pitches * v.swing * (1 - v.whiff) > 150) P.fairBy[c] = clamp(P.fairBy[c] * ((1 - COUNTS[c].foul) / Math.max(0.05, 1 - v.foul)) ** 0.8, 0.3, 2);
   }
   P.hbp.at = clamp(P.hbp.at + 0.08 * Math.log(Math.max(0.001, m.hbp) / TARGET.hbp), 1.2, 2.6);
+  // Where it crossed: how much more he misses on the corners than over the middle, and how much harder he hits one
+  // over the middle than one off the plate, each until it's 2026's (the level of both is the other knobs').
+  const g = m.groups;
+  if (g.middle?.swings > 300 && g.corner?.swings > 300) {
+    const gap = x => logit(x.corner.whiff) - logit(x.middle.whiff);
+    P.contact.edge = clamp(P.contact.edge + 0.3 * (gap(GROUPS) - gap(g)), 0, 2);
+  }
+  if (g.middle?.bip > 300 && g.out?.bip > 300) {
+    P.quality.middle = clamp(P.quality.middle * ((g.middle.wobacon / g.out.wobacon) / (GROUPS.middle.wobacon / GROUPS.out.wobacon)) ** 0.5, 0.5, 6);
+  }
 }
 
 // Balls in play: thresholds on the contact score at the quantiles that give the league's home runs, extra-base hits
