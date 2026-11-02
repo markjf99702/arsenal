@@ -370,6 +370,22 @@ function readLink(h) {
   if (!pitch) return null;
   return { pitch, pair: pair && pair !== pitch ? pair.code : null, hand: more.includes('lefty') ? 'L' : 'R' };
 }
+// A link to a place on the page, like the lede's "pitch to a hitter", goes there itself, the way picking a pitch goes
+// up to it (smoothly, unless the device asks for less motion), and the address follows the same way. Followed as a
+// link, it would be read against the address of whatever page shows the one-file copy in a frame (written in with
+// srcdoc), and the frame would leave the copy for that page. Focus goes there too, so the next Tab is inside it, as it
+// would be after following the link.
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href^="#"]');
+  if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const to = document.getElementById(a.getAttribute('href').slice(1));
+  if (!to) return;
+  e.preventDefault();
+  to.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  if (!to.hasAttribute('tabindex')) to.tabIndex = -1;
+  to.focus({ preventScroll: true });
+  try { history.replaceState(null, '', a.getAttribute('href')); } catch {}
+});
 function follow(link) {
   state.hand = link.hand;
   for (const b of $('hand').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.hand));

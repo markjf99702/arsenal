@@ -415,6 +415,8 @@ p { margin: 0; }
 
 /* ---------------------------------------------------------------- pitch to a hitter */
 .bat { max-width: 1200px; margin: 40px auto 0; display: grid; gap: 12px; scroll-margin-top: 12px; }
+/* Focus comes here with the lede's link, as the place the next Tab starts from, not something to press. */
+.bat:focus { outline: none; }
 .bat-head { display: grid; gap: 6px; }
 .bat-head h2 { font-size: 34px; text-transform: uppercase; letter-spacing: .03em; }
 .bat-head .intro { color: var(--ink-2); max-width: 62em; }

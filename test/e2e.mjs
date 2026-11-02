@@ -148,6 +148,16 @@ for (const colorScheme of ['light', 'dark']) {
   assert.deepEqual(link, { color: true, line: true }, `${colorScheme}: the lede's link`);
 }
 await page.emulateMedia({ colorScheme: 'light' });
+// Followed, it goes down to Pitch to a hitter, the address says so, and the next Tab is inside it (test/single.mjs
+// follows it in the one-file copy, in a frame).
+{
+  await page.locator('.lede a').click();
+  await until(() => page.evaluate(() => Math.round(document.getElementById('at-bat').getBoundingClientRect().top) === 12), 5000, 'the lede\'s link didn\'t bring Pitch to a hitter to the top of the screen');
+  await page.keyboard.press('Tab');
+  const went = await page.evaluate(() => ({ hash: location.hash, tab: document.getElementById('at-bat').contains(document.activeElement) && document.activeElement.id }));
+  assert.deepEqual(went, { hash: '#at-bat', tab: 'ab-pitcher' }, 'the lede\'s link');
+  await page.evaluate(() => { document.activeElement.blur(); scrollTo(0, 0); });
+}
 
 // A segmented button's focus ring is drawn inside it: the pill clips its buttons, so a ring outside one is cut down to
 // slivers. The end buttons are rounded like the pill, so the ring follows its ends round. Every pill: the camera, speed,

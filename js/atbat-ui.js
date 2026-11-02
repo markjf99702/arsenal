@@ -36,8 +36,9 @@ export function setupAtBat({ dark = false } = {}) {
   const reveal = el => el.scrollIntoView({ block: behind(el) ? 'start' : 'nearest' });
   // Anything reached with the keyboard: the pitch controls, and the pitcher, batter and speed above them, which scroll
   // away under the picture. A button in a .seg is brought out by its row: the row clips its buttons, so the browser would
-  // scroll it alone and leave the button behind the picture.
-  $('at-bat').addEventListener('focusin', e => { if (!frame.contains(e.target) && e.target.matches(':focus-visible')) reveal(e.target.closest('.seg') || e.target); });
+  // scroll it alone and leave the button behind the picture. (Not the section itself, which the lede's link focuses as
+  // it goes down to it.)
+  $('at-bat').addEventListener('focusin', e => { if (e.target !== e.currentTarget && !frame.contains(e.target) && e.target.matches(':focus-visible')) reveal(e.target.closest('.seg') || e.target); });
   // Framed for the at-bat (atBatCamera): from the pitcher's hand down to a pitch in the dirt.
   stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', dark, atBat: true });
 
