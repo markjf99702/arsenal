@@ -1615,6 +1615,32 @@ assert.match(await heading(), /^Knuckleball/i);
 // Fits a phone: nothing scrolls sideways.
 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'the page scrolls sideways on a phone');
 
+// It installs: Chrome finds nothing in the way, and reads the manifest without an error (the house kit asks for this
+// before a push).
+{
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  const cdp = await page.context().newCDPSession(page);
+  const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
+  const manifest = await cdp.send('Page.getAppManifest');
+  await cdp.detach();
+  assert.deepEqual({ installabilityErrors, errors: manifest.errors, name: JSON.parse(manifest.data || '{}').name }, { installabilityErrors: [], errors: [], name: 'Arsenal' }, 'installing it');
+}
+
+// A tablet either way up and a computer, in either palette: nothing scrolls sideways, and an at-bat link replays to
+// its end card.
+for (const [width, height] of [[768, 1024], [1024, 768], [1280, 800]]) {
+  for (const colorScheme of ['light', 'dark']) {
+    const wideCtx = await browser.newContext({ viewport: { width, height }, colorScheme, hasTouch: width < 1280, serviceWorkers: 'block' });
+    const wide = await wideCtx.newPage();
+    watch(wide);
+    await wide.goto(base + STRIKEOUT);
+    await wide.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+    const seen = await wide.evaluate(() => ({ sideways: document.documentElement.scrollWidth > innerWidth, result: document.getElementById('ab-result').textContent, end: !document.getElementById('ab-end').hidden }));
+    assert.deepEqual(seen, { sideways: false, result: 'Strikeout swinging', end: true }, `at ${width}x${height}, ${colorScheme}`);
+    await wideCtx.close();
+  }
+}
+
 // Works offline once it has been opened. The server goes down as well as the browser: in some Chromium builds the
 // browser's offline switch alone doesn't stop the service worker's own requests, and this passed with no copy at all.
 await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 10000 });

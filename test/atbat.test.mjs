@@ -8,6 +8,7 @@ import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
 import { rng } from '../js/rng.js';
+import { TOTAL } from '../js/numbers.js';
 
 const RESULTS = new Set(['ball', 'called', 'whiff', 'foul', 'tip', 'inplay', 'hbp']);
 const ENDS = new Set(['K', 'KL', 'BB', 'HBP', 'out', '1B', '2B', '3B', 'HR']);
@@ -323,6 +324,19 @@ test('over thousands of at-bats it comes out near the real league', () => {
   near('zoneSwing', 0.025); near('zoneWhiff', 0.025); near('chaseSwing', 0.03); near('chaseWhiff', 0.03);
   near('calledZone', 0.025); near('calledChase', 0.015); near('foul', 0.03);
   near('hitsPerBip', 0.025); near('hrPerBip', 0.012);
+});
+
+// The README quotes the lab's strikeouts against the league's, and the season's count of pitches: within a point of
+// what they are now, and the count exactly as js/numbers.js has it, so a retune or a new season's numbers can't leave
+// its words behind.
+test('the README’s strikeouts are the lab’s and the league’s, and its count of pitches is the season’s', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  const [, ours, theirs] = readme.match(/strikeouts run [^(]*\((\d+)% against (\d+)%\)/) || [];
+  assert.ok(ours, 'the README no longer says how strikeouts compare with the league’s');
+  assert.ok(Math.abs(Number(ours) - lab.k * 100) <= 1, `the README says strikeouts come out at ${ours}%; the lab has ${(lab.k * 100).toFixed(1)}%`);
+  assert.ok(Math.abs(Number(theirs) - TARGET.k * 100) <= 1, `the README says the league’s were ${theirs}%; js/league.js has ${(TARGET.k * 100).toFixed(1)}%`);
+  const total = `${TOTAL.toLocaleString('en-US')} pitches`;
+  assert.ok(readme.includes(total), `the README doesn’t give the season’s ${total}`);
 });
 
 test('in every count, hitters swing and miss about as often as they really do', () => {
