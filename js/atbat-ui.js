@@ -137,7 +137,7 @@ export function setupAtBat({ dark = false } = {}) {
     reveal($('ab-callbox'));
     $('ab-throw').focus({ preventScroll: true });
   });
-  $('ab-copy').addEventListener('click', copyLink);
+  $('ab-copy').addEventListener('click', () => (shares() ? shareLink() : copyLink()));
   for (const id of ['ab-watch', 'ab-watch-link']) $(id).addEventListener('click', () => watch());
   $('ab-challenge').addEventListener('click', () => challengeCall());
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
@@ -440,7 +440,7 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-inning').textContent = S.inning ? inningLine() : '';
       $('ab-batters').innerHTML = done ? S.inning.abs.map(b => `<li><b>${ENDING[b.result]}</b>\u00a0· ${plural(b.pitches.length, 'pitch')}</li>`).join('') : '';
       $('ab-next').textContent = !S.inning ? 'Next hitter' : done ? 'Pitch another inning' : 'Next batter';
-      $('ab-copy').textContent = S.inning ? 'Copy link to this inning' : 'Copy link to this at-bat';
+      $('ab-copy').textContent = shares() ? `Share this ${S.inning ? 'inning' : 'at-bat'}` : S.inning ? 'Copy link to this inning' : 'Copy link to this at-bat';
       $('ab-watch').textContent = done ? 'Watch the last at-bat' : 'Watch it again';
       drawTally();
       $('ab-copied').textContent = '';
@@ -726,6 +726,22 @@ export function setupAtBat({ dark = false } = {}) {
   function stamp() {
     try { history.replaceState(null, '', `#${code()}`); } catch {}
     document.title = 'Pitch to a hitter · Arsenal';
+  }
+  // On a phone or a tablet whose browser can share, the end card sends the link through the phone's own share sheet
+  // (Messages, WhatsApp, Mail...), with how it went: "Pitch to a hitter: Strikeout swinging". A computer copies it, as
+  // does a phone whose browser can't share. Closed without sending, the sheet leaves nothing to say; refused (a frame
+  // that may not share, say), the link is copied instead.
+  const shares = () => typeof navigator.share === 'function' && matchMedia('(pointer: coarse)').matches;
+  const shareWords = () => (S.inning ? `Pitch to a hitter: an inning. ${inningLine()}` : `Pitch to a hitter: ${ENDING[S.ab.result]}`);
+  async function shareLink() {
+    const url = `https://junkdrawer.works/arsenal/#${code()}`, words = shareWords();
+    $('ab-copied').textContent = '';
+    $('ab-link').hidden = true;
+    try {
+      await navigator.share({ title: words, text: words, url });
+    } catch (e) {
+      if (e?.name !== 'AbortError') copyLink();
+    }
   }
   // Some browsers refuse the clipboard (an in-app browser, the framed copy, a denied permission): then the link goes in
   // a field, selected, to copy by hand.

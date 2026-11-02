@@ -7,7 +7,7 @@ import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { VERSION } from '../js/atbat.js';
+import { VERSION, SPOTS, AVERAGE, playInning, linkFor } from '../js/atbat.js';
 import { LEAGUE } from '../js/league.js';
 
 const require = createRequire(import.meta.url);
@@ -998,6 +998,70 @@ assert.match(await heading(), /^Forkball/i);
     assert.equal(new Set(seeds).size, 3, `the same hitter came back after switching the batter or the pitcher and back: ${seeds.join(', ')}`);
   }
   assert.deepEqual(problems.slice(before), [], 'problems while pitching to a hitter');
+}
+
+// On a phone whose browser can share, the end card's link goes out through the phone's own share sheet, with how it
+// went: "Pitch to a hitter: Strikeout swinging", or for an inning where it stands. Closed without sending, the sheet
+// leaves nothing to say; refused (a frame that may not share, say), the link is copied instead. A computer copies it
+// even where its browser can share, and so does a phone whose browser can't (above: headless Chromium can't, so the
+// share sheet is stood in for here).
+{
+  const shareSheet = () => {
+    window.shared = [];
+    navigator.share = data => {
+      window.shared.push({ ...data });
+      const answer = window.shareAnswer;
+      return answer ? Promise.reject(new DOMException(answer, answer === 'close' ? 'AbortError' : 'NotAllowedError')) : Promise.resolve();
+    };
+  };
+  const strikeout = `ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22`; // the README's
+  const calls = Array.from({ length: 80 }, (_, i) => ({ code: ['FF', 'SL', 'CH', 'CU'][i % 4], spot: SPOTS[[6, 23, 16, 8, 12][i % 5]] }));
+  const played = playInning({ seed: 77, calls });
+  const inning = linkFor({ inning: true, pitcher: AVERAGE, batter: 'R', seed: 77, calls: calls.slice(0, played.thrown) });
+  const end = async (p, hash) => {
+    await p.goto('about:blank');
+    await p.goto(base + '#' + hash);
+    await p.waitForFunction(() => !window.arsenal.atBat.state.busy && !document.getElementById('ab-end').hidden, null, { timeout: 15000 });
+    return p.locator('#ab-copy').textContent();
+  };
+  const after = p => p.evaluate(() => ({ shared: window.shared, said: document.getElementById('ab-copied').textContent, field: !document.getElementById('ab-link').hidden }));
+  const shareCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  await shareCtx.addInitScript(shareSheet);
+  await shareCtx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(base).origin });
+  const phone = await shareCtx.newPage();
+  watch(phone);
+  assert.equal(await end(phone, strikeout), 'Share this at-bat');
+  await phone.locator('#ab-copy').click();
+  await phone.waitForFunction(() => window.shared.length === 1);
+  const words = 'Pitch to a hitter: Strikeout swinging', url = `https://junkdrawer.works/arsenal/#${strikeout}`;
+  assert.deepEqual(await after(phone), { shared: [{ title: words, text: words, url }], said: '', field: false }, 'shared from a phone');
+  // Closed without sending.
+  await phone.evaluate(() => { window.shareAnswer = 'close'; });
+  await phone.locator('#ab-copy').click();
+  await phone.waitForFunction(() => window.shared.length === 2);
+  await phone.waitForTimeout(200);
+  assert.deepEqual({ ...(await after(phone)), shared: undefined }, { shared: undefined, said: '', field: false }, 'the share sheet closed without sending');
+  // Refused: copied instead.
+  await phone.evaluate(() => { window.shareAnswer = 'refuse'; });
+  await phone.locator('#ab-copy').click();
+  await phone.waitForFunction(() => document.getElementById('ab-copied').textContent);
+  assert.deepEqual({ ...(await after(phone)), shared: undefined, copied: await phone.evaluate(() => navigator.clipboard.readText()) }, { shared: undefined, said: 'Link copied. Whoever opens it sees this exact at-bat.', field: false, copied: url }, 'sharing refused');
+  // An inning's says where it stands.
+  await phone.evaluate(() => { window.shareAnswer = ''; window.shared = []; });
+  assert.equal(await end(phone, inning), 'Share this inning');
+  await phone.locator('#ab-copy').click();
+  await phone.waitForFunction(() => window.shared.length === 1);
+  const said = await phone.evaluate(() => window.shared[0]);
+  assert.match(said.text, /^Pitch to a hitter: an inning\. Three outs: \d+ batters and \d+ pitches, \d+\u00a0K\u00a0· /, 'an inning shared');
+  assert.deepEqual([said.title, said.url], [said.text, `https://junkdrawer.works/arsenal/#${inning}`], 'an inning shared');
+  await shareCtx.close();
+  // A computer copies.
+  const deskShare = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' });
+  await deskShare.addInitScript(shareSheet);
+  const desk = await deskShare.newPage();
+  watch(desk);
+  assert.equal(await end(desk, strikeout), 'Copy link to this at-bat', 'a computer that can share');
+  await deskShare.close();
 }
 
 // "What would a catcher call?" gives a typical call for the count, and then what big leaguers did in that count in 2026,
