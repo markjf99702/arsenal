@@ -77,6 +77,15 @@ const ring = spot => (Math.abs(spot.c) === 2 ? 'off the plate' : spot.r === 2 ? 
 // Where it missed the zone, or that it bounced: "it was 3 inches below the zone", "it bounced in front of the plate".
 const offBy = (p, batter, verb) => (bounced(p) ? 'it bounced in front of the plate' : `it ${verb} ${missed(p, batter)}`);
 
+// Weak contact, by what happened: out in front, he rolled it over, wherever it was. Otherwise by where it crossed, from
+// his side: inside, it got in on his hands; away, he got the end of the bat on it; over the middle, by when he swung:
+// late, it got in on him, and on time he just didn't hit it squarely.
+function weak(p, batter) {
+  if (p.early > 0.008) return 'early';
+  const c = boxAt(p.plate, batter).c;
+  return c < 0 ? 'hands' : c > 0 ? 'end' : p.early < -0.008 ? 'late' : 'square';
+}
+
 // A few sentences on why the pitch went the way it did: where it went against the call, what he was looking for and
 // whether he recognised it, then what he did.
 export function why(p, prev, batter) {
@@ -130,12 +139,16 @@ export function why(p, prev, batter) {
     out.push(p.before.strikes === 2 ? 'He fouled it off to stay alive.' : 'He got a piece of it.');
   } else if (p.result === 'inplay') {
     const s = p.contact;
-    // Weak contact by when he swung, as in the note: early, late or on time.
-    const weak = p.early > 0.008 ? 'He was out in front and rolled it over: an easy out.' : p.early < -0.008 ? 'It got in on him: weak contact, an easy out.' : 'He got it off the end of the bat: weak contact, an easy out.';
+    // Weak contact, as in the note: early, or where it crossed.
+    const weakly = s < 0.3 && {
+      early: 'He was out in front and rolled it over: an easy out.', hands: 'It got in on his hands: weak contact, an easy out.',
+      end: 'He got it off the end of the bat: weak contact, an easy out.', late: 'It got in on him: weak contact, an easy out.',
+      square: 'He didn’t hit it squarely: weak contact, an easy out.',
+    }[weak(p, batter)];
     out.push({
       HR: 'He hit it right on the barrel.', '3B': 'He hit it between the outfielders and kept running.', '2B': 'He hit it hard, between the outfielders.',
       '1B': s > 0.6 ? 'He lined it into the outfield.' : p.picked ? 'He hit it between the fielders.' : 'He was fooled and still got enough of it.',
-      out: s > 0.75 ? 'He hit it hard, but right at someone.' : s < 0.3 ? weak : 'He put it in play, and they made the play.',
+      out: s > 0.75 ? 'He hit it hard, but right at someone.' : weakly || 'He put it in play, and they made the play.',
     }[p.play]);
   }
   return out.join(' ');
@@ -202,10 +215,13 @@ export function note(ab) {
     const { balls, strikes } = last.before;
     lead = `The ${balls || strikes ? `${balls}-${strikes}` : 'first-pitch'} ${X}, meant to be ${spotName(last.spot)}, got away and hit him.`;
   } else if (r === 'out') {
-    // Weak contact by when he swung: early, he rolled it over; late, it got in on him; on time, off the end of the bat.
+    // Weak contact: early, or where it crossed (weak).
     if (last.contact < 0.3) {
-      lead = last.early > 0.008 ? `He was out in front of the ${X} and rolled it over.` : last.early < -0.008 ? `The ${X} got in on him, and he hit it weakly.` : `He got the ${X} off the end of the bat.`;
-    } else lead = `He got the ${X} ${spotThen(crossedAt(last, batter))} and put it in play, but the defense was there.`;
+      lead = {
+        early: `He was out in front of the ${X} and rolled it over.`, hands: `The ${X} got in on his hands, and he hit it weakly.`,
+        end: `He got the ${X} off the end of the bat.`, late: `The ${X} got in on him, and he hit it weakly.`, square: `He didn’t hit the ${X} squarely.`,
+      }[weak(last, batter)];
+    } else lead = `He got the ${X} ${spotThen(crossedAt(last, batter))} and put it in play, but a fielder got to it.`;
   } else {
     const middle = Math.abs(last.plate[0]) < 0.45 && last.plate[1] > 2.0 && last.plate[1] < 3.0;
     const off = Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]);

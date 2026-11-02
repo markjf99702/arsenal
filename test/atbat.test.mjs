@@ -98,6 +98,7 @@ const READS_BADLY = [
   [/'/, 'a straight apostrophe'],
   [/sitting on|pick(ed)? it up/, 'jargon the page doesn’t explain'],
   [/laid off|fought it off|squared it up|found a hole|into the gap/, 'a baseball idiom the page doesn’t explain'],
+  [/\b(defense|recogniz\w*|center|color)\b/i, 'an American spelling: the page’s are British (recognise, centre)'],
 ];
 test('the at-bat’s words read cleanly over thousands of at-bats', () => {
   for (const ab of PLAYED) for (const [what, text] of words(ab)) for (const [re, why, only] of READS_BADLY) {
@@ -127,9 +128,8 @@ test('the scout’s note says what decided the at-bat', () => {
     }
     // Fooled by the speed only when the last pitch's own why says so: he was out in front, and didn't recognise it.
     if (/timing was set for the faster one/.test(text)) assert.ok(last.early > 0.008 && !last.picked, at);
-    // Weak contact by when he swung: rolled over when early, jammed when late.
-    if (/rolled it over/.test(text)) assert.ok(last.early > 0.008, at);
-    if (/got in on him/.test(text)) assert.ok(last.early < -0.008, at);
+    // Weak contact: rolled over when early, wherever it was; otherwise by where it crossed (weakly, below).
+    weakly(text, last, ab.batter, at);
   }
   // A four-pitch walk, every one high and inside.
   assert.equal(note(replay('#ab.average.R.1.FF0.FF0.FF0.FF0')), 'All four missed the zone, and he didn’t chase any.');
@@ -140,6 +140,36 @@ test('the scout’s note says what decided the at-bat', () => {
   assert.equal(k.result, 'K');
   assert.equal(k.pitches.length, 6);
   assert.equal(note(k), 'The curveball was 6\u00a0mph slower than the slider before it, and his timing was set for the faster one. 6 pitches: he swung at 3 and missed 2, chasing one out of the zone.');
+});
+
+// Weak contact, in the note or a pitch's why: out in front, he rolled it over, wherever it was. Otherwise it's by where
+// it crossed, from his side: an inside pitch got in on his hands, one away came off the end of the bat, and one over
+// the middle got in on him when he was late.
+function weakly(text, p, batter, at) {
+  const col = boxAt(p.plate, batter).c;
+  if (/rolled it over/.test(text)) assert.ok(p.early > 0.008, at);
+  if (/got in on (him|his hands)/.test(text)) assert.ok(p.early <= 0.008 && col <= 0, at);
+  if (/got in on him\b/.test(text)) assert.ok(p.early < -0.008 && col === 0, at);
+  if (/off the end of the bat/.test(text)) assert.ok(p.early <= 0.008 && col > 0, at);
+  if (/squarely/.test(text)) assert.ok(Math.abs(p.early) <= 0.008 && col === 0, at);
+}
+test('weak contact is said by where the pitch crossed: in on his hands inside, off the end of the bat away', () => {
+  const said = {};
+  for (const ab of PLAYED) ab.pitches.forEach((p, i) => {
+    if (p.play !== 'out' || p.contact >= 0.3) return;
+    const note_ = p === ab.pitches.at(-1) ? note(ab) : '';
+    for (const [what, text] of [['note', note_], [`pitch ${p.n}`, why(p, ab.pitches[i - 1], ab.batter)]]) {
+      const at = `${ab.pitcher.key} to a ${ab.batter}, seed ${ab.seed}, ${what}: ${text}`;
+      weakly(text, p, ab.batter, at);
+      const col = boxAt(p.plate, ab.batter).c;
+      if (col < 0) assert.doesNotMatch(text, /off the end/, at);
+      if (col > 0) assert.doesNotMatch(text, /got in on/, at);
+      for (const w of ['rolled it over', 'got in on his hands', 'got in on him,', 'got in on him:', 'off the end', 'squarely']) if (text.includes(w)) said[w] = (said[w] || 0) + 1;
+    }
+  });
+  // Each way of saying it comes up, in the note and the why alike.
+  for (const w of ['rolled it over', 'got in on his hands', 'off the end', 'squarely']) assert.ok(said[w] > 50, `${w}: ${said[w]}`);
+  assert.ok(said['got in on him,'] > 20 && said['got in on him:'] > 20, JSON.stringify(said));
 });
 
 test('a ball in play is named the same in the log as on the end card', () => {
