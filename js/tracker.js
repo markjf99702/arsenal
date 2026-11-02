@@ -91,10 +91,9 @@ export function boardRoom(W, H, dpr, [x, z]) {
 // that covers it, and can still be found. Every mark stays where its pitch crossed.
 export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
   const r0 = markRadius(cam);
-  const floor = cam.H - r0 - 2;
   const at = marks.map(m => {
-    const p = cam.project([m.x, PLATE_Y, m.z]);
-    return { x: p.x, y: Math.min(p.y, floor), low: p.y > floor };
+    const p = markAt(cam, [m.x, m.z]);
+    return { ...p, low: p.y < cam.project([m.x, PLATE_Y, m.z]).y };
   });
   const ring = Math.max(1.5 * (cam.dpr || 1), r0 * 0.2);
   ctx.save();
@@ -134,6 +133,43 @@ export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
       ctx.closePath(); ctx.fill();
     }
   });
+  ctx.restore();
+}
+
+// Where a mark is drawn: where its pitch crossed, or on the bottom edge for one that crossed below it (drawMarks).
+export function markAt(cam, [x, z]) {
+  const p = cam.project([x, PLATE_Y, z]), floor = cam.H - markRadius(cam) - 2;
+  return { x: p.x, y: Math.min(p.y, floor) };
+}
+
+// The catcher's target: a mitt where the pitch is called, as a broadcast's command graphic shows it, seen from behind
+// him with its thumb to the right. Brown leather with a paler pocket and a white edge, so it shows on the dirt and the
+// grass alike, and looks nothing like the dashed ring of the decision point. Its pocket is on the spot.
+export const MITT = { leather: '#6b3d1e', pocket: '#c08a52' };
+export function drawTarget(ctx, cam, [x, z]) {
+  const p = markAt(cam, [x, z]), R = markRadius(cam) * 1.15, dpr = cam.dpr || 1;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y - R * 0.08, R, 0, Math.PI * 2);
+  ctx.moveTo(p.x + R * 1.22, p.y + R * 0.5);
+  ctx.arc(p.x + R * 0.78, p.y + R * 0.5, R * 0.44, 0, Math.PI * 2);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * Math.max(1.5 * dpr, R * 0.18); ctx.stroke();
+  ctx.fillStyle = MITT.leather; ctx.fill();
+  ctx.beginPath(); ctx.arc(p.x, p.y, R * 0.5, 0, Math.PI * 2);
+  ctx.fillStyle = MITT.pocket; ctx.fill();
+  ctx.restore();
+}
+
+// A thin line from the target to where the pitch crossed, for one that missed it by more than MISSED (6 inches), under
+// its mark: pale leather, with a dark edge on the light palette.
+export const MISSED = 0.5;
+export function drawMiss(ctx, cam, from, to, dark) {
+  const a = markAt(cam, from), b = markAt(cam, to), dpr = cam.dpr || 1;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+  if (!dark) { ctx.strokeStyle = 'rgba(20, 30, 45, .55)'; ctx.lineWidth = 3.5 * dpr; ctx.stroke(); }
+  ctx.strokeStyle = '#f3d6ad'; ctx.lineWidth = 1.5 * dpr; ctx.stroke();
   ctx.restore();
 }
 

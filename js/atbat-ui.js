@@ -2,7 +2,7 @@
 import { Stage } from './stage.js';
 import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
-import { markKind, readoutRoom, boardRoom } from './tracker.js';
+import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
 import { COUNTS, HITTERS } from './league.js';
@@ -207,6 +207,7 @@ export function setupAtBat({ dark = false } = {}) {
   function fly(rec) {
     readout(`Pitch ${rec.n}`);
     board(rec);
+    drawPicture();
     stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
     stage.show([rec.path]);
   }
@@ -295,6 +296,16 @@ export function setupAtBat({ dark = false } = {}) {
     for (const b of $('ab-pitches').children) mark(b, b.dataset.code === S.code);
     for (const b of $('ab-spots').children) mark(b, b.dataset.spot === S.spot.id);
     $('ab-choice').textContent = S.code ? `${SHORT(S.code)}, ${spotName(S.spot)}` : '';
+    drawPicture();
+  }
+
+  // On the picture, the catcher's target where the pitch is called (while one flies, where it was called), so picking
+  // another spot moves it there at once; and once a pitch is in, a line from the target to where it crossed, if it missed
+  // by more than 6 inches. The line is the last pitch's: it goes with the target when another spot is picked.
+  function drawPicture() {
+    const p = S.pending, last = S.ab.pitches.at(-1);
+    const missed = !p && last && last.spot.id === S.spot.id && Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]) > MISSED;
+    stage.set({ target: spotXZ(p ? p.spot : S.spot, S.batter), miss: missed ? last.plate : null });
   }
 
   function drawState() {
@@ -327,6 +338,7 @@ export function setupAtBat({ dark = false } = {}) {
     // Once it's over, the hundred throws look back at the last pitch.
     $('ab-run').textContent = over ? `What else could he have thrown on that ${ended} pitch?` : 'Throw each of his pitches 400 times from here';
     waiting();
+    drawPicture();
     if (over) {
       $('ab-result').textContent = ENDING[ab.result];
       // Coloured like the last pitch's mark and its number in the log: a strikeout red, a walk green, a ball in play blue.
@@ -530,9 +542,10 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-version').textContent = n && link.version !== VERSION
       ? `Pitched against ${link.version < VERSION ? 'an earlier' : 'a newer'} version of the hitter, so the same calls may play out differently.` : '';
     $('ab-live').textContent = '';
-    // The last pitch is thrown again, so the count and the log show where things stood before it.
+    // The last pitch is thrown again, so the count and the log show where things stood before it. The call stands as it
+    // was for that pitch, as it does after a pitch thrown here, so the target is where the catcher set up for it.
     const last = S.ab.pitches.at(-1);
-    if (last) { S.pending = last; S.busy = true; }
+    if (last) { S.pending = last; S.busy = true; S.code = last.code; S.spot = last.spot; drawCall(); }
     drawState();
     if (last) fly(last);
     // The address says what was replayed: without the pitches left out, and the league-average righty for a pitcher who

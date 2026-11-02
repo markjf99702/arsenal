@@ -4,7 +4,7 @@ import {
   drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
-import { drawBatter, drawMarks, atBatCamera, growth } from './tracker.js';
+import { drawBatter, drawMarks, drawTarget, drawMiss, atBatCamera, growth } from './tracker.js';
 
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
@@ -162,6 +162,7 @@ export class Stage {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(this.background(cam, colors), 0, 0);
     if (cam.kind === 'catcher') drawZone(ctx, cam, colors);
+    this.drawTarget(ctx, cam);
     if (!this.flights.length) { this.drawMarks(ctx, cam); return; }
 
     const t = this.gameTime();
@@ -246,6 +247,14 @@ export class Stage {
       drawBall(ctx, p.x, p.y, r, spun(M0, axisView, angle));
     }
     this.drawMarks(ctx, cam);
+  }
+
+  // The catcher's target in an at-bat, where the pitch is called, under the pitch's path; and once a pitch that missed it
+  // by more than 6 inches is in, a line from it to where that pitch crossed (`miss`), under its mark.
+  drawTarget(ctx, cam) {
+    if (cam.kind !== 'catcher' || !this.opts.target) return;
+    drawTarget(ctx, cam, this.opts.target);
+    if (this.opts.miss) drawMiss(ctx, cam, this.opts.target, this.opts.miss, this.opts.dark);
   }
 
   // An at-bat's pitches so far, where they crossed the plate, over everything else.

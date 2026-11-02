@@ -6,7 +6,7 @@ import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
 import { Stage } from '../js/stage.js';
 import { tilt } from '../js/spin.js';
-import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE, FIGURE, KNEE, LETTERS, figure, onPicture, drawBatter } from '../js/tracker.js';
+import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE, MITT, FIGURE, KNEE, LETTERS, figure, onPicture, drawBatter } from '../js/tracker.js';
 import { SPOTS, spotXZ } from '../js/atbat.js';
 import { LEAGUE } from '../js/league.js';
 
@@ -268,6 +268,32 @@ test('the batter is drawn in his box, his knees and letters level with the zone,
     const alpha = Number(drawn.filter(d => d.op === 'fill').at(-1).color.match(/[\d.]+\)$/)[0].slice(0, -1));
     assert.ok(alpha >= 0.15 && alpha <= 0.35, `the batter is ${alpha} solid on the ${dark ? 'dark' : 'light'} palette`);
   }
+});
+
+// The catcher's target, a mitt with its pocket on the spot called, is drawn under the pitch's path and its marks, and the
+// line from it to where a pitch that missed crossed runs between the two, under the mark.
+test('the catcher\'s target is under the pitch, and the line from it to where the pitch crossed is under its mark', () => {
+  const { ctx, drawn } = recorder();
+  Object.assign(globalThis, {
+    window: { devicePixelRatio: 2 }, matchMedia: () => ({ matches: false }), ResizeObserver: class { observe() {} },
+    requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
+    document: { createElement: () => ({ getContext: () => recorder().ctx }) },
+  });
+  const stage = new Stage({ width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => ({ width: 358, height: 235, left: 0, top: 0 }) });
+  stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', atBat: true, batter: 'R', target: [0.47, 3.4], miss: [0.9, 2.6], marks: [{ x: 0.9, z: 2.6, n: 1, kind: 'strike' }] });
+  stage.show([throwPitch(BY_CODE.FF, { rng: () => 0.5 })]);
+  stage.clock = 5;
+  drawn.length = 0;
+  stage.draw();
+  const cam = stage.camera(), spot = cam.project([0.47, 17 / 12, 3.4]);
+  const pocket = drawn.findIndex(d => d.color === MITT.pocket), path = drawn.findIndex(d => d.color === '#ffd23f');
+  const line = drawn.findIndex(d => d.color === '#f3d6ad'), mark = drawn.findIndex(d => d.color === MARK.strike && d.op === 'fill');
+  assert.ok(pocket >= 0 && Math.hypot(drawn[pocket].x - spot.x, drawn[pocket].y - spot.y) < 1e-9, 'the mitt\'s pocket isn\'t on the spot');
+  assert.ok(drawn.findIndex(d => d.color === MITT.leather) < pocket, 'the pocket is under the mitt');
+  assert.ok(pocket < line && line < path && path < mark, `drawn in the order ${JSON.stringify({ pocket, line, path, mark })}`);
+  drawn.length = 0;
+  stage.set({ miss: null });
+  assert.equal(drawn.filter(d => d.color === '#f3d6ad').length, 0, 'a line with no miss');
 });
 
 test('a knuckleball never goes the same way twice', () => {

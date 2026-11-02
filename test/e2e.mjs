@@ -1681,6 +1681,52 @@ for (const [link, kind] of [
 }
 assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs checked for their numbers’ shapes');
 
+// The catcher's target: a mitt on the picture where the pitch is called, from the moment a spot is picked, and while a
+// pitch flies, where that one was called. Once it's in, a thin line runs from the target to where it crossed, if it
+// missed by more than 6 inches. Picking another spot takes the line away with the target. A link's last pitch is
+// thrown again with its call standing, as after a pitch thrown here, so its target and line are there too.
+{
+  const aim = () => page.evaluate(async () => {
+    const { spotXZ, SPOTS } = await import(new URL('js/atbat.js', location.href));
+    const { stage, state } = window.arsenal.atBat, last = state.ab.pitches.at(-1);
+    const xz = id => spotXZ(SPOTS.find(s => s.id === id), state.batter);
+    return {
+      target: stage.opts.target, miss: stage.opts.miss, busy: state.busy, checked: document.querySelector('#ab-spots [aria-checked="true"]').dataset.spot,
+      last: last && { spot: last.spot.id, at: xz(last.spot.id), plate: last.plate, by: Math.round(Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]) * 12) },
+      at: Object.fromEntries(['1m1', 'm1m1', '21'].map(id => [id, xz(id)])),
+    };
+  });
+  const README = STRIKEOUT.replace(/\.FF6.*/, '');
+  await page.goto('about:blank');
+  await page.goto(base + README);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  let a = await aim();
+  assert.deepEqual([a.target, a.miss], [a.at['1m1'], null], 'the target before the first pitch, at the spot picked to start with');
+  await page.locator('#ab-spots [data-spot="m1m1"]').click();
+  a = await aim();
+  assert.deepEqual([a.target, a.miss], [a.at.m1m1, null], 'the target once another spot is picked');
+  // The README's fourth pitch, a four-seamer called high and away that crossed away at the belt, 17 inches off.
+  await page.goto('about:blank');
+  await page.goto(base + `${README}.FF6.SL23.CH16.FF3`);
+  a = await aim();
+  assert.ok(a.busy, 'the link\'s last pitch had landed before it could be checked');
+  assert.deepEqual([a.target, a.miss, a.checked], [a.at['21'], null, '21'], 'while the link\'s last pitch flies');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  a = await aim();
+  assert.equal(a.last.by, 17, 'the README\'s fourth pitch misses its spot by another amount now');
+  assert.deepEqual([a.target, a.miss, a.checked], [a.at['21'], a.last.plate, '21'], 'once a pitch that missed by 17 inches is in');
+  await page.locator('#ab-spots [data-spot="1m1"]').click();
+  a = await aim();
+  assert.deepEqual([a.target, a.miss], [a.at['1m1'], null], 'once another spot is picked after it');
+  // Its fifth, a slider called in the dirt and off the plate away, 5 inches off: no line.
+  await page.goto('about:blank');
+  await page.goto(base + `${README}.FF6.SL23.CH16.FF3.SL24`);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  a = await aim();
+  assert.equal(a.last.by, 5, 'the README\'s fifth pitch misses its spot by another amount now');
+  assert.deepEqual([a.target, a.miss], [a.last.at, null], 'once a pitch that missed by 5 inches is in');
+}
+
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
   const showing = () => page.evaluate(() => {
