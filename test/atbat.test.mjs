@@ -1,12 +1,12 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES, batterSeed, outsIn, playInning, OUTS } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES, batterSeed, outsIn, playInning, OUTS, challenge, challengeable, challengesLeft, throwLinked, CHALLENGES, CLOSE, margin } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL, LEAGUE } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { TARGET, run, checks, SEEDS, measure, measurePitchers, measureHitters } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
-import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
+import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING, challenged } from '../js/atbat-words.js';
 import { rng } from '../js/rng.js';
 import { TOTAL } from '../js/numbers.js';
 
@@ -283,7 +283,7 @@ test('a pitch under half an inch off the zone was just off the edge, and ball fo
 function replay(link) {
   const { pitcherKey, batter, hitter, seed, calls } = parseLink(link);
   const ab = startAtBat({ pitcher: pitcherByKey(pitcherKey), batter, hitter, seed });
-  for (const c of calls) if (!ab.result) throwCall(ab, c);
+  for (const c of calls) if (!ab.result) throwLinked(ab, c);
   return ab;
 }
 
@@ -331,6 +331,63 @@ test('an inning link replays the inning it was made from, batter by batter, unti
   assert.equal(batterSeed(12345, 0), 12345);
   // An at-bat link is still an at-bat's.
   assert.equal(parseLink('#ab.v3.average.R.2gbo.FF6').inning, false);
+});
+
+// The ABS challenge (MLB, "MLB announces ABS Challenge System coming to the Major Leagues beginning in the 2026 season",
+// September 23, 2025): a ball called on a pitch close to the zone can be challenged right after; one that touched the
+// zone is overturned to a called strike, the count with it (ball four back to three balls, or strike three looking),
+// and one that didn't stands. Two to start with, and only those that fail are used up. A link marks a challenged call
+// with a c and replays it; one without plays as it always did.
+test('a challenged ball is overturned when it touched the zone, and the link replays the challenge', () => {
+  const R = rng(5);
+  let overturned = 0, upheld = 0, four = 0, kl = 0;
+  for (let k = 0; k < 1500; k++) {
+    const pitcher = PITCHERS[k % PITCHERS.length], batter = k % 2 ? 'L' : 'R', seed = (R() * 2 ** 32) >>> 0;
+    const ab = startAtBat({ pitcher, batter, seed }), calls = [];
+    let left = CHALLENGES;
+    while (!ab.result) {
+      const call = { code: pitcher.pitches[Math.floor(R() * pitcher.pitches.length)].code, spot: SPOTS[Math.floor(R() * SPOTS.length)] };
+      const p = throwCall(ab, call), before = { ...p.after }, ended = ab.result;
+      calls.push(call);
+      assert.equal(challengeable(p), p.result === 'ball' && margin(...p.plate) > -CLOSE);
+      if (!challengeable(p) || !left || R() < 0.3) continue;
+      const how = challenge(ab);
+      call.challenge = true;
+      assert.equal(how, p.inZone ? 'overturned' : 'upheld');
+      assert.equal(challengeable(p), false, 'a ball challenged twice');
+      if (how === 'upheld') {
+        left--;
+        upheld++;
+        assert.deepEqual([p.result, p.after, ab.result], ['ball', before, ended]);
+        assert.match(challenged(p, batter), /^Challenged, and the call stands: it was .+\.$/);
+      } else {
+        overturned++;
+        assert.deepEqual([p.result, p.after], ['called', { balls: before.balls - 1, strikes: before.strikes + 1 }]);
+        assert.equal(ab.result, p.after.strikes === 3 ? 'KL' : null);
+        if (ended === 'BB') four++;
+        if (ab.result === 'KL') { kl++; assert.match(note(ab), /^Strike three on a challenge: /); }
+        assert.match(resultWord(p), /on a challenge$/);
+        assert.match(challenged(p, batter), /^Challenged and overturned: it (just )?caught the (bottom of the zone|top of the zone|inside edge|outside edge)( by (an inch|\d inches))?, so it’s a strike\.$/);
+      }
+      assert.equal(challengesLeft([ab]), left);
+    }
+    const link = linkFor({ pitcher, batter, seed, calls });
+    const again = startAtBat({ pitcher, batter, seed });
+    for (const c of parseLink(link).calls) if (!again.result) assert.ok(throwLinked(again, c), link);
+    assert.deepEqual(again.pitches.map(p => [...played(p), p.challenge ?? null]), ab.pitches.map(p => [...played(p), p.challenge ?? null]), link);
+    assert.equal(again.result, ab.result, link);
+  }
+  assert.ok(overturned > 20 && upheld > 100 && four > 0 && kl > 0, `${overturned} overturned (${four} of them ball four, ${kl} strike three), ${upheld} upheld`);
+  // With none left, a challenge marked in a link isn't made.
+  const ab = startAtBat({ pitcher: AVERAGE, batter: 'R', seed: 3 });
+  ab.pitches.push({ challenge: 'upheld' }, { challenge: 'upheld' });
+  assert.equal(challengesLeft([ab]), 0);
+  ab.pitches.length = 0;
+  // In an inning they're the inning's: two to start it, used up by those that fail with any batter.
+  assert.equal(challengesLeft([{ pitches: [{ challenge: 'upheld' }] }, { pitches: [{ challenge: 'overturned' }] }]), 1);
+  assert.equal(challengesLeft([{ pitches: [{ challenge: 'upheld' }] }, { pitches: [{ challenge: 'upheld' }] }]), 0);
+  assert.equal(parseLink('#ab.v3.average.R.3.FF23c').calls[0].challenge, true);
+  assert.equal('challenge' in parseLink('#ab.v3.average.R.3.FF23').calls[0], false);
 });
 
 // Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 3 of the hitter plays them.

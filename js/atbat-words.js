@@ -12,6 +12,9 @@ const cap = s => s[0].toUpperCase() + s.slice(1);
 
 export function resultWord(p) {
   const three = p.after.strikes === 3, four = p.after.balls === 4;
+  // A ball challenged (js/atbat.js, challenge): overturned it's a called strike, and upheld it's still a ball.
+  if (p.challenge === 'overturned') return three ? 'Strike three, on a challenge' : 'Strike, on a challenge';
+  if (p.challenge === 'upheld') return four ? 'Ball four, challenged' : 'Ball, challenged';
   switch (p.result) {
     case 'ball': return four ? 'Ball four' : 'Ball';
     case 'called': return three ? 'Strike three, called' : 'Called strike';
@@ -65,6 +68,20 @@ export function missed(p, batter) {
   return parts.join(' and ') || 'just off the edge';
 }
 
+// Where a pitch in the zone touched it, from the hitter's side, by the edge it's nearest and how far over it the ball
+// was: "caught the bottom of the zone by an inch", "just caught the outside edge" (under half an inch).
+export function caught(p, batter) {
+  const [x, z] = p.plate, side = ZONE.half - Math.abs(x), low = z - ZONE.bottom, high = ZONE.top - z, by = Math.min(side, low, high);
+  const inside = batter === 'R' ? x < 0 : x > 0;
+  const edge = by === low ? 'the bottom of the zone' : by === high ? 'the top of the zone' : `the ${inside ? 'inside' : 'outside'} edge`;
+  return Math.round(by * 12) < 1 ? `just caught ${edge}` : `caught ${edge} by ${inches(by)}`;
+}
+// A challenge, settled: "Challenged and overturned: it caught the bottom of the zone by an inch, so it's a strike.", or
+// "Challenged, and the call stands: it was 2 inches below the zone."
+export function challenged(p, batter) {
+  return p.challenge === 'overturned' ? `Challenged and overturned: it ${caught(p, batter)}, so it’s a strike.` : `Challenged, and the call stands: it was ${missed(p, batter)}.`;
+}
+
 // Which way a pitch missed its spot, from the hitter's side: "up", "inside", "down and away".
 function direction([dx, dz], batter) {
   const inside = batter === 'R' ? dx < 0 : dx > 0;
@@ -98,9 +115,9 @@ export function why(p, prev, batter) {
   const out = [];
   // Called off the plate and caught the zone, or missed the spot by more than 8 inches. (Hit by a pitch says it below.)
   const off = [p.plate[0] - p.aim[0], p.plate[1] - p.aim[1]], by = Math.hypot(off[0], off[1]);
-  let caught = false;
+  let touched = false;
   if (p.result !== 'hbp') {
-    if (!p.spot.zone && p.inZone) { out.push(`It was meant to be ${ring(p.spot)} and caught the zone.`); caught = true; }
+    if (!p.spot.zone && p.inZone) { out.push(`It was meant to be ${ring(p.spot)} and caught the zone.`); touched = true; }
     else if (Math.round(by * 12) > 8) out.push(`It missed the spot by ${inches(by)}, ${direction(off, batter)}.`);
   }
   const same = p.sat.code === p.code;
@@ -117,14 +134,16 @@ export function why(p, prev, batter) {
     else out.push(`He didn’t recognise ${the(p.code)} in time.${speed}`);
   }
   if (!p.swing) {
+    // A ball challenged: the call, and how the challenge went.
+    const abs = p.challenge === 'overturned' ? ` The umpire called it a ball, but a challenge overturned it: it ${caught(p, batter)}.` : p.challenge === 'upheld' ? ' A challenge upheld the call.' : '';
     if (p.result === 'hbp') out.push('It got away inside.');
     else if (p.result === 'ball' && !p.inZone) out.push(`He took it: ${offBy(p, batter, 'was')}.`);
     else if (p.result === 'ball') out.push('It caught the edge, but the umpire called it a ball.');
     else if (!p.inZone) out.push(`${cap(offBy(p, batter, 'was'))}, but the umpire gave the pitcher the strike.`);
     else {
-      out.push(!thoughtMiss(p) ? 'He took it, and it was a strike.' : caught ? 'He thought it would miss, and took it.' : 'He thought it would miss, and it caught the zone.');
+      out.push(!thoughtMiss(p) ? 'He took it, and it was a strike.' : touched ? 'He thought it would miss, and took it.' : 'He thought it would miss, and it caught the zone.');
     }
-    return out.join(' ');
+    return out.join(' ') + abs;
   }
   if (!p.inZone) out.push(`He chased: ${offBy(p, batter, 'finished')}.`);
   if (p.result === 'tip') {
@@ -194,7 +213,9 @@ export function note(ab) {
   if (!last) return '';
   const X = NAME[last.code];
   let lead = '', rest = tally(ps);
-  if (r === 'KL') {
+  if (r === 'KL' && last.challenge === 'overturned') {
+    lead = `Strike three on a challenge: the umpire called it ${last.before.balls === 3 ? 'ball four' : 'a ball'}, but it ${caught(last, batter)}.`;
+  } else if (r === 'KL') {
     // Off the plate, strike three was the umpire's call, not the hitter's mistake.
     lead = last.inZone
       ? `Strike three caught him looking: he was waiting for ${the(last.sat.code)}${last.sat.code === last.code ? ' and still took it' : ` and got ${the(last.code)}`}.`
@@ -218,8 +239,9 @@ export function note(ab) {
     // chase, he never swung: that's said. If he never swung at all, that leads, and there's nothing more to say.
     lead = !swung && out < n ? `He never swung: ${few(out)} of his ${n} missed the zone.`
       : `${out === n ? `All ${all(n)}` : `${cap(few(out))} of his ${n}`} missed the zone, and he ${chased ? `chased only ${few(chased)}` : 'didn’t chase any'}.`;
-    // Ball four in the zone was the umpire's call, and that comes first.
+    // Ball four in the zone was the umpire's call, and that comes first. Ball four challenged, the call stood.
     if (last.inZone) lead = `Ball four caught the edge, but the umpire called it a ball. ${lead}`;
+    if (last.challenge === 'upheld') lead = `Ball four was challenged, and the call stood. ${lead}`;
     rest = !swung ? '' : tally(ps, { count: false, chase: false });
   } else if (r === 'HBP') {
     const { balls, strikes } = last.before;

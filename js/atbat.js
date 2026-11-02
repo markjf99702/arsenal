@@ -48,16 +48,19 @@ export function trimmed(h) {
   while (n && !/[0-9a-z]/i.test(h[n - 1])) n--;
   return h.slice(0, n);
 }
-// An inning's link is the same with inning for ab, its seed the inning's and its calls every pitch of the inning in
-// turn: each batter's at-bat ends where the model says it does, and the next call is to the next batter (playInning).
-export const linkFor = ({ inning = false, pitcher, batter, hitter = 'average', seed, calls }) => [inning ? 'inning' : 'ab', `v${VERSION}`, pitcher.key, hitter === 'average' ? batter : `${batter}-${hitter}`, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
+// A call whose ball was challenged has a c after its spot, like SL23c (challenge, below): one without is played as it
+// always was. An inning's link is the same with inning for ab, its seed the inning's and its calls every pitch of the
+// inning in turn: each batter's at-bat ends where the model says it does, and the next call is to the next batter
+// (playInning).
+export const linkFor = ({ inning = false, pitcher, batter, hitter = 'average', seed, calls }) => [inning ? 'inning' : 'ab', `v${VERSION}`, pitcher.key, hitter === 'average' ? batter : `${batter}-${hitter}`, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}${c.challenge ? 'c' : ''}`)].join('.');
 // Reads a link like that, with or without its #, or gives null when even its pitcher, batter and seed can't be read. It
 // reads what it can, the way a link arrives from a message: a full stop, bracket or quote stuck on the end is dropped,
 // a pitch's letters can be in lower case, and the calls are read up to the first that can't be (`rest` is what's left
 // from there, '' when nothing is). A call's spot is undefined when its number is off the grid, and its pitch can be one
 // the pitcher doesn't throw: what to do then is the page's to say. `version` is the hitter's the link was made against,
 // and `hitter` his kind, in lower case: 'average' when the link has none, and as the link has it when it isn't one of
-// HITTER_TYPES, for the page to say so too. `inning` is whether it's an inning's link.
+// HITTER_TYPES, for the page to say so too. `inning` is whether it's an inning's link, and a call's `challenge` whether
+// its ball was challenged.
 export function parseLink(hash) {
   let h = String(hash).replace(/^#/, '');
   try { h = decodeURIComponent(h); } catch {}
@@ -69,9 +72,9 @@ export function parseLink(hash) {
   if (!/^(ab|inning)$/i.test(ab) || !/^\w+$/.test(key) || !batter || !/^[0-9a-z]+$/i.test(seed)) return null;
   const calls = [];
   for (const t of tokens) {
-    const m = /^([A-Za-z]{2})(\d{1,2})$/.exec(t);
+    const m = /^([A-Za-z]{2})(\d{1,2})([cC]?)$/.exec(t);
     if (!m) break;
-    calls.push({ code: m[1].toUpperCase(), spot: SPOTS[Number(m[2])] });
+    calls.push({ code: m[1].toUpperCase(), spot: SPOTS[Number(m[2])], ...(m[3] ? { challenge: true } : {}) });
   }
   return { inning: /^inning$/i.test(ab), version: v ? Number(v[1]) : 1, pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), hitter: hitter.toLowerCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
 }
@@ -384,6 +387,47 @@ export function throwCall(ab, call) {
   return out;
 }
 
+// ---------------------------------------------------------------- the ABS challenge
+
+// In 2026 the pitcher, the catcher or the batter could challenge the umpire's call of ball or strike, and the Automated
+// Ball-Strike system settled it: a strike if any part of the ball touched any part of the zone. Each club started a
+// game with two challenges and kept every one that succeeded (MLB, "MLB announces ABS Challenge System coming to the
+// Major Leagues beginning in the 2026 season", September 23, 2025). Here you're the pitcher's side, so you can challenge
+// a ball called on a pitch that crossed within CLOSE of the zone, right after it's called, with two challenges to an
+// at-bat or an inning, keeping the ones that succeed. It's settled by the zone every pitch is judged by (ZONE: 2026's,
+// a ball's width past each edge, so a ball touching it is in). The hitter doesn't challenge: he and his umpire play as
+// they were tuned, to 2026's balls and strikes as Statcast has them.
+export const CHALLENGES = 2;
+export const CLOSE = 3 / 12; // feet between the ball and the zone
+export const challengeable = p => !!p && p.result === 'ball' && !p.challenge && margin(p.plate[0], p.plate[1]) > -CLOSE;
+// Challenges left, of the at-bats `abs` (one, or an inning's so far): two, less those that failed.
+export const challengesLeft = abs => CHALLENGES - abs.reduce((n, ab) => n + ab.pitches.filter(p => p.challenge === 'upheld').length, 0);
+// Challenge the ball just called (it must be challengeable): in the zone, it's overturned to a called strike, and the
+// count changes with it, so ball four can become a ball three count again, or strike three looking; out of it, the call
+// stands. Gives 'overturned' or 'upheld', which the pitch keeps as `challenge`.
+export function challenge(ab) {
+  const p = ab.pitches.at(-1);
+  if (!challengeable(p)) throw new Error('there is no ball to challenge');
+  p.challenge = p.inZone ? 'overturned' : 'upheld';
+  if (p.challenge === 'overturned') {
+    p.result = 'called';
+    ab.balls--;
+    ab.strikes++;
+    p.after = { balls: ab.balls, strikes: ab.strikes };
+    ab.result = ab.strikes === 3 ? 'KL' : null;
+  }
+  return p.challenge;
+}
+// A call read from a link: thrown, and if the link marks it challenged, challenged, when it can be with one left among
+// `abs`. Gives false for a challenge that couldn't be made, which is left out.
+export function throwLinked(ab, call, abs = [ab]) {
+  const p = throwCall(ab, call);
+  if (!call.challenge) return true;
+  if (!challengeable(p) || challengesLeft(abs) < 1) return false;
+  challenge(ab);
+  return true;
+}
+
 // ---------------------------------------------------------------- an inning
 
 // An inning: one pitcher to batter after batter, all on one side of the plate and of one kind, until three are out (a
@@ -400,7 +444,7 @@ export function playInning({ pitcher = AVERAGE, batter = 'R', hitter = 'average'
   for (const call of calls) {
     if (outsIn(abs) >= 3) break;
     if (!abs.length || abs.at(-1).result) abs.push(startAtBat({ pitcher, batter, hitter, seed: batterSeed(seed, abs.length), params }));
-    throwCall(abs.at(-1), call);
+    throwLinked(abs.at(-1), call, abs);
     thrown++;
   }
   return { abs, outs: outsIn(abs), thrown };

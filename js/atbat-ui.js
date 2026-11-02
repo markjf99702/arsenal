@@ -1,7 +1,7 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION, batterSeed, outsIn } from './atbat.js';
-import { resultWord, why, note, calledLine, ENDING, NAME, timing, thoughtMiss } from './atbat-words.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION, batterSeed, outsIn, challengeable, challengesLeft, challenge, throwLinked } from './atbat.js';
+import { resultWord, why, note, calledLine, ENDING, NAME, timing, thoughtMiss, challenged } from './atbat-words.js';
 import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
@@ -139,6 +139,7 @@ export function setupAtBat({ dark = false } = {}) {
   });
   $('ab-copy').addEventListener('click', copyLink);
   for (const id of ['ab-watch', 'ab-watch-link']) $(id).addEventListener('click', () => watch());
+  $('ab-challenge').addEventListener('click', () => challengeCall());
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
   $('ab-run').addEventListener('click', () => { if (!S.busy && !S.charting) hundred(); });
@@ -448,6 +449,7 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-inning').textContent = '';
       $('ab-batters').replaceChildren();
     }
+    drawChallenge();
     // While a pitch flies the readout says what's coming (fly); once it's in, what happened, and the radar board keeps
     // its speed.
     if (!S.pending) {
@@ -505,7 +507,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-throw').setAttribute('aria-disabled', String(S.busy || !!S.ab.result));
     $('ab-suggest').setAttribute('aria-disabled', String(S.busy));
     $('ab-run').setAttribute('aria-disabled', String(S.busy || !!S.charting));
-    for (const id of ['ab-watch', 'ab-watch-link']) $(id).setAttribute('aria-disabled', String(S.busy));
+    for (const id of ['ab-watch', 'ab-watch-link', 'ab-challenge']) $(id).setAttribute('aria-disabled', String(S.busy));
   }
 
   // ---------------------------------------------------------------- the hundred throws
@@ -608,6 +610,46 @@ export function setupAtBat({ dark = false } = {}) {
     });
   }
 
+  // ---------------------------------------------------------------- the ABS challenge
+  // Right after a ball is called on a pitch that crossed close to the zone, Challenge the call, while there are
+  // challenges left: two to an at-bat or to an inning, keeping each that succeeds (js/atbat.js, challenge). It's next
+  // to Throw, or to Next hitter when it was ball four. Settled, what the challenge found is said under Throw (or in the
+  // end card's note, for ball four) and to a screen reader, the pitch's mark, log row and why follow, and the address
+  // marks the call challenged.
+  const pool = () => (S.inning ? S.inning.abs : [S.ab]);
+  function drawChallenge() {
+    const b = $('ab-challenge'), last = S.ab.pitches.at(-1), left = challengesLeft(pool());
+    const on = !S.pending && !S.watching && challengeable(last) && left > 0;
+    const row = S.ab.result ? $('ab-end').querySelector('.call-row') : $('ab-callbox').querySelector('.call-row');
+    if (on && b.previousElementSibling !== row.firstElementChild) row.firstElementChild.after(b);
+    b.hidden = !on;
+    b.textContent = `Challenge the call (${left} left)`;
+  }
+  function challengeCall() {
+    const last = S.ab.pitches.at(-1), ended = !!S.ab.result;
+    if (S.busy || !challengeable(last) || challengesLeft(pool()) < 1) return;
+    challenge(S.ab);
+    S.ab.here = true;
+    stamp();
+    // As after a pitch thrown here, a link's notice was about what it replayed.
+    $('ab-notice').textContent = '';
+    $('ab-watch-link').hidden = true;
+    $('ab-version').textContent = '';
+    stage.set({ marks: markList(S.ab.pitches) });
+    drawState();
+    const left = challengesLeft(pool());
+    const said = `${challenged(last, S.batter)} ${last.challenge === 'overturned' ? `You keep the challenge: ${left} left.` : left ? `${plural(left, 'challenge')} left.` : 'No challenges left.'}`;
+    $('ab-hint').textContent = S.ab.result ? '' : said;
+    $('ab-live').textContent = S.ab.result ? `${said} ${ENDING[S.ab.result]}.` : said;
+    // The button has gone: focus goes to Throw, or to the end card's headline, and the call box into view if ball four
+    // was overturned and the at-bat goes on.
+    if (S.ab.result) $('ab-result').focus({ preventScroll: true });
+    else {
+      if (ended) reveal($('ab-callbox'));
+      $('ab-throw').focus({ preventScroll: true });
+    }
+  }
+
   // ---------------------------------------------------------------- watching it again
   // The at-bat's pitches thrown again from the first, one after another, at the speed picked. They're the ones in the
   // record, not thrown anew, so it's the same at-bat, and the link doesn't change. Each pitch's row in the log is lit
@@ -624,6 +666,7 @@ export function setupAtBat({ dark = false } = {}) {
     S.watching = { i: 0, landed: false };
     S.busy = true;
     waiting();
+    drawChallenge();
     throwAgain();
   }
   function throwAgain() {
@@ -673,7 +716,7 @@ export function setupAtBat({ dark = false } = {}) {
   // #ab.v<version>.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat on the same version of
   // the hitter (linkFor, js/atbat.js).
   // An inning's is every pitch of it in turn.
-  const callsOf = abs => abs.flatMap(ab => ab.pitches.map(p => ({ code: p.code, spot: p.spot })));
+  const callsOf = abs => abs.flatMap(ab => ab.pitches.map(p => ({ code: p.code, spot: p.spot, challenge: !!p.challenge })));
   const code = () => (S.inning
     ? linkFor({ inning: true, pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.inning.seed, calls: callsOf(S.inning.abs) })
     : linkFor({ pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.seed, calls: callsOf([S.ab]) }));
@@ -732,7 +775,8 @@ export function setupAtBat({ dark = false } = {}) {
       const c = calls[i];
       if (over() || !c.spot || !S.pitcher.pitches.some(p => p.code === c.code)) break;
       if (S.ab.result) fresh({ next: true });
-      throwCall(S.ab, c);
+      // A challenge the link marks that can't be made is left out, and said to be.
+      if (!throwLinked(S.ab, c, S.inning ? S.inning.abs : [S.ab])) said.push(`The link’s challenge of pitch ${i + 1} couldn’t be made, so it was left out.`);
     }
     const left = calls.length - i, c = calls[i];
     if (left && over()) said.push(`The link had ${left === 1 ? 'one more pitch' : `${left} more pitches`} after the ${S.inning ? 'inning' : 'at-bat'} ended; ${left === 1 ? 'it was' : 'they were'} left out.`);

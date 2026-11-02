@@ -2011,6 +2011,57 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   assert.deepEqual([w.batters, w.sr, /^#ab\./.test(w.hash)], [0, '0 balls, 0 strikes', true], 'one at-bat again');
 }
 
+// Challenge the call, as 2026's ABS challenge allows: after a ball called on a pitch close to the zone, next to Throw
+// (or to Next hitter, for ball four), with how many are left. One that touched the zone is overturned to a strike and
+// the challenge is kept; one that didn't stands and is used up. What it found is said under Throw, or in the end card's
+// note, and the address marks the call challenged, so the link replays it. A link without the mark plays as it did.
+{
+  const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const looks = () => page.evaluate(() => {
+    const b = document.getElementById('ab-challenge'), { state, stage } = window.arsenal.atBat, last = state.ab.pitches.at(-1);
+    return {
+      shown: b.checkVisibility(), text: b.textContent, after: b.previousElementSibling?.id, hash: location.hash, hint: document.getElementById('ab-hint').textContent,
+      count: document.querySelector('#ab-count .sr')?.textContent ?? null, result: state.ab.result, end: !document.getElementById('ab-end').hidden,
+      note: document.getElementById('ab-note').textContent, focus: document.activeElement.id, call: last?.result, mark: stage.opts.marks.at(-1)?.kind,
+      row: document.querySelector('#ab-log li:last-child b')?.textContent,
+    };
+  });
+  const open = async hash => { await page.goto('about:blank'); await page.goto(base + hash); await idle(); return looks(); };
+  // Its third pitch, a four-seamer called high and in, just caught the top of the zone and was called a ball.
+  const high = `#ab.v${VERSION}.average.R.m.FF23.SL5.FF1`;
+  let l = await open(high);
+  assert.deepEqual([l.shown, l.text, l.after, l.call, l.count], [true, 'Challenge the call (2 left)', 'ab-throw', 'ball', '2 balls, 1 strike'], 'a ball called on a pitch that touched the zone');
+  await page.locator('#ab-challenge').click();
+  l = await looks();
+  assert.deepEqual([l.shown, l.hash, l.hint, l.count, l.call, l.mark, l.row, l.focus], [false, `${high}c`, 'Challenged and overturned: it just caught the top of the zone, so it’s a strike. You keep the challenge: 2 left.', '1 ball, 2 strikes', 'called', 'strike', 'Strike, on a challenge', 'ab-throw'], 'once it was challenged');
+  l = await open(`${high}c`);
+  assert.deepEqual([l.shown, l.call, l.count, l.row], [false, 'called', '1 ball, 2 strikes', 'Strike, on a challenge'], 'the link with the challenge');
+  // A first pitch just off the edge: the call stands, and one challenge is left.
+  await open(`#ab.v${VERSION}.average.R.3.FF23`);
+  await page.locator('#ab-challenge').click();
+  l = await looks();
+  assert.deepEqual([l.hint, l.count, l.call, l.row], ['Challenged, and the call stands: it was just off the edge. 1 challenge left.', '1 ball, 0 strikes', 'ball', 'Ball, challenged'], 'a challenge that failed');
+  // Ball four that touched the zone: back to a full count, with the call box.
+  l = await open(`#ab.v${VERSION}.average.R.30.FF23.SL5.FF1.CH21.FF10`);
+  assert.deepEqual([l.shown, l.after, l.result], [true, 'ab-next', 'BB'], 'ball four that touched the zone');
+  await page.locator('#ab-challenge').click();
+  l = await looks();
+  assert.deepEqual([l.result, l.end, l.count, l.focus], [null, false, '3 balls, 2 strikes', 'ab-throw'], 'ball four overturned');
+  // Ball four just off the edge: still a walk, and the note says the call stood.
+  await open(`#ab.v${VERSION}.average.R.7.FF23.SL5.FF1.CH21`);
+  await page.locator('#ab-challenge').click();
+  l = await looks();
+  assert.deepEqual([l.result, l.end, l.shown, l.focus, /^Ball four was challenged, and the call stood\. /.test(l.note)], ['BB', true, false, 'ab-result', true], 'ball four upheld');
+  // Ball four at 3-2 that touched the zone: strike three looking.
+  await open(`#ab.v${VERSION}.average.R.6a.FF23.SL5.FF1.CH21.FF10.SI24.FF23`);
+  await page.locator('#ab-challenge').click();
+  l = await looks();
+  assert.deepEqual([l.result, /^Strike three on a challenge: the umpire called it ball four, but it caught the outside edge by an inch\. /.test(l.note)], ['KL', true], `ball four at 3-2 overturned: ${l.note}`);
+  // The link without the mark plays as it always did.
+  l = await open(high);
+  assert.deepEqual([l.call, l.count], ['ball', '2 balls, 1 strike'], 'the link without the challenge');
+}
+
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
   const showing = () => page.evaluate(() => {
