@@ -289,12 +289,13 @@ seg('speed', 'speed', Number, throwNow);
 // The other hand is the league average's: a real pitcher throws with his own, so picking his own leaves him be.
 seg('hand', 'hand', v => v, () => {
   if (state.by && armByKey(state.by).hand === state.hand) return;
-  state.by = null; byOptions(); pairOptions(); speedReadout(); renderCard(); legend(); throwNow(); address();
+  state.by = null; byOptions(); pairOptions(); paceShown(); speedReadout(); renderCard(); legend(); throwNow(); address();
 });
+// The speed slider and its way back follow too: his own speed, or his share of it from your own mound.
 $('by').addEventListener('change', e => {
   state.by = e.target.value || null;
   if (state.by) setHand(armByKey(state.by).hand);
-  pairOptions(); speedReadout(); renderCard(); legend(); throwNow(); address();
+  pairOptions(); paceShown(); speedReadout(); renderCard(); legend(); throwNow(); address();
 });
 function setHand(hand) {
   state.hand = hand;

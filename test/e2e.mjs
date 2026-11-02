@@ -2576,8 +2576,12 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   s = await showing();
   const climbs = await page.evaluate(() => { const f = window.arsenal.stage.flights[0]; return f.pos(0.05)[2] > f.pos(0)[2]; });
   assert.deepEqual([s.hash, s.pressed, s.height, s.mph, s.rings, climbs], ['#slider.rogers', 'R', 1.3, '73.5', 2, true], 'Tyler Rogers\'s slider');
+  // The speed slider under the picture says his speed, picked from the list, and the league's again with the other hand.
+  const paceSays = () => page.evaluate(() => document.getElementById('pace-mph').textContent);
+  assert.equal(await paceSays(), '73.5 mph', 'the speed slider with Tyler Rogers\'s slider');
   // The other hand is the league average's.
   await page.locator('#hand [data-v="L"]').click();
+  assert.equal(await paceSays(), '86.3 mph', 'the speed slider with a left-hander\'s slider');
   s = await showing();
   assert.deepEqual([s.hash, s.by, s.mph, s.rings], ['#slider.lefty', '', '86.3', 0], 'a left-hander after Rogers');
   // A pitch he didn't throw is the league's: from Sale's slider to the curve.
