@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
-import { measure, measurePitchers, TARGET } from './lab.mjs';
+import { TARGET, run, checks, SEEDS } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
 import { rng } from '../js/rng.js';
@@ -345,16 +345,11 @@ test('the log says where a pitch crossed when it went to another box than the on
   assert.equal(calledLine(replay('#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22').pitches[5], 'R'), 'in the dirt');
 });
 
-// The lab: 8,000 at-bats with the pitcher choosing for himself, measured the way Statcast measures the league.
-const lab = measure(PARAMS, 8000, 21);
-test('over thousands of at-bats it comes out near the real league', () => {
-  const near = (key, by) => assert.ok(Math.abs(lab[key] - TARGET[key]) <= by, `${key}: ${lab[key].toFixed(3)} against the league's ${TARGET[key].toFixed(3)}`);
-  near('k', 0.03); near('bb', 0.015); near('hbp', 0.006); near('ppa', 0.2);
-  near('swing', 0.025); near('whiff', 0.025); near('zone', 0.025);
-  near('zoneSwing', 0.025); near('zoneWhiff', 0.025); near('chaseSwing', 0.03); near('chaseWhiff', 0.03);
-  near('calledZone', 0.025); near('calledChase', 0.015); near('foul', 0.03);
-  near('hitsPerBip', 0.025); near('hrPerBip', 0.012);
-});
+// The lab: at-bats with the pitcher choosing for himself, measured the way Statcast measures the league, on three seeds
+// pooled (test/lab.mjs). tools/calibrate.mjs holds new knobs to the same checks, and won't write ones that miss.
+const measured = run(PARAMS), lab = measured.lab, CHECKS = checks(PARAMS, measured);
+const holds = group => { for (const c of CHECKS.filter(x => x.group === group)) assert.ok(c.ok, `seeds ${SEEDS.join(', ')}: ${c.said}`); };
+test('over thousands of at-bats it comes out near the real league', () => holds('league'));
 
 // The README quotes the lab's strikeouts against the league's, and the season's count of pitches: within a point of
 // what they are now, and the count exactly as js/numbers.js has it, so a retune or a new season's numbers can't leave
@@ -369,29 +364,19 @@ test('the README’s strikeouts are the lab’s and the league’s, and its coun
   assert.ok(readme.includes(total), `the README doesn’t give the season’s ${total}`);
 });
 
-test('in every count, hitters swing and miss about as often as they really do', () => {
-  for (const [c, v] of Object.entries(lab.counts)) {
-    assert.ok(Math.abs(v.swing - COUNTS[c].swing) <= 0.045, `${c}: swings at ${v.swing.toFixed(3)} against ${COUNTS[c].swing}`);
-    if (v.pitches * v.swing > 300) assert.ok(Math.abs(v.whiff - COUNTS[c].whiff) <= 0.04, `${c}: misses ${v.whiff.toFixed(3)} against ${COUNTS[c].whiff}`);
-  }
+// The same checks turn down knobs that don't play like the league, as tools/calibrate.mjs does before writing any: a
+// hitter who swings more in every count, say.
+test('the lab’s checks turn down knobs that play unlike the league', () => {
+  const eager = { ...PARAMS, swingBias: Object.fromEntries(Object.entries(PARAMS.swingBias).map(([c, v]) => [c, v + 0.3])) };
+  const failed = checks(eager).filter(c => !c.ok).map(c => c.what);
+  assert.ok(failed.includes('swing') && failed.includes('chaseSwing'), `failed: ${failed.join(', ')}`);
 });
 
-test('each kind of pitch gets missed about as often as it really does', () => {
-  for (const [t, v] of Object.entries(lab.types)) {
-    if (!TYPES[t] || v.swings < 150) continue;
-    assert.ok(Math.abs(v.whiff - TYPES[t].whiff) <= 0.05, `${t}: missed on ${(v.whiff * 100).toFixed(1)}% of swings against ${(TYPES[t].whiff * 100).toFixed(1)}%`);
-    assert.ok(Math.abs(v.zone - TYPES[t].zone) <= 0.05, `${t}: in the zone ${(v.zone * 100).toFixed(1)}% against ${(TYPES[t].zone * 100).toFixed(1)}%`);
-  }
-});
+test('in every count, hitters swing and miss about as often as they really do', () => holds('counts'));
 
-test('each real pitcher’s pitches get missed about as often as his really did', () => {
-  for (const [key, rows] of Object.entries(measurePitchers(PARAMS, 1200, 33))) {
-    for (const r of rows) {
-      if (r.swings < 60) continue;
-      assert.ok(Math.abs(r.sim - r.real) <= 0.09, `${pitcherByKey(key).name}'s ${r.code}: ${(r.sim * 100).toFixed(0)}% against ${(r.real * 100).toFixed(0)}%`);
-    }
-  }
-});
+test('each kind of pitch gets missed about as often as it really does, and lands in the zone as often', () => holds('types'));
+
+test('each real pitcher’s pitches get missed about as often as his really did', () => holds('pitchers'));
 
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {

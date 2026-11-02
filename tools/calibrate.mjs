@@ -4,15 +4,18 @@
 // Each round: the pitcher's aim by count and pitch type, the hitter's swing by count, the umpire, and hit-by-pitches
 // are nudged straight toward their targets; then the contact and recognition knobs are searched at random,
 // keeping a change only when it lowers the total error; then the outcomes of balls in play are matched by quantile.
+// The round with the lowest error is kept and finished with finer nudges, and each real pitcher's pitches are fitted
+// last, so nothing after undoes them. Then the knobs are put to the lab's checks (test/lab.mjs, the same as
+// test/atbat.test.mjs's, on three other seeds pooled); if any fails, it says which and writes nothing.
 // The random search is seeded (js/rng.js, seed 1 unless --seed says otherwise) and the file's date is js/league.js's,
 // so the same league numbers and the same starting knobs write the same file, byte for byte. It starts from the knobs
 // in js/atbat-params.js, so a second run into that file moves them again, and new knobs change how old at-bat links
-// replay.
+// replay: raise VERSION in js/atbat.js with them.
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEAGUE, COUNTS, TYPES } from '../js/league.js';
-import { measure, measurePitchers, TARGET } from '../test/lab.mjs';
+import { measure, measurePitchers, TARGET, checks, SEEDS } from '../test/lab.mjs';
 import { PARAMS as START } from '../js/atbat-params.js';
 import { rng } from '../js/rng.js';
 
@@ -105,6 +108,8 @@ let seed = 1;
 let best = measure(P, PA, seed);
 let bestErr = error(best);
 console.log('start', bestErr.toFixed(3));
+// The best round so far, its knobs and its error.
+let kept = { P: clone(P), err: bestErr, round: 0 };
 for (let round = 1; round <= rounds; round++) {
   for (let i = 0; i < 3; i++) { nudge(measure(P, PA, seed)); }
   outcomes(measure(P, PA, seed));
@@ -117,8 +122,10 @@ for (let round = 1; round <= rounds; round++) {
     if (e < bestErr) { P = trial; best = m; bestErr = e; }
   }
   console.log(`round ${round}: error ${bestErr.toFixed(3)} · K ${(best.k * 100).toFixed(1)}% BB ${(best.bb * 100).toFixed(1)}% swing ${(best.swing * 100).toFixed(1)}% whiff ${(best.whiff * 100).toFixed(1)}% zone ${(best.zone * 100).toFixed(1)}% chase ${(best.chaseSwing * 100).toFixed(1)}% P/PA ${best.ppa.toFixed(2)}`);
+  if (bestErr < kept.err) kept = { P: clone(P), err: bestErr, round };
 }
-outcomes(measure(P, PA, seed));
+P = kept.P;
+console.log(`keeping round ${kept.round}, error ${kept.err.toFixed(3)}`);
 
 // Each real pitcher's pitches: their stuff, until hitters miss each as often as they missed his in real life.
 function fitPitchers(steps) {
@@ -132,11 +139,20 @@ function fitPitchers(steps) {
     }
   }
 }
-fitPitchers(6);
 for (let i = 0; i < 3; i++) nudge(measure(P, PA, seed));
 // A last, finer pass on more at-bats, so rare counts like 3-0 have enough pitches to aim at.
 for (let i = 0; i < 3; i++) nudge(measure(P, PA * 4, seed + 1 + i));
 outcomes(measure(P, PA * 4, seed));
+// Last, each real pitcher: his own knobs only, on top of the league's, so nothing after this moves them.
+fitPitchers(6);
+
+// The checks the test holds the hitter to. Knobs that miss any aren't written.
+const failed = checks(P).filter(c => !c.ok);
+if (failed.length) {
+  console.log(`not written: ${failed.length} of the lab's checks fail on seeds ${SEEDS.join(', ')}:`);
+  for (const c of failed) console.log(`  ${c.group}: ${c.said}`);
+  process.exit(1);
+}
 
 const round3 = o => JSON.parse(JSON.stringify(o, (k, v) => (typeof v === 'number' ? Math.round(v * 10000) / 10000 : v)));
 const js = `// Made by tools/calibrate.mjs on ${made}: the at-bat model's knobs, tuned so simulated
