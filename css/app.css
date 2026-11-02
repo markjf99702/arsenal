@@ -501,7 +501,7 @@ p { margin: 0; }
 .board .speed b { font-size: 34px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
 .board .speed span { font-size: 16px; font-weight: 600; opacity: .9; }
 .board .nm { font-size: 16px; font-weight: 600; }
-.board .nw { white-space: nowrap; }
+.board .nw, #ab-map-key .nw { white-space: nowrap; }
 /* The key: the last pitch's path, faint as it's drawn, and the decision ring. */
 .bat-stage .legend { position: static; margin-right: 2px; }
 .bat-stage .legend:empty { display: none; }

@@ -2123,6 +2123,13 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await filled();
   m = await map();
   assert.deepEqual([m.shown, m.label, /^Strikes per 100 sliders /.test(m.key)], [25, 'Show what the slider does at each spot', true], 'another pitch');
+  // The catcher's call picks a pitch too: when it's another, the map is that one's, as the box over it says.
+  for (let tries = 0; tries < 12 && (await page.evaluate(() => window.arsenal.atBat.state.code)) === 'SL'; tries++) await page.locator('#ab-suggest').click();
+  assert.notEqual(await page.evaluate(() => window.arsenal.atBat.state.code), 'SL', 'the catcher called only sliders');
+  await filled();
+  m = await map();
+  const called = /^Show what the (.+) does at each spot$/.exec(m.label)?.[1];
+  assert.deepEqual([m.shown, m.key.startsWith(`Strikes per 100 ${called}s `)], [25, true], `the map after the catcher called the ${called}: ${m.key}`);
   // Throwing clears it, and while the pitch is in the air the switch waits.
   await page.locator('#ab-speed [data-v="0.25"]').click();
   await page.locator('#ab-throw').click();

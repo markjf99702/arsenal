@@ -129,8 +129,11 @@ export function setupAtBat({ dark = false } = {}) {
       c = autoCall(look);
       if (c.code !== S.code || c.spot !== S.spot) break;
     }
+    const another = c.code !== S.code;
     S.code = c.code; S.spot = c.spot;
     drawCall();
+    // The map of the spots is the pitch's, as when one is picked by hand (choose).
+    if (another && mapOn()) spotMap();
     const said = `A typical call to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter in a ${count} count: ${NAME[c.code]}, ${spotName(c.spot)}. In ${count} counts in 2026, ${pct(k.fastball)} of pitches were fastballs and ${pct(k.zone)} were in the zone; hitters swung at ${pct(k.swing)}.`;
     $('ab-hint').textContent = said;
     $('ab-live').textContent = said;
@@ -687,8 +690,9 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-spots').classList.add('mapped');
     $('ab-spots').setAttribute('aria-busy', 'true');
     const what = two ? ['strikeout', 'strikeouts'] : ['strike', 'strikes'];
-    const from = `from ${ab.balls}-${ab.strikes}${before ? `, right after the ${NAME[before.code]}` : ''}`;
-    $('ab-map-key').textContent = `${what[1][0].toUpperCase()}${what[1].slice(1)} per 100 ${NAME[code]}s thrown to each spot ${from}, darker for more; under each, hits per 100. Throwing…`;
+    // The count kept on one line, never "2-" at the end of one and "2" on the next.
+    const from = `from <span class="nw">${ab.balls}-${ab.strikes}</span>${before ? `, right after the ${NAME[before.code]}` : ''}`;
+    $('ab-map-key').innerHTML = `${what[1][0].toUpperCase()}${what[1].slice(1)} per 100 ${NAME[code]}s thrown to each spot ${from}, darker for more; under each, hits per 100. Throwing…`;
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const per = n => Math.round((n * 100) / (SLICES * PER));
     const draw = () => {
@@ -711,7 +715,7 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-spots').removeAttribute('aria-busy');
       // Where it does most, in words, for everyone and a screen reader.
       const best = [...got].sort((a, b) => b[1].k - a[1].k || a[1].hits - b[1].hits)[0];
-      $('ab-map-key').textContent = `${what[1][0].toUpperCase()}${what[1].slice(1)} per 100 ${NAME[code]}s thrown to each spot ${from}, darker for more; under each, hits per 100. Most: ${spotName(spotById(best[0].dataset.spot))}, ${counted(best[1].k, ...what)} and ${counted(best[1].hits, 'hit', 'hits')}.`;
+      $('ab-map-key').innerHTML = `${what[1][0].toUpperCase()}${what[1].slice(1)} per 100 ${NAME[code]}s thrown to each spot ${from}, darker for more; under each, hits per 100. Most: ${spotName(spotById(best[0].dataset.spot))}, ${counted(best[1].k, ...what)} and ${counted(best[1].hits, 'hit', 'hits')}.`;
     };
     slice();
   }
