@@ -54,6 +54,9 @@ const spin = new SpinPanel($('spin'));
 function throwNow() {
   stage.set({ color: MAIN, pairColor: PAIR, ghost: state.ghost, hand: state.hand, view: state.view, speed: state.speed, dark: isDark() });
   stage.throw(state.pitch, state.pair ? BY_CODE[state.pair] : null);
+  // The legend has this throw's times in it now, so the field's labels are placed clear of it as it will be.
+  legendTimes();
+  stage.set({});
   caption();
   readoutLoop();
 }
@@ -78,7 +81,8 @@ const lowerName = p => p.short.toLowerCase();
 
 // Each frame the readout is worked out again, but it's written only when it changes: through the windup it says
 // "Ready…" for a quarter of a second or more, and writing the same words again still costs the page a layout and a
-// paint.
+// paint. Two pitches' times go under their speeds, and on a phone, where that line would run under the legend, beside
+// each pitch's name in the legend instead (legendTimes), once they're in.
 let roRaf = 0;
 const shown = {};
 function write(id, text, html = false) {
@@ -96,11 +100,11 @@ function readoutLoop() {
       const t = stage.gameTime();
       if (!main.arrived) {
         write('ro-time', t === 0 ? 'Ready…' : `${t.toFixed(2)} s`);
-      } else {
-        write('ro-time', s.length > 1
-          ? s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} s`).join(' · ')
-          : `${main.f.T.toFixed(2)} s to the plate`);
-      }
+      } else if (s.length > 1) {
+        write('ro-time', `<span class="both">${s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} s`).join(' · ')}</span>`, true);
+      } else write('ro-time', `${main.f.T.toFixed(2)} s to the plate`);
+      const timed = main.arrived && s.length > 1;
+      if ($('legend').classList.contains('timed') !== timed) $('legend').classList.toggle('timed', timed);
       const deciding = s.some(x => t >= x.f.T - DECIDE && t < x.f.T) && state.speed < 1;
       if ($('frame').classList.contains('deciding') !== deciding) $('frame').classList.toggle('deciding', deciding);
       if (!s.every(x => x.arrived) || t === 0) { roRaf = requestAnimationFrame(tick); return; }
@@ -247,13 +251,21 @@ function pairOptions() {
 }
 
 function legend() {
-  const items = [`<span><i class="ln" style="--c:${MAIN}"></i>${state.pitch.short}</span>`];
-  if (state.pair) items.push(`<span><i class="ln" style="--c:${PAIR}"></i>${BY_CODE[state.pair].short}</span>`);
-  // With two pitches the ghost is the first one's, and says so; on a phone that's in the caption, so the legend keeps
-  // clear of the two pitches' times.
+  // Each pitch's time, beside its name on a phone (see readoutLoop), is filled in by legendTimes.
+  const items = [`<span><i class="ln" style="--c:${MAIN}"></i>${state.pitch.short}<span class="narrow t"></span></span>`];
+  if (state.pair) items.push(`<span><i class="ln" style="--c:${PAIR}"></i>${BY_CODE[state.pair].short}<span class="narrow t"></span></span>`);
+  // With two pitches the ghost is the first one's, and says so; on a phone that's in the caption, so the legend stays
+  // narrow, with the two pitches' times in it.
   if (state.ghost) items.push(`<span><i class="ln dash"></i>${state.pair ? `<span class="wide">${state.pitch.short}, no spin</span><span class="narrow">No spin</span>` : 'No spin'}</span>`);
   items.push(`<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>`);
   $('legend').innerHTML = items.join('');
+  legendTimes();
+}
+// Two pitches' times, in the legend from the throw, so it's as wide from the start as it will be (and the field's
+// labels keep clear of it), but shown only once they're in (.timed).
+function legendTimes() {
+  const s = stage.summary(), two = state.pair && s?.length > 1;
+  $('legend').querySelectorAll('.t').forEach((el, i) => { el.textContent = two ? `\u00a0${s[i].f.T.toFixed(2)} s` : ''; });
 }
 
 const stretch = () => { const c = stage.camera(); return c.stretch ? (Math.round(c.stretch * 2) / 2).toString() : '1'; };

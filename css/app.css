@@ -178,8 +178,15 @@ p { margin: 0; }
 .legend .ln { width: 20px; height: 3px; background: var(--c, #fff); border-radius: 2px; filter: drop-shadow(0 0 1px rgba(10, 15, 25, .9)); }
 .legend .ln.dash { height: 2px; border-radius: 0; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .9) 0 4px, transparent 4px 8px); }
 .legend .ring { width: 11px; height: 11px; border-radius: 50%; border: 2px dashed #fff; filter: drop-shadow(0 0 1px rgba(10, 15, 25, .9)); }
-/* On a phone the dashed ring's label is one word, so it stays clear of the times of two pitches thrown together. */
-@media (max-width: 520px) { .legend { font-size: 12px; } .legend .wide { display: none; } .legend .narrow { display: inline; } .readout .speed b { font-size: 28px; } }
+/* Two pitches' times, kept in the legend from the throw and shown there on a phone once they're in (js/app.js). */
+.legend .t { visibility: hidden; font-variant-numeric: tabular-nums; }
+.legend.timed .t { visibility: visible; }
+/* On a phone the dashed ring's label is one word, and two pitches' times go beside their names in the legend rather
+   than in a line under their speeds, which on the narrowest ran under the legend. */
+@media (max-width: 520px) {
+  .legend { font-size: 12px; } .legend .wide { display: none; } .legend .narrow { display: inline; } .readout .speed b { font-size: 28px; }
+  .readout .time .both { display: none; }
+}
 .cue {
   position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
   background: rgba(15, 20, 30, .78); color: #fff; padding: 6px 12px; border-radius: 999px;

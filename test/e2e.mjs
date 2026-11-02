@@ -1232,7 +1232,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
 }
 
 // Phones, short and narrow: an iPhone 14 with Safari's bars tucked away (390x750), and the narrowest phones.
-for (const [width, height] of [[390, 750], [360, 640], [320, 640]]) {
+for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) {
   const narrowCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const ph = await narrowCtx.newPage();
   watch(ph);
@@ -1272,6 +1272,21 @@ for (const [width, height] of [[390, 750], [360, 640], [320, 640]]) {
   assert.deepEqual(chips, { heights: [48], name: 'Knuckle curve', lines: 1 }, `${at}, Nola's pitches`);
   // The lists are in 16px words, which an iPhone doesn't zoom into when they're tapped.
   assert.deepEqual(await ph.evaluate(() => ['pair', 'ab-pitcher'].map(id => getComputedStyle(document.getElementById(id)).fontSize)), ['16px', '16px'], `${at}, the lists' words`);
+  // Two pitches thrown together, the longest pair and an eephus with a four-seamer: the words in the readout's top-left
+  // corner are clear of the legend's, line by line, and the times are in the legend, beside each pitch.
+  if (width < 390) {
+    for (const [one, two] of [['KC', 'KN'], ['KC', 'FF'], ['EP', 'FF']]) {
+      await ph.evaluate(([one, two]) => { document.querySelector('#speed [data-v="1"]').click(); window.arsenal.pick(one); const s = document.getElementById('pair'); s.value = two; s.dispatchEvent(new Event('change')); }, [one, two]);
+      await ph.waitForFunction(() => window.arsenal.stage.summary()?.every(s => s.arrived), null, { timeout: 15000 });
+      const clash = await ph.evaluate(() => {
+        const words = el => { const r = document.createRange(); r.selectNodeContents(el); return [...r.getClientRects()].filter(x => x.width > 0); };
+        const left = [...document.querySelectorAll('.stage .readout > *')].flatMap(words), right = [...document.querySelectorAll('#legend > span')].map(s => s.getBoundingClientRect());
+        return { overlap: left.some(a => right.some(b => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom)), legend: document.getElementById('legend').innerText.replace(/\n\u00a0/g, ' ').split('\n').slice(0, 2) };
+      });
+      const times = await ph.evaluate(() => window.arsenal.stage.summary().map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} s`));
+      assert.deepEqual(clash, { overlap: false, legend: times }, `${at}, ${one} with ${two}: the readout and the legend`);
+    }
+  }
   // Everything to tap reaches 44px tall: a tap at the top and the bottom of that is its own, not a neighbour's. Then the
   // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
   const reach = () => ph.evaluate(() => {
