@@ -9,6 +9,7 @@
   color-scheme: light;
   --paper: #f6f1e6;
   --card: #fffcf6;
+  --map-max: 52%; /* the map of the spots' darkest shade: the ink on it still reads at 4.5 to 1 */
   --ink: #1b2230;
   --ink-2: #444c5c;
   --muted: #646b7b;
@@ -39,6 +40,7 @@
     color-scheme: dark;
     --paper: #12161f;
     --card: #1a202c;
+    --map-max: 37%;
     --ink: #ece7dc;
     --ink-2: #cfcabe;
     --muted: #9aa0ad;
@@ -63,6 +65,7 @@
   color-scheme: dark;
   --paper: #12161f;
   --card: #1a202c;
+  --map-max: 37%;
   --ink: #ece7dc;
   --ink-2: #cfcabe;
   --muted: #9aa0ad;
@@ -438,7 +441,7 @@ p { margin: 0; }
 }
 @media (orientation: landscape) and (max-height: 540px) and (min-width: 600px) {
   .bat-stage > .frame { margin-inline: auto; max-width: calc((100vh - 24px) * 16 / 11); max-width: calc((100svh - 24px) * 16 / 11); }
-  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, .seg) { scroll-margin-top: 12px; }
+  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, .seg, .spots) { scroll-margin-top: 12px; }
 }
 #ab-flight, #hit-flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
 @media (max-width: 640px) { #ab-flight, #hit-flight { aspect-ratio: 16 / 10.5; } }
@@ -452,7 +455,7 @@ p { margin: 0; }
   .bat-stage { display: contents; }
   .bat-stage > .frame { position: sticky; top: 0; z-index: 3; box-shadow: 0 0 0 12px var(--paper); }
   .bat-call { margin-top: 18px; }
-  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, .seg) { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
+  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, .seg, .spots) { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
 }
 .count { display: flex; align-items: center; gap: 12px; }
 .count .ct { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -555,6 +558,16 @@ p { margin: 0; }
 /* Focus is ringed inside the spot, clear of the zone's frame in the gap round it. */
 .spot:focus-visible { outline-offset: -2px; }
 .spot[aria-checked="true"]::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: #fbf7ee; box-shadow: 0 0 0 2px #c8202f, 0 1px 3px rgba(0, 0, 0, .35); }
+/* The map of the spots: each shaded in the hundred throws' swinging-strike blue, by what the pitch does there (--f, from
+   0 for the map's fewest to 1 for its most), with the number in it and the hits under it, in the ink, which reads on the
+   darkest shade at 4.5 to 1 or more in either palette (--map-max). The spot picked is ringed round its edge instead, so
+   its number shows. */
+.spots.mapped .spot { background: color-mix(in srgb, var(--o-whiff) calc(8% + var(--f, 0) * (var(--map-max) - 8%)), var(--card)); color: var(--ink); display: grid; align-content: center; justify-items: center; line-height: 1; gap: 2px; }
+.spots.mapped .spot b { font: 700 15px/1 var(--display); }
+.spots.mapped .spot small { font-size: 10px; font-weight: 500; opacity: .9; }
+.spots.mapped .spot[aria-checked="true"]::after { inset: -4px; border-radius: 9px; background: none; box-shadow: 0 0 0 2px #c8202f; }
+.mapper { display: grid; gap: 4px; }
+.mapper .check { justify-self: start; }
 .spots-wrap .side { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); max-width: 9em; }
 .spots-wrap .side.left { text-align: right; }
 /* The batter's side comes before the spots, so a screen reader reads it first; a left-handed batter's is drawn after. */
@@ -705,7 +718,7 @@ p { margin: 0; }
   #ab-where-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .spots-wrap { gap: 4px; }
   .choice { line-height: 1.25; }
-  .callbox > #ab-key { order: 1; }
+  .callbox > #ab-key, .callbox > .mapper { order: 1; }
   /* The hundred throws' button wraps to two lines on the narrower phones, and after the at-bat on most: its words keep
      to the left, and its corners are the pitches' rounded ones, so it doesn't turn into a lozenge. */
   .hundred .plain { text-align: left; border-radius: 16px; }

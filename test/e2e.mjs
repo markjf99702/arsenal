@@ -2066,6 +2066,93 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await soundCtx.close();
 }
 
+// Under the spots, "Show what the curveball does at each spot": every spot shaded by what the pitch picked does there,
+// from the count as it stands and after the pitches so far, with the number in it (strikes per 100 throws, or with two
+// strikes strikeouts) and the hits under it, the same throws as the chart of every pitch makes at the spot picked. On a
+// phone the grid comes out from behind the picture. Another pitch maps that one, another spot keeps it, and throwing
+// clears it; while a pitch is in the air it waits. Its ink reads on every shade at 4.5 to 1 (WCAG 2.2, SC 1.4.3).
+{
+  const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const filled = () => page.waitForFunction(() => document.getElementById('ab-spots').classList.contains('mapped') && !document.getElementById('ab-spots').hasAttribute('aria-busy'), null, { timeout: 20000 });
+  const map = () => page.evaluate(() => {
+    const spots = [...document.querySelectorAll('#ab-spots .spot')];
+    return {
+      on: document.getElementById('ab-map').checked, label: document.getElementById('ab-map-label').textContent, key: document.getElementById('ab-map-key').textContent,
+      shown: spots.filter(b => /^\d+\d* ?\d+\u00a0H$/.test(b.textContent.replace(/(\d)(\d+\u00a0H)$/, '$1 $2')) || b.querySelector('b')).length,
+      said: spots.map(b => b.getAttribute('aria-label')),
+      nums: Object.fromEntries(spots.map(b => [b.dataset.spot, b.querySelector('b') ? [Number(b.querySelector('b').textContent), Number(b.querySelector('small').textContent.replace(/\D/g, ''))] : null])),
+    };
+  });
+  await page.goto('about:blank');
+  await page.goto(base + `#ab.v${VERSION}.average.R.2gbo`);
+  await idle();
+  await page.locator('#ab-pitches [data-code="CU"]').click();
+  await page.locator('#ab-spots [data-spot="m11"]').click();
+  let m = await map();
+  assert.deepEqual([m.on, m.label, m.key, m.shown], [false, 'Show what the curveball does at each spot', '', 0], 'before the map');
+  await page.locator('#ab-map').check();
+  await filled();
+  m = await map();
+  assert.equal(m.shown, 25, 'spots with numbers');
+  assert.match(m.key, /^Strikes per 100 curveballs thrown to each spot from 0-0, darker for more; under each, hits per 100\. Most: .+, \d+ strikes and \d+ hits?\.$/);
+  assert.match(m.said.find(x => x.startsWith('down and away')), /^down and away: \d+ strikes? and \d+ hits? per 100$/);
+  // Out from behind the picture.
+  assert.ok(await page.evaluate(() => document.getElementById('ab-spots').getBoundingClientRect().top >= document.getElementById('ab-flight').parentElement.getBoundingClientRect().bottom - 1), 'the map is behind the picture');
+  // Shaded from palest to darkest, the most strikes darkest, and the ink reads on every shade.
+  const shades = await page.evaluate(() => {
+    // rgb(…) from 0 to 255, or color(srgb …) from 0 to 1, as a mixed colour is given.
+    const lum = c => { const [r, g, b] = c.replace(/^color\(srgb/, '').match(/[\d.]+/g).slice(0, 3).map(Number).map(v => { v /= c.startsWith('color(') ? 1 : 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    return [...document.querySelectorAll('#ab-spots .spot')].map(b => ({ n: Number(b.querySelector('b').textContent), bg: lum(getComputedStyle(b).backgroundColor), ink: ratio(getComputedStyle(b).color, getComputedStyle(b).backgroundColor) }));
+  });
+  const most = shades.reduce((a, b) => (b.n > a.n ? b : a)), fewest = shades.reduce((a, b) => (b.n < a.n ? b : a));
+  assert.ok(most.bg < fewest.bg, 'the most strikes aren\'t the darkest');
+  assert.ok(shades.every(x => x.ink >= 4.5), `the map's ink reads at ${Math.min(...shades.map(x => x.ink)).toFixed(2)} to 1 on its darkest shade`);
+  // The same throws as the chart of every pitch at the spot picked: its curve's strikes and hits per 100.
+  await page.locator('#ab-run').click();
+  await page.waitForFunction(() => !document.querySelector('#ab-chart .hundred-bars[aria-busy]') && document.querySelector('#ab-chart .hundred-bars'), null, { timeout: 20000 });
+  const row = await page.evaluate(() => [...document.querySelectorAll('#ab-chart .hundred-bars li')].find(li => li.querySelector('.nm').textContent === 'Curve').querySelector('.sum').textContent);
+  const [, strikes, hits] = /^(\d+) strikes? · \d+ balls? · (?:\d+ hit batters? · )?(\d+) hits?$/.exec(row.replace(/\u00a0/g, ' ')) || [];
+  const [k, h] = m.nums.m11;
+  assert.ok(Math.abs(k - Number(strikes)) <= 1 && Math.abs(h - Number(hits)) <= 1, `the map's ${k} strikes and ${h} hits down and away, the chart's ${row}`);
+  // Another spot keeps it; another pitch maps that one.
+  await page.locator('#ab-spots [data-spot="00"]').click();
+  assert.equal((await map()).shown, 25, 'another spot cleared the map');
+  await page.locator('#ab-pitches [data-code="SL"]').click();
+  await filled();
+  m = await map();
+  assert.deepEqual([m.shown, m.label, /^Strikes per 100 sliders /.test(m.key)], [25, 'Show what the slider does at each spot', true], 'another pitch');
+  // Throwing clears it, and while the pitch is in the air the switch waits.
+  await page.locator('#ab-speed [data-v="0.25"]').click();
+  await page.locator('#ab-throw').click();
+  m = await map();
+  assert.deepEqual([m.on, m.shown, m.key], [false, 0, ''], 'the map after Throw');
+  assert.equal(await page.evaluate(() => window.arsenal.atBat.state.busy), true);
+  await page.locator('#ab-map').click({ force: true });
+  assert.equal((await map()).on, false, 'the map turned on while the pitch was in the air');
+  await idle();
+  await page.locator('#ab-speed [data-v="1"]').click();
+  // With two strikes, strikeouts: the README's at-bat at 2-2, right after the slider.
+  await page.goto('about:blank');
+  await page.goto(base + `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24`);
+  await idle();
+  await page.locator('#ab-pitches [data-code="CU"]').click();
+  await page.locator('#ab-map').check();
+  await filled();
+  m = await map();
+  assert.match(m.key, /^Strikeouts per 100 curveballs thrown to each spot from 2-2, right after the slider, darker for more; under each, hits per 100\. Most: .+, \d+ strikeouts? and \d+ hits?\.$/);
+  // In the dark palette too, its ink reads on every shade.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dark = await page.evaluate(() => {
+    // rgb(…) from 0 to 255, or color(srgb …) from 0 to 1, as a mixed colour is given.
+    const lum = c => { const [r, g, b] = c.replace(/^color\(srgb/, '').match(/[\d.]+/g).slice(0, 3).map(Number).map(v => { v /= c.startsWith('color(') ? 1 : 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    return Math.min(...[...document.querySelectorAll('#ab-spots .spot')].map(b => ratio(getComputedStyle(b).color, getComputedStyle(b).backgroundColor)));
+  });
+  assert.ok(dark >= 4.5, `the dark map's ink reads at ${dark.toFixed(2)} to 1 on its darkest shade`);
+  await page.emulateMedia({ colorScheme: 'light' });
+}
+
 // Under Next hitter, a line on how this visit has gone: every at-bat that ended on a pitch thrown here, with the share
 // struck out beside the league's from the data (js/league.js). An at-bat replayed from a link to its end isn't one.
 {

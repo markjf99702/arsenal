@@ -149,6 +149,10 @@ export function setupAtBat({ dark = false } = {}) {
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
   $('ab-run').addEventListener('click', () => { if (!S.busy && !S.charting) hundred(); });
+  // The map of the spots waits, as the hundred throws do, while a pitch is in the air.
+  $('ab-map').addEventListener('click', e => { if (S.busy) e.preventDefault(); });
+  // Turned on, the grid comes out from behind the picture (on a phone), to be seen filling.
+  $('ab-map').addEventListener('change', () => { if (mapOn()) { spotMap(); reveal($('ab-spots')); } else clearMap(); });
   // Each pitch in the log is a button: tapped, it opens why that pitch went the way it did, under it, and brings its mark
   // to the front of the picture (openRow). Tapped again, it closes. Not while a pitch flies: the log is a pitch behind.
   $('ab-log').addEventListener('click', e => {
@@ -206,6 +210,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-chart').replaceChildren();
     $('ab-hint').textContent = '';
     buildCall();
+    clearMap();
     drawState();
     $('ab-notice').textContent = '';
     $('ab-watch-link').hidden = true;
@@ -225,6 +230,7 @@ export function setupAtBat({ dark = false } = {}) {
     if (S.busy || S.ab.result || !S.code) return;
     if (S.open != null) openRow(null);
     const call = { code: S.code, spot: S.spot };
+    clearMap();
     const rec = throwCall(S.ab, call);
     // The tap on Throw is what lets the page make a sound, as this one lands.
     loud = sound.wake() ? rec : null;
@@ -334,10 +340,13 @@ export function setupAtBat({ dark = false } = {}) {
   // A pitch or a spot picked, by a tap or with the arrow keys (`keys`, which take focus along with them). Picked by hand,
   // the catcher's call under Throw no longer stands.
   function choose(b, keys = false) {
+    const another = b.dataset.code && b.dataset.code !== S.code;
     if (b.dataset.code) S.code = b.dataset.code;
     else S.spot = spotById(b.dataset.spot);
     if (S.open != null) openRow(null);
     drawCall();
+    // The map of the spots is the pitch's: another pitch, another map.
+    if (another && mapOn()) spotMap();
     $('ab-hint').textContent = '';
     if (keys) b.focus();
   }
@@ -348,6 +357,7 @@ export function setupAtBat({ dark = false } = {}) {
     for (const b of $('ab-pitches').children) mark(b, b.dataset.code === S.code);
     for (const b of $('ab-spots').children) mark(b, b.dataset.spot === S.spot.id);
     $('ab-choice').textContent = S.code ? `${SHORT(S.code)}, ${spotName(S.spot)}` : '';
+    $('ab-map-label').textContent = `Show what the ${NAME[S.code] || 'pitch'} does at each spot`;
     drawPicture();
   }
 
@@ -516,6 +526,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-throw').setAttribute('aria-disabled', String(S.busy || !!S.ab.result));
     $('ab-suggest').setAttribute('aria-disabled', String(S.busy));
     $('ab-run').setAttribute('aria-disabled', String(S.busy || !!S.charting));
+    $('ab-map').setAttribute('aria-disabled', String(S.busy));
     for (const id of ['ab-watch', 'ab-watch-link', 'ab-challenge']) $(id).setAttribute('aria-disabled', String(S.busy));
   }
 
@@ -619,6 +630,69 @@ export function setupAtBat({ dark = false } = {}) {
     });
   }
 
+  // ---------------------------------------------------------------- the map of the spots
+  // Under the spots, "Show what the slider does at each spot": every spot shaded by what the pitch picked does there,
+  // from the count as it stands and after the pitches so far, as Statcast's zone charts and the hot and cold zones in
+  // pitching games show it. With two strikes, by how many strikeouts per 100 throws, otherwise by how many strikes (a
+  // swing and miss, a called strike or a foul), darker for more, with the number in it, and under that the hits. Each
+  // spot is thrown 400 times, the same throws the chart of every pitch makes there (whatIf, the same seed), one spot a
+  // frame so the page keeps moving and the spots fill as they go; with reduced motion they're drawn once, all in. Picking
+  // another pitch maps that one; the next pitch, a challenge or a new at-bat clears it.
+  let maps = 0;
+  const mapOn = () => $('ab-map').checked;
+  const plainSpot = b => {
+    b.replaceChildren();
+    b.style.removeProperty('--f');
+    b.setAttribute('aria-label', spotName(spotById(b.dataset.spot)));
+  };
+  function clearMap() {
+    maps++;
+    $('ab-map').checked = false;
+    $('ab-spots').classList.remove('mapped');
+    $('ab-spots').removeAttribute('aria-busy');
+    for (const b of $('ab-spots').children) plainSpot(b);
+    $('ab-map-key').textContent = '';
+  }
+  function spotMap() {
+    if (S.busy || S.ab.result) { clearMap(); return; }
+    const id = ++maps, ab = S.ab, code = S.code, two = ab.strikes === 2;
+    const view = { ...ab, pitches: ab.pitches.slice() };
+    const seed = (ab.seed ^ (view.pitches.length * 2654435761)) >>> 0;
+    const before = view.pitches.at(-1);
+    const spots = [...$('ab-spots').children], got = new Map();
+    for (const b of spots) plainSpot(b);
+    $('ab-spots').classList.add('mapped');
+    $('ab-spots').setAttribute('aria-busy', 'true');
+    const what = two ? ['strikeout', 'strikeouts'] : ['strike', 'strikes'];
+    const from = `from ${ab.balls}-${ab.strikes}${before ? `, right after the ${NAME[before.code]}` : ''}`;
+    $('ab-map-key').textContent = `${what[1][0].toUpperCase()}${what[1].slice(1)} per 100 ${NAME[code]}s thrown to each spot ${from}, darker for more; under each, hits per 100. Throwing…`;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const per = n => Math.round((n * 100) / (SLICES * PER));
+    const draw = () => {
+      const vals = [...got.values()].map(v => v.k), lo = Math.min(...vals), hi = Math.max(...vals);
+      for (const [b, v] of got) {
+        // From the map's fewest (0, its palest) to its most (1, its darkest: css/app.css).
+        b.style.setProperty('--f', (hi > lo ? (v.k - lo) / (hi - lo) : 0.5).toFixed(2));
+        b.innerHTML = `<b>${v.k}</b><small>${v.hits}\u00a0H</small>`;
+        b.setAttribute('aria-label', `${spotName(spotById(b.dataset.spot))}: ${counted(v.k, ...what)} and ${counted(v.hits, 'hit', 'hits')} per 100`);
+      }
+    };
+    let i = 0;
+    const slice = () => {
+      if (maps !== id) return;
+      const b = spots[i], t = whatIf(view, spotById(b.dataset.spot), SLICES * PER, seed, 0, [code])[code];
+      got.set(b, { k: per(t.whiff + t.called + (two ? 0 : t.foul)), hits: per(t.hit) });
+      i++;
+      if (!still || i === spots.length) draw();
+      if (i < spots.length) { requestAnimationFrame(slice); return; }
+      $('ab-spots').removeAttribute('aria-busy');
+      // Where it does most, in words, for everyone and a screen reader.
+      const best = [...got].sort((a, b) => b[1].k - a[1].k || a[1].hits - b[1].hits)[0];
+      $('ab-map-key').textContent = `${what[1][0].toUpperCase()}${what[1].slice(1)} per 100 ${NAME[code]}s thrown to each spot ${from}, darker for more; under each, hits per 100. Most: ${spotName(spotById(best[0].dataset.spot))}, ${counted(best[1].k, ...what)} and ${counted(best[1].hits, 'hit', 'hits')}.`;
+    };
+    slice();
+  }
+
   // ---------------------------------------------------------------- the ABS challenge
   // Right after a ball is called on a pitch that crossed close to the zone, Challenge the call, while there are
   // challenges left: two to an at-bat or to an inning, keeping each that succeeds (js/atbat.js, challenge). It's next
@@ -638,6 +712,7 @@ export function setupAtBat({ dark = false } = {}) {
     const last = S.ab.pitches.at(-1), ended = !!S.ab.result;
     if (S.busy || !challengeable(last) || challengesLeft(pool()) < 1) return;
     challenge(S.ab);
+    clearMap();
     S.ab.here = true;
     stamp();
     // As after a pitch thrown here, a link's notice was about what it replayed.
@@ -671,6 +746,7 @@ export function setupAtBat({ dark = false } = {}) {
     if (S.busy || !S.ab.pitches.length) return;
     if (S.open != null) openRow(null);
     stopChart();
+    clearMap();
     $('ab-chart').replaceChildren();
     S.watching = { i: 0, landed: false };
     S.busy = true;
