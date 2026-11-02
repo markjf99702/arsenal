@@ -6,7 +6,7 @@
 // near the real league: how often hitters swing, chase and miss, in each count, and what happens on contact.
 import { BY_CODE } from './pitches.js';
 import { NUMBERS } from './numbers.js';
-import { PITCHERS as REAL } from './league.js';
+import { PITCHERS as REAL, TYPES } from './league.js';
 import { throwPitch, PLATE_Y, DECIDE, MPH, G } from './flight.js';
 import { rng as makeRng } from './rng.js';
 import { PARAMS as DEFAULTS } from './atbat-params.js';
@@ -87,13 +87,14 @@ export function spotName(spot) {
 
 // ---------------------------------------------------------------- pitchers
 
-// A league-average righty: a four-seamer, sinker, slider, changeup and curve at their league averages. (Not the five
-// most thrown: the sweeper and the cutter are both thrown more often than the curve.)
+// A league-average righty: a four-seamer, sinker, slider, changeup and curve at their league averages, each with the
+// league's spread of speed pitch to pitch (sd). (Not the five most thrown: the sweeper and the cutter are both thrown
+// more often than the curve.)
 const AVERAGE_SET = ['FF', 'SI', 'SL', 'CH', 'CU'];
 const avgShare = AVERAGE_SET.reduce((s, c) => s + NUMBERS[c].share, 0);
 const fromLeague = (code, share) => {
   const n = NUMBERS[code];
-  return { code, share, mph: n.mph, rpm: n.rpm, rise: n.rise, arm: n.arm, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
+  return { code, share, mph: n.mph, sd: TYPES[code]?.sd ?? 0, rpm: n.rpm, rise: n.rise, arm: n.arm, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
 };
 export const AVERAGE = {
   key: 'average', name: 'League-average righty', hand: 'R', line: 'A four-seamer, sinker, slider, changeup and curve, each at the league average.',
@@ -208,7 +209,11 @@ export function throwCall(ab, call) {
   const aim = spotXZ(call.spot, ab.batter);
   const spread = P.command * (P.commandBy[call.code] ?? 1);
   const target = [aim[0] + R.normal() * spread, aim[1] + R.normal() * spread];
-  const flight = throwPitch(pitchFor(ab.pitcher, entry, target), { hand: ab.pitcher.hand, rng: R });
+  // Speed: no two of a pitcher's pitches come in at quite the same speed. Each is drawn from his spread for that pitch
+  // in 2026 (sd, the league's for the league-average righty), times speedSpread, and never more than 2.5 of it away.
+  const sd = (entry.sd ?? 0) * P.speedSpread;
+  const mph = sd ? entry.mph + sd * Math.max(-2.5, Math.min(2.5, R.normal())) : entry.mph;
+  const flight = throwPitch(pitchFor(ab.pitcher, { ...entry, mph }, target), { hand: ab.pitcher.hand, rng: R });
   const plate = [flight.end[0], flight.end[2]];
   const td = flight.T - DECIDE;
   const atDecide = flight.pos(td);
@@ -238,7 +243,7 @@ export function throwCall(ab, call) {
   const swing = R.chance(pSwing);
 
   const out = {
-    n: ab.pitches.length + 1, code: call.code, spot: call.spot, mph: entry.mph, before,
+    n: ab.pitches.length + 1, code: call.code, spot: call.spot, mph, before,
     aim, plate, atDecide, tunnel, sat, picked, judged, miss, missBy, early, swing, inZone: inZone(plate[0], plate[1]),
     flight: { target, T: flight.T }, path: flight, result: null, play: null,
   };

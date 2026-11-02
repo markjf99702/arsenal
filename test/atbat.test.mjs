@@ -417,6 +417,18 @@ test('where a pitch crosses moves his misses and his damage', () => {
   assert.ok(harm(flat) < harm(base) * 0.8, `wOBA on contact over the middle against off the plate: ${harm(base).toFixed(2)}, then ${harm(flat).toFixed(2)}`);
 });
 
+// Each throw can come in at its own speed (js/atbat-params.js, speedSpread): spread as much as the pitcher's own did in
+// 2026 (sd in js/league.js), about his average.
+test('a pitch’s speed can vary from throw to throw as the pitcher’s does', () => {
+  for (const [key, code] of [['miller', 'FF'], ['sale', 'SL'], ['average', 'CH']]) {
+    const pitcher = pitcherByKey(key), e = pitcher.pitches.find(p => p.code === code), speeds = [];
+    for (let seed = 1; seed <= 600; seed++) speeds.push(throwCall(startAtBat({ pitcher, seed, params: { ...PARAMS, speedSpread: 1 } }), { code, spot: spotById('00') }).mph);
+    const mean = speeds.reduce((a, v) => a + v, 0) / speeds.length, sd = Math.sqrt(speeds.reduce((a, v) => a + (v - mean) ** 2, 0) / speeds.length);
+    assert.ok(Math.abs(mean - e.mph) < 0.15 && Math.abs(sd / e.sd - 1) < 0.15, `${key}'s ${code}: ${mean.toFixed(2)} ± ${sd.toFixed(2)} mph, against ${e.mph} ± ${e.sd}`);
+    assert.ok(speeds.every(v => Math.abs(v - e.mph) <= 2.5 * e.sd + 1e-9), `${key}'s ${code}: a speed more than 2.5 of his spread away`);
+  }
+});
+
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {
     let swings = 0, whiffs = 0;

@@ -23,6 +23,7 @@ export const PARAMS = {
   "SV": 1.1,
   "ST": 1.05
  },
+ "speedSpread": 0,
  "own": 0.9,
  "memory": 0.3,
  "lookFastball": {
