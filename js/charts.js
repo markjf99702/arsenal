@@ -77,9 +77,10 @@ function drawMovement(host, W, { onPick, tooltip }) {
     if (!sp) continue;
     ovals[p.code] = el('ellipse', { class: `spread fam-${p.fam}`, cx: (x(sp.arm[0]) + x(sp.arm[1])) / 2, cy: (y(sp.rise[0]) + y(sp.rise[1])) / 2, rx: Math.abs(x(sp.arm[1]) - x(sp.arm[0])) / 2, ry: Math.abs(y(sp.rise[1]) - y(sp.rise[0])) / 2 }, spreads);
   }
-  // A real pitcher's pitches, when the explorer's are thrown by one: a ring for each, joined to the league's dot.
-  const his = el('g', { class: 'his-rings', 'aria-hidden': 'true' }, svg);
   const dots = el('g', {}, svg);
+  // A real pitcher's pitches, when the explorer's are thrown by one: a ring for each, joined to the league's dot, over
+  // the dots, so one close to its league's dot still shows, and letting taps through to them.
+  const his = el('g', { class: 'his-rings', 'aria-hidden': 'true' }, svg);
   const items = [...PITCHES].sort((a, b) => b.n.share - a.n.share);
   const nodes = {};
   const taken = [];

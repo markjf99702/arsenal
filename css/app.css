@@ -318,8 +318,10 @@ p { margin: 0; }
 /* The middle 80% of pitchers round a dot: the chosen pitch's, and the one under the pointer or with focus. */
 .move-chart .spread { fill: var(--fam); fill-opacity: .1; stroke: var(--fam); stroke-opacity: .55; stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0; transition: opacity .15s; pointer-events: none; }
 .move-chart .spread.on, .move-chart .spread.near { opacity: 1; }
-/* A real pitcher's pitches: rings joined to the league's dots. */
-.move-chart .his-rings circle { fill: var(--card); fill-opacity: .6; stroke: var(--fam); stroke-width: 2.5; }
+/* A real pitcher's pitches: rings joined to the league's dots, over them, with a ring of the card's colour round each so
+   it stands off a dot it sits on. */
+.move-chart .his-rings { pointer-events: none; }
+.move-chart .his-rings circle { fill: none; stroke: var(--fam); stroke-width: 2.5; paint-order: stroke; filter: drop-shadow(0 0 1.5px var(--card)) drop-shadow(0 0 1px var(--card)); }
 .move-chart .his-rings line { stroke: var(--fam); stroke-width: 1.6; opacity: .7; }
 .dot .hit { fill: transparent; }
 .dot .mark { fill: var(--fam); stroke: var(--card); stroke-width: 2; fill-opacity: .9; }
