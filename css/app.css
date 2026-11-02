@@ -262,6 +262,9 @@ p { margin: 0; }
 .panel h3 { font-size: 20px; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
 .panel p { font-size: 14.5px; color: var(--ink-2); }
 .panel p.small { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.panel p.young a { color: var(--ink-2); text-decoration: underline 1px var(--accent); text-underline-offset: 2px; }
+.panel p.young a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+@media (hover: hover) { .panel p.young a:hover { color: var(--accent); } }
 .seg.mini { justify-self: center; margin-top: -2px; max-width: 100%; min-width: 0; }
 .seg.mini button { font-size: 12.5px; padding: 5px 9px; position: relative; }
 /* These are smaller still, so they reach 8px above and below (44px in all), with the same see-through layer. */

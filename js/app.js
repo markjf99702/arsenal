@@ -16,6 +16,10 @@ const $ = id => document.getElementById(id);
 const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const MAIN = '#ffd23f', PAIR = '#7fd3ff';
 const FAM_SINGULAR = { fast: 'Fastball', break: 'Breaking ball', off: 'Off-speed pitch', odd: 'Oddity' };
+// Pitches other than fastballs and changeups, which Pitch Smart, MLB and USA Baseball's guidelines for young pitchers, says to
+// leave until 13 or 14: for ages 9-12, "Avoid throwing pitches other than fastballs and changeups"; for 13-14, "Players can
+// begin using breaking pitches after developing consistent fastball and changeup" (mlb.com/pitch-smart).
+const NOT_YET = new Set(['SL', 'ST', 'CU', 'KC', 'SV', 'FS', 'FO', 'KN', 'EP']);
 
 const state = {
   pitch: PITCHES[0],
@@ -165,6 +169,8 @@ function renderCard() {
     stat('Misses', n.whiff == null ? '–' : `${Math.round(n.whiff)}`, 'per 100 swings'),
   ].join('');
   $('c-grip').textContent = p.grip;
+  $('c-young').hidden = !NOT_YET.has(p.code);
+  $('c-young').innerHTML = NOT_YET.has(p.code) ? '<a href="https://www.mlb.com/pitch-smart">Pitch Smart</a>, from MLB and USA Baseball, says to stick to fastballs and changeups through age 12 and to add breaking pitches once both are consistent.' : '';
   $('c-how').textContent = p.how;
   const t = tilt(p, state.hand);
   // Turns on the way in: the spin rate times the flight time the readout shows.

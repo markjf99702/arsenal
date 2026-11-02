@@ -560,6 +560,19 @@ await page.locator('#hand [data-v="R"]').click();
   for (const t of counted) assert.equal(t.said, t.ball, `${t.code}: the card says ${t.said} turns, the ball makes ${t.ball}`);
 }
 
+// Under the grip of every pitch but the fastballs and the changeup, a line from Pitch Smart on when a young pitcher should
+// learn it, linked to its guidelines; on those four cards, nothing.
+{
+  const young = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.chip')].map(b => b.dataset.code).map(code => {
+    window.arsenal.pick(code);
+    const el = document.getElementById('c-young');
+    return [code, el.checkVisibility() ? `${el.textContent} ${el.querySelector('a')?.href}` : ''];
+  })));
+  const shown = Object.keys(young).filter(code => young[code]);
+  assert.deepEqual(shown, ['SL', 'ST', 'CU', 'KC', 'SV', 'FS', 'FO', 'KN', 'EP'], 'the cards with the Pitch Smart line');
+  for (const code of shown) assert.equal(young[code], 'Pitch Smart, from MLB and USA Baseball, says to stick to fastballs and changeups through age 12 and to add breaking pitches once both are consistent. https://www.mlb.com/pitch-smart', code);
+}
+
 // On the card, the sideways movement and its unit stay on one line ("glove side 3.9 in", never "in" on its own).
 {
   const split = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).filter(code => {
