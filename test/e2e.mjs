@@ -160,6 +160,32 @@ await page.emulateMedia({ colorScheme: 'light' });
   assert.deepEqual(went, { hash: '#at-bat', tab: 'ab-pitcher' }, 'the lede\'s link');
   await page.evaluate(() => { document.activeElement.blur(); scrollTo(0, 0); });
 }
+// A second way down, for a reader who has read the card to its end: at the end of its row of previous and next, under
+// them, "Now pitch to a hitter", in the lede link's colours, as easy to tap as they are (44px), and going to the same
+// place the same way.
+{
+  const end = await page.evaluate(() => {
+    const a = document.getElementById('onward'), row = a.closest('.next'), next = document.getElementById('next');
+    const as = v => { const i = document.body.appendChild(document.createElement('i')); i.style.color = v; const c = getComputedStyle(i).color; i.remove(); return c; };
+    a.scrollIntoView({ block: 'center' });
+    const r = a.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
+    let top = mid, bottom = mid;
+    while (top > mid - 40 && a.contains(document.elementFromPoint(x, top - 0.5))) top -= 0.5;
+    while (bottom < mid + 40 && a.contains(document.elementFromPoint(x, bottom + 0.5))) bottom += 0.5;
+    return {
+      words: a.textContent.trim(), href: a.getAttribute('href'), last: row.lastElementChild === a && !a.closest('nav'),
+      under: mid > next.getBoundingClientRect().bottom, atEnd: Math.abs(r.right - row.getBoundingClientRect().right) < 1,
+      color: getComputedStyle(a).color === as('var(--ink)'), line: getComputedStyle(a).textDecorationColor === as('var(--accent)'), tall: bottom - top >= 44,
+    };
+  });
+  assert.deepEqual(end, { words: 'Now pitch to a hitter ↓', href: '#at-bat', last: true, under: true, atEnd: true, color: true, line: true, tall: true }, 'the way down at the end of the card');
+  await page.locator('#onward').click();
+  await until(() => page.evaluate(() => Math.round(document.getElementById('at-bat').getBoundingClientRect().top) === 12), 5000, 'the card\'s link didn\'t bring Pitch to a hitter to the top of the screen');
+  await page.keyboard.press('Tab');
+  const went = await page.evaluate(() => ({ hash: location.hash, tab: document.getElementById('at-bat').contains(document.activeElement) && document.activeElement.id }));
+  assert.deepEqual(went, { hash: '#at-bat', tab: 'ab-pitcher' }, 'the card\'s link');
+  await page.evaluate(() => { document.activeElement.blur(); scrollTo(0, 0); });
+}
 
 // A segmented button's focus ring is drawn inside it: the pill clips its buttons, so a ring outside one is cut down to
 // slivers. The end buttons are rounded like the pill, so the ring follows its ends round. Every pill: the camera, speed,

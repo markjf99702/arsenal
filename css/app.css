@@ -274,9 +274,16 @@ p { margin: 0; }
 .facts { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14.5px; color: var(--ink-2); }
 .facts li { padding-left: 16px; position: relative; }
 .facts li::before { content: ''; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--fam); }
-.next { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
-.next button { border: 0; background: none; padding: 14px 0; margin: -10px 0; font: 600 16px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; }
-@media (hover: hover) { .next button:hover { color: var(--accent); } }
+/* Previous and next, and at the end of the row, under them, the way on down to Pitch to a hitter, which comes next on
+   the page, in the lede link's ink and red underline. (Beside next, on a computer, it read as another pitch.) The rows
+   are far enough apart that each keeps the whole of its 44px reach. */
+.next { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 22px 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.next nav { display: flex; justify-content: space-between; gap: 10px; flex: 1 1 100%; }
+.next button, .onward { border: 0; background: none; padding: 14px 0; margin: -10px 0; font: 600 16px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; }
+.onward { margin-left: auto; color: var(--ink); text-decoration: underline 2px var(--accent); text-underline-offset: 4px; white-space: nowrap; }
+.onward:visited { color: var(--ink); }
+.onward:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+@media (hover: hover) { .next button:hover, .onward:hover { color: var(--accent); } }
 
 /* ---------------------------------------------------------------- all pitches */
 .all { max-width: 1200px; margin: 40px auto 0; display: grid; gap: 10px; }
