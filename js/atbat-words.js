@@ -103,7 +103,7 @@ export function why(p, prev, batter) {
     const slower = prev ? Math.round(prev.mph - p.mph) : 0;
     const speed = slower >= 5 ? ` It was ${mph(slower)} slower than the last pitch.` : slower <= -5 ? ` It was ${mph(-slower)} harder than the last pitch.` : '';
     // Lines and the decision point only after a different kind of pitch, which is what can look alike. A pitch a foot off
-    // the last one's line still goes unrecognised 42% of the time (js/atbat-params.js, recognize), so the distance is
+    // the last one's line still goes unrecognised 55% of the time (js/atbat-params.js, recognize), so the distance is
     // given only when it was close, within 8 inches.
     const other = prev && prev.code !== p.code && p.tunnel != null;
     if (p.picked) out.push((other && p.tunnel > 0.5 ? 'It came out on a different line from the last pitch, and he recognised it.' : 'He recognised it anyway.') + speed);
