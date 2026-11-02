@@ -728,7 +728,7 @@ assert.match(await heading(), /^Forkball/i);
 {
   const before = problems.length;
   await page.goto('about:blank');
-  await page.goto(base + '#ab.average.R.1p'); // the README's hitter, before the first pitch
+  await page.goto(base + `#ab.v${VERSION}.average.R.2gbo`); // the README's hitter, before the first pitch
   const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
   // How to play is at the top of the call box, before the pitches, and nothing stands for the last pitch yet.
   const first = await page.evaluate(async () => ({
@@ -834,16 +834,16 @@ assert.match(await heading(), /^Forkball/i);
   // A link asking for what can't be done still opens, and says so over the call box, or over the end card, after what
   // it is.
   for (const [hash, shared, said] of [
-    ['#ab.nobody.R.1p.SL6', 'the league-average righty to a right-handed batter, 1 pitch', 'There’s no pitcher called “nobody” here, so this is the league-average righty.'],
-    ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.FF6.FF6.FF6', 'the league-average righty to a right-handed batter, 6 pitches', 'The link had 3 more pitches after the at-bat ended; they were left out.'],
-    ['#ab.rogers.R.9.SI16.FF3.SI2', 'Tyler Rogers to a right-handed batter, 1 pitch', 'Tyler Rogers doesn’t throw a four-seamer, so the link’s last 2 pitches were left out.'],
-    ['#ab.average.R.9.FF6.SL40', 'the league-average righty to a right-handed batter, 1 pitch', 'The link’s pitch 2 is called to a spot that isn’t on the grid, so that pitch was left out.'],
+    [`#ab.v${VERSION}.nobody.R.2gbo.SL6`, 'the league-average righty to a right-handed batter, 1 pitch', 'There’s no pitcher called “nobody” here, so this is the league-average righty.'],
+    [`#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22.FF6.FF6.FF6`, 'the league-average righty to a right-handed batter, 6 pitches', 'The link had 3 more pitches after the at-bat ended; they were left out.'],
+    [`#ab.v${VERSION}.rogers.R.2.SI16.FF3.SI2`, 'Tyler Rogers to a right-handed batter, 1 pitch', 'Tyler Rogers doesn’t throw a four-seamer, so the link’s last 2 pitches were left out.'],
+    [`#ab.v${VERSION}.average.R.1.FF6.SL40`, 'the league-average righty to a right-handed batter, 1 pitch', 'The link’s pitch 2 is called to a spot that isn’t on the grid, so that pitch was left out.'],
     // A link from a message with a full stop or a bracket on the end, and one cut off partway through a pitch: what can
     // be read is played. (Skenes's first pitch here is put in play.)
-    ['#ab.skenes.L.k3x9a.FF6.ST23.', 'Paul Skenes to a left-handed batter, 1 pitch', 'The link had one more pitch after the at-bat ended; it was left out.'],
-    ['#ab.skenes.L.k3x9a.FF6.ST23)', 'Paul Skenes to a left-handed batter, 1 pitch', 'The link had one more pitch after the at-bat ended; it was left out.'],
-    ['#ab.skenes.L.k3x9a.FF6.S', 'Paul Skenes to a left-handed batter, 1 pitch', 'The rest of the link couldn’t be read, so it was left out.'],
-    ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.C', 'the league-average righty to a right-handed batter, 5 pitches', 'The rest of the link couldn’t be read, so it was left out.'],
+    [`#ab.v${VERSION}.skenes.L.b.FF6.ST23.`, 'Paul Skenes to a left-handed batter, 1 pitch', 'The link had one more pitch after the at-bat ended; it was left out.'],
+    [`#ab.v${VERSION}.skenes.L.b.FF6.ST23)`, 'Paul Skenes to a left-handed batter, 1 pitch', 'The link had one more pitch after the at-bat ended; it was left out.'],
+    [`#ab.v${VERSION}.skenes.L.b.FF6.S`, 'Paul Skenes to a left-handed batter, 1 pitch', 'The rest of the link couldn’t be read, so it was left out.'],
+    [`#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.C`, 'the league-average righty to a right-handed batter, 5 pitches', 'The rest of the link couldn’t be read, so it was left out.'],
   ]) {
     await page.goto('about:blank');
     await page.goto(base + hash);
@@ -857,9 +857,9 @@ assert.match(await heading(), /^Forkball/i);
   const change = hash => page.evaluate(h => new Promise(resolve => { addEventListener('hashchange', () => setTimeout(resolve, 50), { once: true }); location.hash = h; }), hash);
   // With a full stop on the end, it's the README's strikeout, all of it, and the address drops the full stop.
   await page.goto('about:blank');
-  await page.goto(base + '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.');
+  await page.goto(base + `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22.`);
   await idle();
-  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22`, top: 12, notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
+  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22`, top: 12, notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
   // Cut off before its seed, there's nothing to replay: a new at-bat, which says why, and the address is its own.
   await page.goto('about:blank');
   await page.goto(base + '#ab.skenes');
@@ -871,14 +871,14 @@ assert.match(await heading(), /^Forkball/i);
   // The same in a tab already open, from the explorer at the top: changed to a link cut off partway, it replays what it
   // can; changed to a garbled one, the pitcher and batter stay, against a new hitter.
   await page.evaluate(() => scrollTo(0, 0));
-  await change('#ab.skenes.L.k3x9a.FF6.S');
+  await change(`#ab.v${VERSION}.skenes.L.b.FF6.S`);
   await idle();
-  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.skenes.L.k3x9a.FF6`, top: 12, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
+  assert.deepEqual(await opened(), { hash: `#ab.v${VERSION}.skenes.L.b.FF6`, top: 12, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
   await page.evaluate(() => scrollTo(0, 0));
-  await change('#ab.skenes.X.k3x9a.FF6');
+  await change(`#ab.v${VERSION}.skenes.X.b.FF6`);
   await idle();
   o = await opened();
-  assert.deepEqual({ ...o, hash: new RegExp(`^#ab\\.v${VERSION}\\.skenes\\.L\\.[0-9a-z]+$`).test(o.hash) && o.hash !== `#ab.v${VERSION}.skenes.L.k3x9a` }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'skenes' }, 'the address changed to a garbled link');
+  assert.deepEqual({ ...o, hash: new RegExp(`^#ab\\.v${VERSION}\\.skenes\\.L\\.[0-9a-z]+$`).test(o.hash) && o.hash !== `#ab.v${VERSION}.skenes.L.b` }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'skenes' }, 'the address changed to a garbled link');
   await page.locator('#ab-pitcher').selectOption('sale');
   assert.equal(await page.locator('#ab-notice').isHidden(), true, 'the link’s notice is still there for a new at-bat');
   // A link made against another version of the hitter replays on today's, and says under the pitch log that the same
@@ -888,7 +888,7 @@ assert.match(await heading(), /^Forkball/i);
     const el = document.getElementById('ab-version');
     return { text: el.textContent, shown: el.checkVisibility(), afterLog: el.previousElementSibling.id };
   });
-  const other = [[`#ab.v${VERSION + 1}.average.R.1p.FF6`, 'a newer'], ...(VERSION > 1 ? [['#ab.average.R.1p.FF6', 'an earlier'], ['#ab.v1.average.R.1p.FF6', 'an earlier']] : [])];
+  const other = [[`#ab.v${VERSION + 1}.average.R.2gbo.FF6`, 'a newer'], ...(VERSION > 1 ? [['#ab.average.R.2gbo.FF6', 'an earlier'], ['#ab.v1.average.R.2gbo.FF6', 'an earlier']] : [])];
   for (const [hash, which] of other) {
     await page.goto('about:blank');
     await page.goto(base + hash);
@@ -898,7 +898,7 @@ assert.match(await heading(), /^Forkball/i);
   await page.evaluate(() => window.arsenal.atBat.throw('SL', 'm12'));
   await idle();
   assert.equal((await versionLine()).shown, false, 'the version line stayed after throwing on from the link');
-  for (const hash of [`#ab.v${VERSION}.average.R.1p.FF6`, ...(VERSION === 1 ? ['#ab.average.R.1p.FF6'] : [])]) {
+  for (const hash of [`#ab.v${VERSION}.average.R.2gbo.FF6`, ...(VERSION === 1 ? ['#ab.average.R.2gbo.FF6'] : [])]) {
     await page.goto('about:blank');
     await page.goto(base + hash);
     await idle();
@@ -980,7 +980,7 @@ assert.match(await heading(), /^Forkball/i);
 {
   const before = problems.length;
   await page.goto('about:blank');
-  await page.goto(base + '#ab.average.R.1p');
+  await page.goto(base + `#ab.v${VERSION}.average.R.2gbo`);
   await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
   const hint = () => page.locator('#ab-hint').textContent();
   const asked = [];
@@ -1015,7 +1015,7 @@ assert.match(await heading(), /^Forkball/i);
 // hear "Foul. The count is 0 and 2." twice.
 {
   await page.goto('about:blank');
-  await page.goto(base + '#ab.average.R.2');
+  await page.goto(base + `#ab.v${VERSION}.average.R.13`);
   await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
   const heard = [];
   for (let i = 0; i < 3; i++) {
@@ -1023,7 +1023,7 @@ assert.match(await heading(), /^Forkball/i);
     await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     heard.push(await page.evaluate(() => ({ live: document.getElementById('ab-live').textContent, why: document.querySelector('#ab-last p:last-child').textContent })));
   }
-  assert.deepEqual(heard.map(h => h.live.replace(` ${h.why}`, '')), ['Pitch 1, four-seamer, called down the middle, crossed down in the zone: foul. 0 and 1.', 'Pitch 2, four-seamer, called down the middle, crossed away, at the belt: foul. 0 and 2.', 'Pitch 3, four-seamer, called down the middle, crossed up and in: foul. 0 and 2.'], 'what a screen reader hears for three fouls');
+  assert.deepEqual(heard.map(h => h.live.replace(` ${h.why}`, '')), ['Pitch 1, four-seamer, called down the middle, crossed up in the zone: foul. 0 and 1.', 'Pitch 2, four-seamer, called down the middle, crossed up and away: foul. 0 and 2.', 'Pitch 3, four-seamer, called down the middle, crossed in, at the belt: foul. 0 and 2.'], 'what a screen reader hears for three fouls');
   assert.ok(heard.every(h => h.why.length > 20 && h.live.endsWith(` ${h.why}`)), `the why isn't heard: ${heard.map(h => h.live).join(' | ')}`);
   assert.equal(new Set(heard.map(h => h.live)).size, 3, 'a screen reader heard the same line twice');
   assert.equal(await page.locator('#ab-count .sr').textContent(), '0 balls, 2 strikes');
@@ -1060,7 +1060,7 @@ const dotStarts = p => p.evaluate(() => {
 
 // Pitch to a hitter on a phone, tapped the way a thumb would. The readout over the picture says what each pitch did,
 // and a shared link shows the count and the pitches before the one it throws again.
-const STRIKEOUT = `#ab.v${VERSION}.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22`; // the README's: a strikeout swinging on a 2-2 curve
+const STRIKEOUT = `#ab.v${VERSION}.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22`; // the README's: a strikeout swinging on a 2-2 curve
 for (const [width, height] of [[390, 844], [320, 640]]) {
   const phoneCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   await phoneCtx.addInitScript(() => {
@@ -1093,12 +1093,12 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.deepEqual(flying.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the pitch was in the air`);
   await idle();
   assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
-  assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
-  assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike\u00a0· 94.8\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
+  assert.equal(await ph.locator('#ab-last .res').textContent(), 'Foul');
+  assert.equal(await ph.locator('#ab-ro').textContent(), 'Foul\u00a0· 94.6\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
   // The pitch's name is kept whole where the line wraps: "four-seamer", not "four-" over "seamer".
   assert.equal(await ph.evaluate(() => document.querySelector('#ab-ro .nw').getClientRects().length), 1, `${at}, the pitch's name in the readout is split over two lines`);
   const tag = await tagged(ph);
-  assert.deepEqual(tag && { words: tag.words, kind: tag.kind, readable: tag.ratio >= 4.5 }, { words: 'Called strike', kind: 'strike', readable: true }, `${at}, the readout's tag: ${JSON.stringify(tag)}`);
+  assert.deepEqual(tag && { words: tag.words, kind: tag.kind, readable: tag.ratio >= 4.5 }, { words: 'Foul', kind: 'strike', readable: true }, `${at}, the readout's tag: ${JSON.stringify(tag)}`);
 
   // Strike three thrown with the button low: the result card takes the controls' place, out from behind the picture.
   await ph.goto('about:blank');
@@ -1129,9 +1129,9 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.ok(replay.busy, `${at}, the link's last pitch had landed before it could be checked`);
   assert.deepEqual(replay.heard, { live: '', notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.' }, `${at}, what a screen reader is told as a link opens`);
   assert.deepEqual(replay.count2, { said: '2 balls, 2 strikes', hidden: true }, `${at}, the count as a screen reader reads it`);
-  assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 80.3 mph' }, 'the README strikeout plays differently now');
+  assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 78.6 mph' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
-  assert.equal(replay.ro, 'Pitch 6\u00a0· 80.3\u00a0mph curveball', `${at}, while the link's last pitch flies`);
+  assert.equal(replay.ro, 'Pitch 6\u00a0· 78.6\u00a0mph curveball', `${at}, while the link's last pitch flies`);
   assert.deepEqual(replay.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the link's last pitch flies`);
   await idle();
   assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()}\u00a0· 6 pitches`);
@@ -1155,8 +1155,8 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   });
   assert.deepEqual(await ending(), { mark: 'K', label: 'Strikeout swinging', flipped: false, on: 'on a 2-2 pitch', heard: 'Strikeout swinging on a 2-2 pitch. NOTE' }, `${at}, at the end of the strikeout`);
   for (const [link, want] of [
-    ['#ab.average.R.2.FF8.FF6.SL16.FF7.CU13', { mark: 'K', label: 'Strikeout looking', flipped: true, on: 'on a 1-2 pitch', heard: 'Strikeout looking on a 1-2 pitch. NOTE' }],
-    ['#ab.average.R.3a.FF8.FF6.SL16.FF7', { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch. NOTE' }],
+    [`#ab.v${VERSION}.average.R.52.FF8.FF6.SL16.FF7.CU13`, { mark: 'K', label: 'Strikeout looking', flipped: true, on: 'on a 1-2 pitch', heard: 'Strikeout looking on a 1-2 pitch. NOTE' }],
+    [`#ab.v${VERSION}.average.R.2o.FF8.FF6.SL16.FF7`, { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch. NOTE' }],
   ]) {
     await ph.goto('about:blank');
     await ph.goto(base + link);
@@ -1166,7 +1166,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   // A log line that wraps keeps each dot at the end of a line, never at the start of the next: here the strikeout's
   // last line runs to three lines at 320px, and pitch 2's to two at 390px.
   await ph.goto('about:blank');
-  await ph.goto(base + '#ab.average.R.1nwgaeb.SI6.CU24.SL22.FF2.CH16');
+  await ph.goto(base + `#ab.v${VERSION}.average.R.26.SI6.CU24.SL22.FF2.CH16`);
   await idle();
   assert.deepEqual(await dotStarts(ph), [], `${at}, a line in the log starts with its dot`);
   await ph.goto('about:blank');
@@ -1297,7 +1297,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   const ph = await narrowCtx.newPage();
   watch(ph);
   const at = `at ${width}x${height}`;
-  await ph.goto(base + '#ab.nola.R.1');
+  await ph.goto(base + `#ab.v${VERSION}.nola.R.1`);
   await ph.evaluate(() => document.fonts.ready);
   // The call fits under the picture that stays at the top of the screen, from the first pitch to Throw, for every
   // pitcher, even Skenes's six pitches, on an iPhone 14 once Safari has tucked its bars away. The grid is still named
@@ -1429,22 +1429,23 @@ for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [
       const [sx, sz] = spotXZ(s, state.batter), p = cam.project([sx, 17 / 12, sz]), x = p.x / dpr, y = p.y / dpr;
       return x + r > box.left && x - r < box.right && y + r > box.top && y - r < box.bottom;
     });
-    return { said: document.getElementById('ab-ro').textContent, under: under.map(s => s.id), box: Object.values(box).map(Math.round) };
+    return { said: document.getElementById('ab-ro').textContent, mph: state.ab.pitches.at(-1)?.mph.toFixed(1), under: under.map(s => s.id), box: Object.values(box).map(Math.round) };
   });
   for (const [batter, spot] of [['R', 0], ['L', 4]]) {
     const at = `at ${width}x${height} to a ${batter === 'R' ? 'right' : 'left'}-handed batter`;
     await ro.goto('about:blank');
-    await ro.goto(`${base}#ab.nola.${batter}.9.KC${spot}.KC${spot}`);
+    await ro.goto(`${base}#ab.v${VERSION}.nola.${batter}.${{ R: '2p', L: '4' }[batter]}.KC${spot}.KC${spot}`);
     await ro.waitForFunction(() => window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const flying = await covered();
-    assert.equal(flying.said, 'Pitch 2\u00a0· 78.4\u00a0mph knuckle curve', `${at}, while the pitch flies`);
+    // Each pitch comes in at its own speed, and the readout gives this one's.
+    assert.equal(flying.said, `Pitch 2\u00a0· ${flying.mph}\u00a0mph knuckle curve`, `${at}, while the pitch flies`);
     assert.deepEqual(flying.under, [], `${at}, while the pitch flies the readout ${JSON.stringify(flying.box)} covers spots`);
     await ro.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const landed = await covered();
-    assert.equal(landed.said, 'Swinging strike\u00a0· 78.4\u00a0mph knuckle curve', `${at}, once the pitch is in`);
+    assert.equal(landed.said, `Swinging strike\u00a0· ${landed.mph}\u00a0mph knuckle curve`, `${at}, once the pitch is in`);
     assert.deepEqual(landed.under, [], `${at}, once the pitch is in the readout ${JSON.stringify(landed.box)} covers spots`);
     await ro.goto('about:blank');
-    await ro.goto(`${base}#ab.nola.${batter}.1p${`.KC${spot}`.repeat(5)}`);
+    await ro.goto(`${base}#ab.v${VERSION}.nola.${batter}.s${`.KC${spot}`.repeat(5)}`);
     await ro.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const ended = await covered();
     assert.equal(ended.said, 'Strikeout swinging\u00a0· 5 pitches', `${at}, at the end`);
@@ -1563,8 +1564,8 @@ for (const [width, height, want] of [[1280, 800, 2], [390, 844, 0]]) {
 // the headline in other words. Over the picture, how it ended is in a tag of that colour, the same in either palette as
 // it's on the picture, with its white words at 4.5 to 1 or more (WCAG 2.2, SC 1.4.3).
 for (const [link, kind] of [
-  [STRIKEOUT, 'strike'], ['#ab.average.R.3a.FF8.FF6.SL16.FF7', 'ball'], ['#ab.average.R.2x.FF6.FF8.CH16.SL16.FF10', 'ball'],
-  ['#ab.average.R.3.CH17.FF14.FF16', 'play'], ['#ab.average.R.4c.FF9.SI16.FF7', 'play'],
+  [STRIKEOUT, 'strike'], [`#ab.v${VERSION}.average.R.2o.FF8.FF6.SL16.FF7`, 'ball'], [`#ab.v${VERSION}.average.R.3.FF6.FF8.CH16.SL16.FF10`, 'ball'],
+  [`#ab.v${VERSION}.average.R.b.CH17.FF14.FF16`, 'play'], [`#ab.v${VERSION}.average.R.n7.FF9.SI16.FF7`, 'play'],
 ]) {
   await page.goto('about:blank');
   await page.goto(base + link);

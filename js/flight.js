@@ -3,6 +3,7 @@
 // home plate toward the mound, z up. The front of the plate is at y = 17/12, the rubber at y = 60.5.
 import { drawBall, orient, FOUR, TWO, DOT } from './ball.js';
 import { apply, cross, norm, add, scale, dot } from './math3.js';
+import { LEAGUE } from './league.js';
 
 export const G = 32.174;
 export const MPH = 5280 / 3600;
@@ -11,7 +12,9 @@ const RUBBER_Y = 60.5;
 const BALL_R = 1.45 / 12;
 const DRAG = 0.915; // speed at the plate over speed out of the hand (air takes ~8%)
 export const DECIDE = 0.175; // seconds before the plate: where a hitter has to commit
-const ZONE = { left: -17 / 24, right: 17 / 24, bottom: 1.6, top: 3.4 };
+// The strike zone as it's drawn: the plate's width, between 2026's average top and bottom of the zone (js/league.js).
+// A ball touching it is a strike.
+const ZONE = { left: -17 / 24, right: 17 / 24, bottom: LEAGUE.sz.bottom, top: LEAGUE.sz.top };
 
 const LOCAL_AXIS = { four: FOUR, two: TWO, dot: DOT };
 

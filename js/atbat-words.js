@@ -16,7 +16,7 @@ export function resultWord(p) {
     case 'ball': return four ? 'Ball four' : 'Ball';
     case 'called': return three ? 'Strike three, called' : 'Called strike';
     case 'whiff': return three ? 'Strike three, swinging' : 'Swinging strike';
-    case 'tip': return 'Foul tip, caught: strike three';
+    case 'tip': return three ? 'Foul tip, caught: strike three' : 'Foul tip';
     case 'foul': return 'Foul';
     case 'hbp': return 'Hit by pitch';
     // The same words as the end card's (ENDING), so the log and the card name a ball in play alike.
@@ -164,18 +164,19 @@ const spotThen = name => (name.includes(',') ? `${name},` : name);
 const MIDDLE = [0, (ZONE.top + ZONE.bottom) / 2];
 const fromMiddle = ([x, z]) => Math.hypot(x - MIDDLE[0], z - MIDDLE[1]);
 
-// What he did with the bat over the at-bat. A foul tip is contact, so it isn't counted as a miss. `count` starts with
-// how many pitches there were, and `chase` says how many swings were out of the zone, unless the lead said so already.
+// What he did with the bat over the at-bat. A foul tip touched the bat, so the tally counts it apart from the misses.
+// `count` starts with how many pitches there were, and `chase` says how many swings were out of the zone, unless the
+// lead said so already.
 function tally(ps, { count = true, chase = true } = {}) {
   const swings = ps.filter(p => p.swing).length, misses = ps.filter(p => p.result === 'whiff').length;
-  const tipped = ps.some(p => p.result === 'tip'), chased = chase ? ps.filter(p => p.swing && !p.inZone).length : 0;
+  const tipped = ps.filter(p => p.result === 'tip').length, chased = chase ? ps.filter(p => p.swing && !p.inZone).length : 0;
   let said;
   if (!swings) said = 'he never swung';
   else if (swings === 1 && ps.length > 1 && ps.at(-1).result === 'inplay') said = 'he swung only at the last one';
   else if (swings === 1) said = `he swung once${chased ? ', at a pitch out of the zone,' : ''} and ${misses ? 'missed' : tipped ? 'tipped it' : 'didn’t miss'}`;
   else {
     said = `he swung at ${swings}`;
-    if (tipped) said += misses ? `, missed ${few(misses)} and tipped one` : ' and tipped one';
+    if (tipped) said += misses ? `, missed ${few(misses)} and tipped ${few(tipped)}` : ` and tipped ${few(tipped)}`;
     else said += !misses ? ' and never missed' : misses < swings ? ` and missed ${few(misses)}` : swings === 2 ? ' and missed both' : ' and missed every one';
     if (chased) said += chased === swings ? ', each at a pitch out of the zone' : `, chasing ${few(chased)} out of the zone`;
   }
@@ -198,9 +199,10 @@ export function note(ab) {
     const apart = prev && Math.hypot(last.plate[0] - prev.plate[0], last.plate[1] - prev.plate[1]);
     if (prev && !last.picked && last.code !== prev.code && last.tunnel != null && last.tunnel < 0.6 && apart >= Math.max(2 * last.tunnel, 8 / 12)) {
       lead = `The ${X} looked just like the ${NAME[prev.code]} before it until the decision point, ${inches(last.tunnel)} apart there, then finished ${inches(apart)} away.`;
-    } else if (prev && Math.round(prev.mph - last.mph) >= 6 && last.early > 0.008 && !last.picked) {
-      // A much slower pitch, when it's what beat him: he was out in front of it, not knowing what it was. (If he was on
-      // time, or recognised it, the last pitch's why says so, and the speed wasn't it.)
+    } else if (prev && Math.round(prev.mph - last.mph) >= 6 && last.early > 0.008 && !last.picked && last.sat.code === prev.code) {
+      // A much slower pitch, when it's what beat him: he was looking for another of the faster one, and was out in front
+      // of it, not knowing what it was. (If he was on time, or recognised it, the last pitch's why says so, and the speed
+      // wasn't it.)
       lead = `The ${X} was ${mph(Math.round(prev.mph - last.mph))} slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
     } else if (last.result === 'tip') lead = `He got only a piece of the ${X}, and the catcher held on for strike three.`;
     else if (!last.inZone) lead = `He chased the ${X} for strike three.`;
@@ -226,7 +228,7 @@ export function note(ab) {
       }[weak(last, batter)];
     } else lead = `He got the ${X} ${spotThen(crossedAt(last, batter))} and put it in play, but a fielder got to it.`;
   } else {
-    const middle = Math.abs(last.plate[0]) < 0.45 && last.plate[1] > 2.0 && last.plate[1] < 3.0;
+    const middle = Math.abs(last.plate[0]) < 0.45 && Math.abs(last.plate[1] - MIDDLE[1]) < 0.5;
     const off = Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]);
     // A hit on a pitch that missed its spot toward the middle: the miss is the story.
     if (Math.round(off * 12) > 9 && fromMiddle(last.plate) < fromMiddle(last.aim) && boxAt(last.plate, batter).id !== last.spot.id) {

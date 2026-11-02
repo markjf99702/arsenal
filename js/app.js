@@ -407,7 +407,7 @@ function follow(link) {
   pick(link.pitch, { push: false });
 }
 
-// Pitch to a hitter. A link like #ab.skenes.R.k3x9a.FF6.SL23 replays one at-bat, and one starting #ab. that can't be
+// Pitch to a hitter. A link like #ab.v2.skenes.R.k3x9a.FF6.SL23 replays one at-bat, and one starting #ab. that can't be
 // read opens a new at-bat that says so (load).
 const atBat = setupAtBat({ dark: isDark() });
 addEventListener('hashchange', () => {

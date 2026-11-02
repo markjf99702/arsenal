@@ -1,8 +1,8 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
-import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
+import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
+import { COUNTS, TYPES, PITCHERS as REAL, LEAGUE } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { TARGET, run, checks, SEEDS, measure, measurePitchers } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
@@ -50,6 +50,30 @@ test('every speed a real pitcher’s line gives is one of his pitches’ speeds'
   for (const p of REAL) for (const [n] of p.line.matchAll(/\d+(\.\d+)?/g)) {
     assert.ok(p.pitches.some(e => Math.round(e.mph) === Number(n)), `${p.name}: “${p.line}” gives ${n}, and his pitches are ${p.pitches.map(e => `${e.code} ${e.mph}`).join(', ')}`);
   }
+});
+
+// The zone is 2026's (js/league.js, sz): the plate's width, between the season's average top and bottom, with a ball's
+// width past each edge for where the middle of a ball can cross and be a strike (Official Baseball Rules, Definitions
+// of Terms, "Strike Zone" and "Strike": any part of the ball through any part of the zone). The spots in it sit in the
+// middle of its thirds, and the ring's are outside it.
+test('the strike zone is 2026’s, a ball’s width past every edge, and the spots are centred on it', () => {
+  const ball = 1.45 / 12;
+  assert.deepEqual([ZONE.half, ZONE.bottom, ZONE.top].map(v => v.toFixed(4)), [17 / 24 + ball, LEAGUE.sz.bottom - ball, LEAGUE.sz.top + ball].map(v => v.toFixed(4)));
+  const third = (LEAGUE.sz.top - LEAGUE.sz.bottom) / 3, mid = (LEAGUE.sz.top + LEAGUE.sz.bottom) / 2;
+  for (const spot of SPOTS) {
+    const [, z] = spotXZ(spot, 'R');
+    if (spot.zone) assert.ok(Math.abs(z - (mid + spot.r * third)) < 1e-9, `${spot.id} at ${z.toFixed(3)} ft`);
+    else if (Math.abs(spot.r) === 2) assert.ok(z > ZONE.top || z < ZONE.bottom, `${spot.id} at ${z.toFixed(3)} ft is in the zone`);
+  }
+});
+
+// A foul tip is a miss that nicks the ball into the catcher's glove: a strike in any count, strike three with two, and
+// one of Statcast's whiffs, as often among them as in 2026 (js/league.js, tips).
+test('a foul tip comes in any count, as often among misses as in 2026', () => {
+  const ps = PLAYED.flatMap(ab => ab.pitches), tips = ps.filter(p => p.result === 'tip'), misses = ps.filter(p => p.result === 'tip' || p.result === 'whiff');
+  assert.ok(tips.some(p => p.before.strikes < 2) && tips.some(p => p.before.strikes === 2), 'foul tips only in some counts');
+  for (const p of tips) assert.equal(p.after.strikes, p.before.strikes + 1);
+  assert.ok(Math.abs(tips.length / misses.length - LEAGUE.tips / LEAGUE.whiffs) < 0.02, `${tips.length} tips in ${misses.length} misses, against ${(LEAGUE.tips / LEAGUE.whiffs * 100).toFixed(1)}% in 2026`);
 });
 
 test('the same seed and the same calls replay the same at-bat', () => {
@@ -142,19 +166,19 @@ test('the scout’s note says what decided the at-bat', () => {
       assert.ok(apart >= Math.max(2 * last.tunnel, 8 / 12), at);
     }
     // Fooled by the speed only when the last pitch's own why says so: he was out in front, and didn't recognise it.
-    if (/timing was set for the faster one/.test(text)) assert.ok(last.early > 0.008 && !last.picked, at);
+    if (/timing was set for the faster one/.test(text)) assert.ok(last.early > 0.008 && !last.picked && last.sat.code === prev.code, at);
     // Weak contact: rolled over when early, wherever it was; otherwise by where it crossed (weakly, below).
     weakly(text, last, ab.batter, at);
   }
   // A four-pitch walk, every one high and inside.
-  assert.equal(note(replay('#ab.average.R.1.FF0.FF0.FF0.FF0')), 'All four missed the zone, and he didn’t chase any.');
+  assert.equal(note(replay('#ab.v2.average.R.2.FF0.FF0.FF0.FF0')), 'All four missed the zone, and he didn’t chase any.');
   // Misiorowski's curve was meant for the dirt and hung in the zone.
-  assert.match(note(replay('#ab.misiorowski.R.m.FF13.SL19.CU22')), /^The curveball was meant to be in the dirt but crossed down in the zone, and he didn’t miss it\./);
+  assert.match(note(replay('#ab.v2.misiorowski.R.4d.FF13.SL19.CU22')), /^The curveball was meant to be in the dirt but crossed down in the zone, and he didn’t miss it\./);
   // The README's strikeout: six pitches, ending on a curve 6 mph slower than the slider before it.
-  const k = replay('#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22');
+  const k = replay('#ab.v2.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22');
   assert.equal(k.result, 'K');
   assert.equal(k.pitches.length, 6);
-  assert.equal(note(k), 'The curveball was 6\u00a0mph slower than the slider before it, and his timing was set for the faster one. 6 pitches: he swung at 3 and missed 2, chasing one out of the zone.');
+  assert.equal(note(k), 'The curveball was 6\u00a0mph slower than the slider before it, and his timing was set for the faster one. 6 pitches: he swung at 4 and missed one, chasing 2 out of the zone.');
 });
 
 // Weak contact, in the note or a pitch's why: out in front, he rolled it over, wherever it was. Otherwise it's by where
@@ -242,12 +266,12 @@ test('the why talks about the decision point and lines only after another kind o
 });
 
 test('a pitch under half an inch off the zone was just off the edge, and ball four in the zone caught it', () => {
-  // Misiorowski's first pitch crossed 0.04 inches past the zone's edge, and was called a strike.
-  const first = replay('#ab.misiorowski.R.6cywx9.FF8.CU23.FF9.FC18.FF8').pitches[0];
+  // Misiorowski's first pitch crossed 0.23 inches past the zone's edge, and was called a strike.
+  const first = replay('#ab.v2.misiorowski.R.1b.FF8.CU23.FF9.FC18.FF8').pitches[0];
   assert.ok(!first.inZone && ZONE.half - Math.abs(first.plate[0]) > -0.5 / 12, 'the pitch isn’t just off the edge');
   assert.match(why(first, null, 'R'), /It was just off the edge, but the umpire gave the pitcher the strike\./);
   // Nola's walk ended on a pitch in the zone, called a ball.
-  const walk = replay('#ab.nola.R.1vegxhd.KC18.FF23.FF6.CH22.FF3');
+  const walk = replay('#ab.v2.nola.R.9p.KC18.FF23.FF6.CH22.FF3');
   assert.equal(walk.result, 'BB');
   assert.ok(walk.pitches.at(-1).inZone);
   assert.match(note(walk), /^Ball four caught the edge, but the umpire called it a ball\. /);
@@ -279,17 +303,17 @@ test('an at-bat link replays the at-bat it was made from, pitch for pitch, and s
   for (const seed of [0, 2 ** 32 - 1]) assert.equal(parseLink(linkFor({ pitcher: AVERAGE, batter: 'R', seed, calls: [] })).seed, seed);
 });
 
-// Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 1 of the hitter plays them.
+// Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 2 of the hitter plays them.
 // Anything that changes how a link replays fails here until VERSION in js/atbat.js goes up and these are pinned again,
 // so a link made before the change opens saying it may play out differently.
 const PINNED = {
-  version: 1,
+  version: 2,
   links: {
-    'ab.v1.average.R.2t.FF8.SI17.SL14.FF11.CU16.CH21': ['called 0.560 2.766', 'ball 0.943 2.529', 'ball 1.525 2.925', 'foul -0.651 2.579', 'ball -0.929 2.380', 'ball -0.839 0.496'],
-    'ab.v1.skenes.L.5m.FS22.SI19.FF6.FF18.SL18.CH21': ['ball 0.954 0.277', 'ball -1.984 2.837', 'called 0.601 2.977', 'foul -0.976 2.397', 'ball -0.760 1.315', 'ball 0.818 0.684'],
-    'ab.v1.miller.R.8j.FF18.SL24.FF11.FF11.FF18': ['ball 1.556 1.325', 'ball 1.366 1.011', 'ball -1.064 2.151', 'called -0.502 3.327', 'ball 0.996 1.423'],
-    'ab.v1.waldron.L.ba.SI10.FF13.KN16.FC18.FF13.FF16': ['ball 1.596 2.550', 'ball -1.033 2.938', 'ball 0.963 2.193', 'called -0.124 2.418', 'called 0.284 2.762', 'tip 0.468 1.367'],
-    'ab.v1.rogers.R.e5.SI16.SI12.SI17.SI22.SI10': ['ball -1.374 2.596', 'called -0.510 2.722', 'whiff 0.436 1.467', 'ball -0.507 0.098', 'whiff -1.279 2.459'],
+    'ab.v2.average.R.2v.CH17.SI7.CH22.SI19.CH18.FF18.CH21': ['called 0.713 2.601', 'foul 0.100 3.246', 'foul 0.437 1.732', 'ball 1.144 1.322', 'foul 1.175 2.369', 'ball -0.549 1.678', 'whiff -1.024 1.238'],
+    'ab.v2.skenes.L.5p.CH17.SI8.ST24.FF10.SI10': ['ball 0.660 1.334', 'foul -0.238 2.780', 'ball -0.993 0.552', 'ball 0.932 2.743', 'ball 1.963 2.796'],
+    'ab.v2.miller.R.8h.SL18.FF18.FF13.FF14.SL13': ['ball 0.011 1.141', 'foul 0.007 2.526', 'foul 0.777 2.150', 'ball 1.680 2.697', 'whiff 0.067 3.164'],
+    'ab.v2.waldron.L.b9.FF1.FC7.KN18.SI22.ST22': ['ball 0.479 3.522', 'foul 0.139 2.942', 'whiff -0.929 0.736', 'ball 0.293 0.499', 'whiff -1.040 0.445'],
+    'ab.v2.rogers.R.e1.SI17.SL23.SI10.SL24.SI12': ['called 0.835 2.324', 'whiff 0.934 1.104', 'ball -0.959 1.365', 'ball 2.379 1.636', 'inplay out -0.452 1.658'],
   },
 };
 const pitchByPitch = ab => ab.pitches.map(p => `${p.result}${p.play ? ` ${p.play}` : ''} ${p.plate.map(v => v.toFixed(3)).join(' ')}`);
@@ -340,9 +364,9 @@ test('the log says where a pitch crossed when it went to another box than the on
     assert.equal(line.startsWith('called '), box.id !== p.spot.id, `seed ${ab.seed}, pitch ${p.n}: ${line}`);
   }
   // Misiorowski's curve, called in the dirt, hung in the zone and went out.
-  assert.equal(calledLine(replay('#ab.misiorowski.R.m.FF13.SL19.CU22').pitches[2], 'R'), 'called in the dirt, crossed down in the zone');
+  assert.equal(calledLine(replay('#ab.v2.misiorowski.R.4d.FF13.SL19.CU22').pitches[2], 'R'), 'called in the dirt, crossed down in the zone');
   // The README's strikeout: the curve to the dirt box crossed in it, so the log names the call alone.
-  assert.equal(calledLine(replay('#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22').pitches[5], 'R'), 'in the dirt');
+  assert.equal(calledLine(replay('#ab.v2.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22').pitches[5], 'R'), 'in the dirt');
 });
 
 // The lab: at-bats with the pitcher choosing for himself, measured the way Statcast measures the league, on three seeds
@@ -372,11 +396,18 @@ test('the lab’s checks turn down knobs that play unlike the league', () => {
   assert.ok(failed.includes('swing') && failed.includes('chaseSwing'), `failed: ${failed.join(', ')}`);
 });
 
-test('in every count, hitters swing and miss about as often as they really do', () => holds('counts'));
+test('in every count, hitters swing, miss, foul off and get called strikes about as often as they really did', () => holds('counts'));
 
-test('each kind of pitch gets missed about as often as it really does, and lands in the zone as often', () => holds('types'));
+test('each kind of pitch gets missed, swung at in the zone and chased about as often as it really was, and lands in the zone as often', () => holds('types'));
 
-test('each real pitcher’s pitches get missed about as often as his really did', () => holds('pitchers'));
+test('where a pitch crosses matters as it did in 2026: misses and damage over the middle, on the edges and corners, and off the plate', () => holds('zones'));
+
+// The hitter notices patterns, so no simple plan beats a pitcher's own calls: down the middle every pitch, one pitch to
+// one spot, or the same two in turn (test/lab.mjs, PLANS); and Miller's four-seamer up and slider down and away in
+// turn is no surer a strikeout than his real 47.4%.
+test('no simple plan beats a pitcher’s own calls', () => holds('plans'));
+
+test('each real pitcher’s pitches get missed about as often as his really did, and he strikes out as many', () => holds('pitchers'));
 
 // Fouls follow the count, a knob for each (js/atbat-params.js, fairBy): less of his contact goes fair in one, and more
 // of it is fouled off there, and in no other count.
@@ -387,20 +418,20 @@ test('how much contact goes foul is set count by count', () => {
   assert.ok(Math.abs(more['0-0'].foul - base['0-0'].foul) < 0.02, `0-0: ${base['0-0'].foul.toFixed(3)}, then ${more['0-0'].foul.toFixed(3)}`);
 });
 
-// The umpire's zone shifts with the count, a knob for each (js/atbat-params.js, umpBy): moved in at 0-2, fewer pitches he
-// takes there are called strikes, in the zone and out of it, and no fewer at 3-0.
+// The umpire's zone shifts with the count, a knob for each (js/atbat-params.js, umpBy): moved in at 0-2 rather than out,
+// fewer pitches he takes there are called strikes, in the zone and out of it, and no fewer at 3-0.
 test('the umpire’s zone can shift with the count', () => {
-  const called = params => measure(params, 2500, 8).counts;
-  const base = called(PARAMS), tight = called({ ...PARAMS, umpBy: { ...PARAMS.umpBy, '0-2': PARAMS.umpBy['0-2'] + 0.1 } });
-  for (const k of ['calledZone', 'calledOut']) assert.ok(tight['0-2'][k] < base['0-2'][k] * 0.93, `0-2 ${k}: ${base['0-2'][k].toFixed(3)}, then ${tight['0-2'][k].toFixed(3)}`);
-  assert.ok(Math.abs(tight['3-0'].calledZone - base['3-0'].calledZone) < 0.02, `3-0: ${base['3-0'].calledZone.toFixed(3)}, then ${tight['3-0'].calledZone.toFixed(3)}`);
+  const called = shift => measure({ ...PARAMS, umpBy: { ...PARAMS.umpBy, '0-2': PARAMS.umpBy['0-2'] + shift } }, 2500, 8).counts;
+  const wide = called(-0.1), tight = called(0.1);
+  for (const k of ['calledZone', 'calledOut']) assert.ok(tight['0-2'][k] < wide['0-2'][k] * 0.93, `0-2 ${k}: ${wide['0-2'][k].toFixed(3)} with his zone out, ${tight['0-2'][k].toFixed(3)} with it in`);
+  assert.ok(Math.abs(tight['3-0'].calledZone - wide['3-0'].calledZone) < 0.02, `3-0: ${wide['3-0'].calledZone.toFixed(3)}, then ${tight['3-0'].calledZone.toFixed(3)}`);
 });
 
 // How each kind of pitch looks to him moves his swings at it (js/atbat-params.js, typeSwing): a changeup that looks more
 // like a strike off the plate is chased more, and the other pitches no more than before.
 test('each kind of pitch can be chased and taken in its own way', () => {
   const swings = params => measure(params, 2500, 9).types;
-  const base = swings(PARAMS), chased = swings({ ...PARAMS, typeSwing: { ...PARAMS.typeSwing, CH: { zone: 0, chase: 0.15 } } });
+  const base = swings(PARAMS), chased = swings({ ...PARAMS, typeSwing: { ...PARAMS.typeSwing, CH: { ...PARAMS.typeSwing.CH, chase: PARAMS.typeSwing.CH.chase + 0.15 } } });
   assert.ok(chased.CH.chaseSwing > base.CH.chaseSwing + 0.05, `changeups chased ${base.CH.chaseSwing.toFixed(3)}, then ${chased.CH.chaseSwing.toFixed(3)}`);
   assert.ok(Math.abs(chased.CH.zoneSwing - base.CH.zoneSwing) < 0.03, `changeups swung at in the zone ${base.CH.zoneSwing.toFixed(3)}, then ${chased.CH.zoneSwing.toFixed(3)}`);
   assert.ok(Math.abs(chased.SI.chaseSwing - base.SI.chaseSwing) < 0.02, `sinkers chased ${base.SI.chaseSwing.toFixed(3)}, then ${chased.SI.chaseSwing.toFixed(3)}`);
@@ -430,7 +461,7 @@ test('a pitch’s speed can vary from throw to throw as the pitcher’s does', (
 });
 
 // The hitter who notices patterns (js/atbat-params.js, notice): after five curves in a row he's looking for the curve,
-// not a fastball, and a curve that crosses where the last five did gets hit harder.
+// not a fastball, and a curve that crosses where the last five did gets hit harder, than if he noticed nothing.
 test('what he has seen this at-bat moves what he looks for, and how hard he hits a pitch where they have crossed', () => {
   const sixth = params => {
     let curve = 0, hard = 0, inPlay = 0;
@@ -443,7 +474,7 @@ test('what he has seen this at-bat moves what he looks for, and how hard he hits
     }
     return { curve: curve / 1500, contact: hard / inPlay };
   };
-  const off = sixth(PARAMS), on = sixth({ ...PARAMS, notice: { at: 0.6, next: 2, where: 0.6 } });
+  const off = sixth({ ...PARAMS, notice: { at: 0, next: 0, where: 0 } }), on = sixth(PARAMS);
   assert.ok(off.curve < 0.35 && on.curve > 0.7, `looking for the curve after five: ${off.curve.toFixed(2)}, then ${on.curve.toFixed(2)}`);
   assert.ok(on.contact > off.contact + 0.3, `how hard he hit the sixth: ${off.contact.toFixed(2)}, then ${on.contact.toFixed(2)}`);
 });
@@ -451,8 +482,8 @@ test('what he has seen this at-bat moves what he looks for, and how hard he hits
 // A real pitcher's stuff with two strikes (js/atbat-params.js, pitcherPutaway) moves his strikeouts toward his own.
 test('a real pitcher’s stuff with two strikes moves his strikeouts', () => {
   const k = params => measurePitchers(params, 1500, 12).miller.k.sim;
-  const base = k(PARAMS), more = k({ ...PARAMS, pitcherPutaway: { ...PARAMS.pitcherPutaway, miller: 2 } });
-  assert.ok(more > base + 0.04, `Miller's strikeouts ${base.toFixed(3)}, then ${more.toFixed(3)}`);
+  const base = k({ ...PARAMS, pitcherPutaway: { ...PARAMS.pitcherPutaway, miller: 1 } }), more = k({ ...PARAMS, pitcherPutaway: { ...PARAMS.pitcherPutaway, miller: 2 } });
+  assert.ok(more > base + 0.04, `Miller's strikeouts ${base.toFixed(3)} at 1, ${more.toFixed(3)} at 2`);
 });
 
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => holds('sequence'));

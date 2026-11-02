@@ -6,20 +6,24 @@
 // near the real league: how often hitters swing, chase and miss, in each count, and what happens on contact.
 import { BY_CODE } from './pitches.js';
 import { NUMBERS } from './numbers.js';
-import { PITCHERS as REAL, TYPES } from './league.js';
+import { PITCHERS as REAL, TYPES, LEAGUE } from './league.js';
 import { throwPitch, PLATE_Y, DECIDE, MPH, G } from './flight.js';
 import { rng as makeRng } from './rng.js';
 import { PARAMS as DEFAULTS } from './atbat-params.js';
 
 export const FASTBALLS = new Set(['FF', 'SI', 'FC']);
-// The strike zone a pitch is judged by: the plate's width plus the ball touching its edge, and a typical
-// hitter's knees to letters, in feet.
-export const ZONE = { half: 17 / 24 + 1.45 / 12, bottom: 1.6, top: 3.4 };
+// The strike zone, where the middle of a ball can cross and still be a strike: any part of the ball over any part of
+// the plate, between 2026's average top and bottom of the zone (Statcast's, set from each batter's height for the ABS
+// challenges), so a ball's width past each edge, in feet.
+const BALL = 1.45 / 12;
+export const ZONE = { half: 17 / 24 + BALL, bottom: LEAGUE.sz.bottom - BALL, top: LEAGUE.sz.top + BALL };
 
-// Spots you can call: a 5 x 5 grid. Columns from inside (-2) to away (2), rows from up (2) to down (-2);
-// the middle 3 x 3 is the strike zone, the ring around it is off the plate.
+// Spots you can call: a 5 x 5 grid. Columns from inside (-2) to away (2), rows from up (2) to down (-2); the middle
+// 3 x 3 is the strike zone, each spot in the middle of its third of the plate and of the zone, and the ring around it
+// is off the plate, high above the zone and down in the dirt.
 const COLS = { '-2': -1.2, '-1': -0.47, 0: 0, 1: 0.47, 2: 1.2 };
-const ROWS = { 2: 3.85, 1: 3.1, 0: 2.5, '-1': 1.9, '-2': 1.12 };
+const MID = (LEAGUE.sz.top + LEAGUE.sz.bottom) / 2, THIRD = (LEAGUE.sz.top - LEAGUE.sz.bottom) / 3;
+const ROWS = { 2: ZONE.top + 0.45, 1: MID + THIRD, 0: MID, '-1': MID - THIRD, '-2': ZONE.bottom - 0.48 };
 export const SPOTS = [];
 for (const r of [2, 1, 0, -1, -2]) for (const c of [-2, -1, 0, 1, 2]) SPOTS.push({ c, r, id: `${r}${c}`.replace(/-/g, 'm'), zone: Math.abs(c) < 2 && Math.abs(r) < 2 });
 export const spotById = id => SPOTS.find(s => s.id === id);
@@ -28,7 +32,7 @@ export const spotById = id => SPOTS.find(s => s.id === id);
 // same calls may play out differently. Raise it with anything that changes how an at-bat plays: the model, its knobs
 // (js/atbat-params.js), or the league numbers and arsenals (js/league.js). Links pinned in test/atbat.test.mjs fail
 // until it goes up.
-export const VERSION = 1;
+export const VERSION = 2;
 
 // An at-bat as a link: ab.v<version>.<pitcher>.<R|L>.<seed in base 36>, then each call as its pitch and its spot's place
 // in SPOTS, like ab.v1.skenes.L.k3x9a.FF6.ST23. The seed brings back the same hitter and the same luck, so the calls
@@ -142,6 +146,8 @@ export function startAtBat({ pitcher = AVERAGE, batter = 'R', seed = 1, params =
 }
 
 const countKey = ab => `${ab.balls}-${ab.strikes}`;
+// Of Statcast's whiffs in 2026, the share that were foul tips.
+const TIPS = LEAGUE.tips / LEAGUE.whiffs;
 const sigmoid = v => 1 / (1 + Math.exp(-v));
 const entryOf = (pitcher, code) => pitcher.pitches.find(p => p.code === code);
 
@@ -288,17 +294,18 @@ export function throwCall(ab, call) {
       * Math.exp(-((reach / P.contact.reach) ** 2))
       * Math.exp(-Math.max(0, entry.mph - 93) * P.contact.velo)
       * Math.exp(-P.contact.edge * toCorner(plate))) ** stuff;
-    if (!R.chance(pContact)) out.result = 'whiff';
+    // A miss now and then nicks the ball straight into the catcher's glove: a foul tip, a strike in any count (strike
+    // three with two strikes), and one of Statcast's whiffs, so it comes as often among misses as it did in 2026.
+    if (!R.chance(pContact)) out.result = R.chance(TIPS) ? 'tip' : 'whiff';
     else {
       const square = Math.exp(-((missBy / P.fair.miss) ** 2) - (early / P.fair.timing) ** 2 - (reach / P.fair.reach) ** 2);
       // How much of his contact goes foul, count by count, as it did in 2026.
       const fair = (P.fair.base + (1 - P.fair.base) * square * P.fair.gain) * P.fairBy[`${before.balls}-${before.strikes}`];
-      if (!R.chance(fair)) {
-        out.result = before.strikes === 2 && R.chance(P.tip) ? 'tip' : 'foul';
-      } else {
+      if (!R.chance(fair)) out.result = 'foul';
+      else {
         out.result = 'inplay';
         // How hard: squared up, and how hittable the spot was (the middle of the zone is where damage happens).
-        const middle = Math.hypot(plate[0] / 0.9, (plate[1] - 2.55) / 0.9);
+        const middle = Math.hypot(plate[0] / 0.9, (plate[1] - MID) / 0.9);
         const q = Math.exp(-((missBy / P.quality.miss) ** 2) - (early / P.quality.timing) ** 2) * Math.exp(-((middle / P.quality.middle) ** 2));
         // And where pitches have been crossing this at-bat, he's ready for one there: each earlier pitch that crossed
         // within about 7 inches of where he reads this one crossing adds to how hard he hits it (notice.where).

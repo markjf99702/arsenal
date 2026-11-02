@@ -76,7 +76,7 @@ async function save(path, buffer, colours = 256) {
   await save(join(root, 'docs/phone-chart.png'), await page.screenshot());
 
   // Pitch to a hitter: a six-pitch at-bat, ending in a strikeout, from a link with its seed.
-  await page.goto(base + '#ab.average.R.1p');
+  await page.goto(base + '#ab.v2.average.R.2gbo');
   await page.evaluate(() => document.fonts.ready);
   for (const [code, spot] of [['FF', '1m1'], ['SL', 'm21'], ['CH', 'm1m1'], ['FF', '21'], ['SL', 'm22'], ['CU', 'm20']]) {
     await page.evaluate(([c, s]) => window.arsenal.atBat.throw(c, s), [code, spot]);
