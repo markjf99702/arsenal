@@ -1,6 +1,6 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
 import { markKind, readoutRoom } from './tracker.js';
 import { BY_CODE } from './pitches.js';
@@ -76,9 +76,9 @@ export function setupAtBat({ dark = false } = {}) {
   });
   // While a pitch is in the air, the catcher's call and the hundred throws wait for it to land: the model has already
   // thrown it, so either would give away how it went.
-  // The catcher's call is one the way pitchers call them in this count (autoCall), and then what big leaguers did in it,
-  // from the numbers the hitter is tuned to. Asked again in the same count, he calls another, so a few taps show the
-  // range. It's worked out on a copy of the at-bat, so asking doesn't change what happens next.
+  // The catcher's call is one the way pitchers call them in this count to this batter (autoCall), and then what big
+  // leaguers did in it, from the numbers the hitter is tuned to. Asked again in the same count, he calls another, so a
+  // few taps show the range. It's worked out on a copy of the at-bat, so asking doesn't change what happens next.
   $('ab-suggest').addEventListener('click', () => {
     if (S.busy || S.ab.result) return;
     const count = `${S.ab.balls}-${S.ab.strikes}`, k = COUNTS[count];
@@ -92,7 +92,7 @@ export function setupAtBat({ dark = false } = {}) {
     }
     S.code = c.code; S.spot = c.spot;
     drawCall();
-    const said = `A typical call in a ${count} count: ${NAME[c.code]}, ${spotName(c.spot)}. In ${count} counts in 2026, ${pct(k.fastball)} of pitches were fastballs and ${pct(k.zone)} were in the zone; hitters swung at ${pct(k.swing)}.`;
+    const said = `A typical call to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter in a ${count} count: ${NAME[c.code]}, ${spotName(c.spot)}. In ${count} counts in 2026, ${pct(k.fastball)} of pitches were fastballs and ${pct(k.zone)} were in the zone; hitters swung at ${pct(k.swing)}.`;
     $('ab-hint').textContent = said;
     $('ab-live').textContent = said;
   });
@@ -230,12 +230,13 @@ export function setupAtBat({ dark = false } = {}) {
 
   // ---------------------------------------------------------------- drawing
   // The pitches and spots, for this pitcher and batter. They're made again only when one of those changes (fresh), so
-  // a button with focus is never swapped for a new one. A pitch is read out in full: "Four-seam, 97 mph, 41% of his
-  // pitches".
+  // a button with focus is never swapped for a new one. A pitch's share is of what he threw to this batter's side of the
+  // plate, and it's read out in full: "Four-seam, 97 mph, 35% of his pitches to right-handed batters".
   function buildCall() {
-    $('ab-pitches').innerHTML = S.pitcher.pitches.map(p => {
-      const mph = p.mph.toFixed(0), share = pct(p.share);
-      return `<button type="button" role="radio" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-checked="false" tabindex="-1" aria-label="${SHORT(p.code)}, ${mph} mph, ${share} of his pitches"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${mph}\u00a0mph\u00a0· ${share}</small></button>`;
+    const mix = mixFor(S.pitcher, S.batter), to = S.batter === 'R' ? 'right' : 'left';
+    $('ab-pitches').innerHTML = S.pitcher.pitches.map((p, i) => {
+      const mph = p.mph.toFixed(0), share = pct(mix[i]);
+      return `<button type="button" role="radio" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-checked="false" tabindex="-1" aria-label="${SHORT(p.code)}, ${mph} mph, ${share} of his pitches to ${to}-handed batters"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${mph}\u00a0mph\u00a0· ${share}</small></button>`;
     }).join('');
     // The grid as the catcher sees it: a right-handed hitter on the left, so his inside is on the left.
     const cols = S.batter === 'R' ? [-2, -1, 0, 1, 2] : [2, 1, 0, -1, -2];

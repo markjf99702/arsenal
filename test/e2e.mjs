@@ -749,7 +749,7 @@ assert.match(await heading(), /^Forkball/i);
     }));
     assert.deepEqual(groups, [{ role: 'radiogroup', radios: true, stops: ['true'] }, { role: 'radiogroup', radios: true, stops: ['true'] }], 'the pitches and the spots as groups of radio buttons');
     const chip = await page.locator('#ab-pitches .ab-chip').first().evaluate(b => ({ said: b.getAttribute('aria-label'), shown: b.querySelector('small').textContent }));
-    const [, mph, share] = /^Four-seam, (\d+) mph, (\d+%) of his pitches$/.exec(chip.said) || [];
+    const [, mph, share] = /^Four-seam, (\d+) mph, (\d+%) of his pitches to right-handed batters$/.exec(chip.said) || [];
     assert.equal(chip.shown, `${mph}\u00a0mph\u00a0· ${share}`, `a pitch read as "${chip.said}" shows "${chip.shown}"`);
     await page.locator('#ab-pitches .ab-chip').first().focus();
     let tabs = 0;
@@ -805,7 +805,7 @@ assert.match(await heading(), /^Forkball/i);
     await page.locator('#ab-run').click();
     assert.match(await page.locator('#ab-chart > h3').textContent(), /^League-average righty, .+, in a [0-3]-[0-2] count(, right after the [a-z -]+)?: what happens per 100 throws of each pitch \(400 thrown\)\.$/);
     await page.locator('#ab-suggest').click();
-    assert.match(await page.locator('#ab-hint').innerText(), /^A typical call in a \d-\d count: /);
+    assert.match(await page.locator('#ab-hint').innerText(), /^A typical call to a (right|left)-handed batter in a \d-\d count: /);
     await page.locator('#ab-throw').click();
     await idle();
   }
@@ -988,7 +988,7 @@ assert.match(await heading(), /^Forkball/i);
   const { counts, choice } = await page.evaluate(async () => ({ counts: (await import(new URL('js/league.js', location.href))).COUNTS, choice: document.getElementById('ab-choice').textContent }));
   const k = counts['0-0'], pc = v => `${Math.round(v * 100)}%`;
   const said = `In 0-0 counts in 2026, ${pc(k.fastball)} of pitches were fastballs and ${pc(k.zone)} were in the zone; hitters swung at ${pc(k.swing)}.`;
-  for (const a of asked) assert.ok(a.startsWith('A typical call in a 0-0 count: ') && a.endsWith(` ${said}`), `the catcher's call: ${a}`);
+  for (const a of asked) assert.ok(a.startsWith('A typical call to a right-handed batter in a 0-0 count: ') && a.endsWith(` ${said}`), `the catcher's call: ${a}`);
   assert.ok(asked.every((a, i) => i === 0 || a !== asked[i - 1]), `asked again in the same count, the catcher called the same pitch: ${asked.join(' | ')}`);
   assert.equal(await page.locator('#ab-live').textContent(), asked.at(-1), 'a screen reader does not hear the catcher\'s call');
   // The call is picked, and it's the one he named.
@@ -1008,6 +1008,26 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await hint(), 'New at-bat: Paul Skenes to a right-handed batter.', 'a new pitcher partway through an at-bat');
   assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: Paul Skenes to a right-handed batter.');
   assert.deepEqual(problems.slice(before), [], 'problems asking the catcher');
+}
+
+// Each pitch's share is of what the pitcher threw to this batter's side of the plate, so it changes with the batter:
+// Chris Sale's sinker was almost never thrown to a right-handed batter in 2026, and a third of his pitches to a
+// left-handed one. And the catcher's call names the batter's side.
+{
+  const before = problems.length;
+  await page.goto('about:blank');
+  await page.goto(base + `#ab.v${VERSION}.sale.R.2`);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const sinker = () => page.locator('#ab-pitches [data-code="SI"]').getAttribute('aria-label');
+  const { real } = await page.evaluate(async () => ({ real: (await import(new URL('js/league.js', location.href))).PITCHERS.find(p => p.key === 'sale').pitches.find(e => e.code === 'SI').mix }));
+  assert.match(await sinker(), /^Sinker, \d+ mph, [01]% of his pitches to right-handed batters$/, 'Sale’s sinker to a right-handed batter');
+  await page.locator('#ab-batter [data-v="L"]').click();
+  assert.match(await sinker(), /^Sinker, \d+ mph, (\d+)% of his pitches to left-handed batters$/, 'Sale’s sinker to a left-handed batter');
+  const shown = Number(/(\d+)% of/.exec(await sinker())[1]);
+  assert.ok(shown > 25 && real.L > 0.25 && real.R < 0.01, `Sale's sinker shown as ${shown}% of his pitches to left-handed batters (2026: ${JSON.stringify(real)})`);
+  await page.locator('#ab-suggest').click();
+  assert.match(await page.locator('#ab-hint').textContent(), /^A typical call to a left-handed batter in a 0-0 count: /, 'the catcher’s call to a left-handed batter');
+  assert.deepEqual(problems.slice(before), [], 'problems with Sale’s pitches to each side');
 }
 
 // A screen reader hears a line of its own for each pitch as it lands: which pitch, the spot called and where it crossed
@@ -1156,7 +1176,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.deepEqual(await ending(), { mark: 'K', label: 'Strikeout swinging', flipped: false, on: 'on a 2-2 pitch', heard: 'Strikeout swinging on a 2-2 pitch. NOTE' }, `${at}, at the end of the strikeout`);
   for (const [link, want] of [
     [`#ab.v${VERSION}.average.R.52.FF8.FF6.SL16.FF7.CU13`, { mark: 'K', label: 'Strikeout looking', flipped: true, on: 'on a 1-2 pitch', heard: 'Strikeout looking on a 1-2 pitch. NOTE' }],
-    [`#ab.v${VERSION}.average.R.2o.FF8.FF6.SL16.FF7`, { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch. NOTE' }],
+    [`#ab.v${VERSION}.average.R.4w.FF8.FF6.SL16.FF7`, { mark: 'BB', label: 'Walk', flipped: false, on: 'on a 3-0 pitch', heard: 'Walk on a 3-0 pitch. NOTE' }],
   ]) {
     await ph.goto('about:blank');
     await ph.goto(base + link);
@@ -1434,7 +1454,7 @@ for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [
   for (const [batter, spot] of [['R', 0], ['L', 4]]) {
     const at = `at ${width}x${height} to a ${batter === 'R' ? 'right' : 'left'}-handed batter`;
     await ro.goto('about:blank');
-    await ro.goto(`${base}#ab.v${VERSION}.nola.${batter}.${{ R: '2p', L: '4' }[batter]}.KC${spot}.KC${spot}`);
+    await ro.goto(`${base}#ab.v${VERSION}.nola.${batter}.${{ R: '4', L: 's' }[batter]}.KC${spot}.KC${spot}`);
     await ro.waitForFunction(() => window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const flying = await covered();
     // Each pitch comes in at its own speed, and the readout gives this one's.
@@ -1564,8 +1584,8 @@ for (const [width, height, want] of [[1280, 800, 2], [390, 844, 0]]) {
 // the headline in other words. Over the picture, how it ended is in a tag of that colour, the same in either palette as
 // it's on the picture, with its white words at 4.5 to 1 or more (WCAG 2.2, SC 1.4.3).
 for (const [link, kind] of [
-  [STRIKEOUT, 'strike'], [`#ab.v${VERSION}.average.R.2o.FF8.FF6.SL16.FF7`, 'ball'], [`#ab.v${VERSION}.average.R.3.FF6.FF8.CH16.SL16.FF10`, 'ball'],
-  [`#ab.v${VERSION}.average.R.b.CH17.FF14.FF16`, 'play'], [`#ab.v${VERSION}.average.R.n7.FF9.SI16.FF7`, 'play'],
+  [STRIKEOUT, 'strike'], [`#ab.v${VERSION}.average.R.4w.FF8.FF6.SL16.FF7`, 'ball'], [`#ab.v${VERSION}.average.R.3.FF6.FF8.CH16.SL16.FF10`, 'ball'],
+  [`#ab.v${VERSION}.average.R.b.CH17.FF14.FF16`, 'play'], [`#ab.v${VERSION}.average.R.ns.FF9.SI16.FF7`, 'play'],
 ]) {
   await page.goto('about:blank');
   await page.goto(base + link);

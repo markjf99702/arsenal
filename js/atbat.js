@@ -93,24 +93,34 @@ export function spotName(spot) {
 
 // A league-average righty: a four-seamer, sinker, slider, changeup and curve at their league averages, each with the
 // league's spread of speed pitch to pitch (sd). (Not the five most thrown: the sweeper and the cutter are both thrown
-// more often than the curve.)
+// more often than the curve.) Each is thrown as often as right-handers threw it in 2026, to each side of the plate (mix),
+// among the set.
 const AVERAGE_SET = ['FF', 'SI', 'SL', 'CH', 'CU'];
-const avgShare = AVERAGE_SET.reduce((s, c) => s + NUMBERS[c].share, 0);
-const fromLeague = (code, share) => {
-  const n = NUMBERS[code];
-  return { code, share, mph: n.mph, sd: TYPES[code]?.sd ?? 0, rpm: n.rpm, rise: n.rise, arm: n.arm, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
+const fromLeague = (code, set) => {
+  const n = NUMBERS[code], of = key => NUMBERS[code][key] / set.reduce((s, c) => s + NUMBERS[c][key], 0);
+  const mix = Object.fromEntries(['R', 'L'].map(b => [b, TYPES[code].mix[b] / set.reduce((s, c) => s + TYPES[c].mix[b], 0)]));
+  return { code, share: of('share'), mix, mph: n.mph, sd: TYPES[code]?.sd ?? 0, rpm: n.rpm, rise: n.rise, arm: n.arm, height: n.height, side: 1.85, extension: n.extension, whiff: n.whiff / 100 };
 };
 export const AVERAGE = {
   key: 'average', name: 'League-average righty', hand: 'R', line: 'A four-seamer, sinker, slider, changeup and curve, each at the league average.',
-  pitches: AVERAGE_SET.map(c => fromLeague(c, NUMBERS[c].share / avgShare)),
+  pitches: AVERAGE_SET.map(c => fromLeague(c, AVERAGE_SET)),
 };
-// For calibration: every common pitch, thrown as often as the league throws it.
+// For calibration: every common pitch, thrown as often as the league's right-handers threw it.
 const COMMON = ['FF', 'SI', 'FC', 'SL', 'ST', 'CU', 'KC', 'CH', 'FS'];
-const commonShare = COMMON.reduce((s, c) => s + NUMBERS[c].share, 0);
-export const LEAGUE_ARM = { key: 'league', name: 'The whole league', hand: 'R', pitches: COMMON.map(c => fromLeague(c, NUMBERS[c].share / commonShare)) };
+export const LEAGUE_ARM = { key: 'league', name: 'The whole league', hand: 'R', pitches: COMMON.map(c => fromLeague(c, COMMON)) };
 
 export const PITCHERS = [AVERAGE, ...REAL];
 export const pitcherByKey = key => PITCHERS.find(p => p.key === key) || AVERAGE;
+
+// How much of what he throws to this batter each of his pitches is: his own mix to that side of the plate in 2026, among
+// the pitches he's here with. Sale threw his sinker to left-handed batters a third of the time and almost never to
+// right-handed ones; right-handers threw changeups three times as often to left-handed batters as to right-handed ones.
+export function mixFor(pitcher, batter) {
+  const raw = pitcher.pitches.map(p => p.mix?.[batter] ?? p.share), all = raw.reduce((s, v) => s + v, 0);
+  return raw.map(v => v / all);
+}
+// The same side of the plate as the pitcher's arm (1), or the other (-1).
+const sideOf = ab => (ab.pitcher.hand === ab.batter ? 1 : -1);
 
 // The pitch as the flight model wants it, aimed at a spot on the plate (catcher's view, feet).
 export function pitchFor(pitcher, entry, plate) {
@@ -162,16 +172,17 @@ function template(ab, code) {
   return { code, mph: mix('mph'), rise: mix('rise'), arm: mix('arm') };
 }
 
-// What the hitter expects from this pitcher, a share for each of his pitches: the season's mix, and what he has thrown
-// this at-bat. Each pitch he's seen counts as notice.at of a whole season's mix, and, after the pitch just thrown, each
-// pitch that followed the same pitch earlier in the at-bat counts notice.next more. So one pitch every time, or the
-// same two in turn, gets figured out, and a changeup after a four-seamer fools him more than one after a changeup.
+// What the hitter expects from this pitcher, a share for each of his pitches: the season's mix to his side of the plate
+// (mixFor), and what he has thrown this at-bat. Each pitch he's seen counts as notice.at of a whole season's mix, and,
+// after the pitch just thrown, each pitch that followed the same pitch earlier in the at-bat counts notice.next more. So
+// one pitch every time, or the same two in turn, gets figured out, and a changeup after a four-seamer fools him more
+// than one after a changeup.
 function expected(ab) {
-  const N = ab.params.notice, ps = ab.pitches, last = ps.at(-1)?.code, seen = {};
+  const N = ab.params.notice, ps = ab.pitches, last = ps.at(-1)?.code, seen = {}, mix = mixFor(ab.pitcher, ab.batter);
   let n = 0;
   for (const p of ps) { seen[p.code] = (seen[p.code] || 0) + N.at; n += N.at; }
   for (let i = 1; i < ps.length; i++) if (ps[i - 1].code === last) { seen[ps[i].code] = (seen[ps[i].code] || 0) + N.next; n += N.next; }
-  return ab.pitcher.pitches.map(p => (p.share + (seen[p.code] || 0)) / (1 + n));
+  return ab.pitcher.pitches.map((p, i) => (mix[i] + (seen[p.code] || 0)) / (1 + n));
 }
 
 // The hitter's guess before the pitch: a fastball or not, from the count and what he expects of this pitcher, leaning
@@ -261,7 +272,9 @@ export function throwCall(ab, call) {
   const judged = [r.at[0] + R.normal() * P.judge, r.at[1] + R.normal() * P.judge];
   const bias = P.swingBias[`${before.balls}-${before.strikes}`] ?? 0;
   const seen = margin(judged[0], judged[1]), look = P.typeSwing[call.code];
-  const lean = look ? look.zone * sigmoid(seen / P.swingWidth) + look.chase * (1 - sigmoid(seen / P.swingWidth)) : 0;
+  // And by the matchup: in 2026 hitters chased a little more against a pitcher throwing from their own side (platoon).
+  const side = sideOf(ab), off = 1 - sigmoid(seen / P.swingWidth);
+  const lean = (look ? look.zone * (1 - off) + look.chase * off : 0) + side * P.platoon.chase * off;
   const pSwing = P.swingLo + (P.swingHi - P.swingLo) * sigmoid((seen + bias + lean) / P.swingWidth);
   const swing = R.chance(pSwing);
 
@@ -284,8 +297,10 @@ export function throwCall(ab, call) {
     // movement alone say (late break, a hidden release, spin he can't read). It comes from how often hitters
     // really miss it: each kind of pitch is calibrated to the league, and each real pitcher's pitches to his own.
     const reach = Math.max(0, -margin(plate[0], plate[1]));
-    // A real pitcher's stuff with two strikes (pitcherPutaway) brings his strikeouts to his own.
-    const stuff = (P.stuff[call.code] ?? 1) * (P.pitcherStuff[ab.pitcher.key]?.[call.code] ?? 1) * (before.strikes === 2 ? P.pitcherPutaway[ab.pitcher.key] ?? 1 : 1);
+    // A real pitcher's stuff with two strikes (pitcherPutaway) brings his strikeouts to his own. And against a hitter on
+    // his own side of the plate any pitcher's stuff is harder to hit, on the other side easier (platoon), as in 2026.
+    const stuff = (P.stuff[call.code] ?? 1) * (P.pitcherStuff[ab.pitcher.key]?.[call.code] ?? 1) * (before.strikes === 2 ? P.pitcherPutaway[ab.pitcher.key] ?? 1 : 1)
+      * Math.exp(side * P.platoon.stuff);
     out.stuff = stuff;
     // Even a fooled hitter gets a piece of it sometimes (the floor): hitters touch most chase pitches they swing at.
     // His approach by count: a full swing early in the count, shortened up to protect with two strikes.
@@ -314,7 +329,8 @@ export function throwCall(ab, call) {
         // And where pitches have been crossing this at-bat, he's ready for one there: each earlier pitch that crossed
         // within about 7 inches of where he reads this one crossing adds to how hard he hits it (notice.where).
         const ready = ab.pitches.reduce((a, e) => a + Math.exp(-((e.plate[0] - r.at[0]) ** 2 + (e.plate[1] - r.at[1]) ** 2) / 0.36), 0);
-        const s = q + P.notice.where * ready + R.normal() * P.quality.noise;
+        // A hitter on the pitcher's side of the plate hits him softer, one on the other side harder (platoon).
+        const s = q + P.notice.where * ready - side * P.platoon.damage + R.normal() * P.quality.noise;
         const O = P.outcome;
         let play;
         if (s > O.hr) play = 'HR';
@@ -348,22 +364,38 @@ export function throwCall(ab, call) {
 // ---------------------------------------------------------------- a pitcher who picks for himself
 
 // Which pitch and where, the way pitchers do on average in this count: more fastballs and strikes when behind,
-// more breaking balls off the plate when ahead.
+// more breaking balls off the plate when ahead. The pitch from his mix to this batter's side of the plate (mixFor); the
+// spot by the side it breaks to (OTHER_SIDE).
 export function autoCall(ab) {
   const P = ab.params, R = ab.rand, key = countKey(ab);
-  const fb = P.countFastball[key];
-  const weights = ab.pitcher.pitches.map(p => p.share * (FASTBALLS.has(p.code) ? fb / P.leagueFastball : (1 - fb) / (1 - P.leagueFastball)));
+  const fb = P.countFastball[key], mix = mixFor(ab.pitcher, ab.batter);
+  const weights = ab.pitcher.pitches.map((p, i) => mix[i] * (FASTBALLS.has(p.code) ? fb / P.leagueFastball : (1 - fb) / (1 - P.leagueFastball)));
   const entry = R.pick(ab.pitcher.pitches, weights);
-  const fam = FAMILY[entry.code] || 'fast';
+  const other = sideOf(ab) < 0 ? OTHER_SIDE[entry.code] : null;
+  const fam = other?.table || FAMILY[entry.code] || 'fast';
   const wantZone = R.chance(Math.min(0.97, P.zoneIntent[key] * (P.typeZone[entry.code] ?? 1)));
   const table = ZONE_TABLE[fam][wantZone ? 'zone' : 'out'];
   const spot = R.pick(table.map(o => o.spot), table.map(o => o.w));
-  return { code: entry.code, spot };
+  const turn = other?.turn >= 1 || (other?.turn > 0 && R.chance(other.turn));
+  return { code: entry.code, spot: turn ? S(-spot.c, spot.r) : spot };
 }
 
-// Where each kind of pitch goes, as [column (in -2 .. away 2), row (down -2 .. up 2), weight]: in the zone, and off it.
+// Where each kind of pitch goes, as [column (in -2 .. away 2), row (down -2 .. up 2), weight]: in the zone, and off it,
+// to a batter on the pitcher's own side of the plate. A pitch that breaks toward his glove side (a slider, sweeper,
+// curve or cutter) goes away from him; one that runs to the arm side (a sinker, changeup or splitter) goes in.
+// To a batter on the other side (OTHER_SIDE) a sinker's table is turned round, in for away, so it runs away from him;
+// a changeup or splitter goes where a slider goes to one on the pitcher's own side, down and away; and a glove-side
+// pitch's table is turned round half the time, so it goes in or away about equally. So they did in 2026: right-handers'
+// sinkers crossed two inches inside right-handed batters on average and two outside left-handed ones, their changeups
+// an inch inside right-handed batters and five outside left-handed ones, their sliders half a foot outside right-handed
+// batters and an inch and a half inside left-handed ones, their curves four inches outside right-handed batters and
+// half an inch outside left-handed ones. The four-seamer, eephus and knuckleball keep to their tables.
 const FAMILY = { FF: 'fast', FC: 'fast', EP: 'fast', SI: 'sink', SL: 'break', ST: 'break', CU: 'break', KC: 'break', SV: 'break', CH: 'soft', FS: 'soft', FO: 'soft', KN: 'soft' };
 const S = (c, r) => SPOTS.find(s => s.c === c && s.r === r);
+const OTHER_SIDE = {
+  SI: { turn: 1 }, CH: { table: 'break' }, FS: { table: 'break' }, FO: { table: 'break' },
+  SL: { turn: 0.5 }, ST: { turn: 0.5 }, CU: { turn: 0.5 }, KC: { turn: 0.5 }, SV: { turn: 0.5 }, FC: { turn: 0.5 },
+};
 const ZONE_TABLE = {
   fast: { zone: [[-1, 1, 3], [0, 1, 3], [1, 1, 3], [-1, 0, 2], [0, 0, 1], [1, 0, 2], [-1, -1, 2], [0, -1, 2], [1, -1, 3]], out: [[0, 2, 4], [-1, 2, 2], [1, 2, 2], [2, 0, 3], [2, 1, 2], [-2, 0, 1], [-2, 1, 1], [0, -2, 1]] },
   sink: { zone: [[-1, -1, 4], [0, -1, 3], [1, -1, 2], [-1, 0, 3], [0, 0, 1], [1, 0, 1], [-1, 1, 1], [0, 1, 1], [1, 1, 1]], out: [[-2, -1, 3], [-2, 0, 2], [0, -2, 3], [-1, -2, 2], [1, -2, 1], [2, -1, 1]] },

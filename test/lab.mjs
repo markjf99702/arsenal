@@ -20,9 +20,15 @@ export const TARGET = {
   avg: L.hits / (L.pa - L.bb - L.hbp - Math.max(0, L.pa - L.bb - L.hbp - (L.so + L.bip))),
 };
 
-// The at-bats of a lab run: `pas` of them for each seed (one, or a list to pool), three in five to a right-handed batter.
+// The batter for the i-th at-bat of a lab run: right-handed as often as the pitcher's batters were in 2026 (paBy), and
+// for the league-average righty and the league's arm, on his side of the plate as often as the league's were.
+export function batterFor(pitcher, i) {
+  const r = pitcher.paBy ? pitcher.paBy.R / (pitcher.paBy.R + pitcher.paBy.L) : pitcher.hand === 'R' ? PLATOON.sameShare : 1 - PLATOON.sameShare;
+  return Math.floor((i + 1) * r) > Math.floor(i * r) ? 'R' : 'L';
+}
+// The at-bats of a lab run: `pas` of them for each seed (one, or a list to pool).
 function* atBats(pitcher, params, pas, seeds) {
-  for (const seed of [seeds].flat()) for (let i = 0; i < pas; i++) yield autoAtBat({ pitcher, batter: i % 5 < 3 ? 'R' : 'L', seed: (seed * 1000003 + i * 7919) >>> 0, params });
+  for (const seed of [seeds].flat()) for (let i = 0; i < pas; i++) yield autoAtBat({ pitcher, batter: batterFor(pitcher, i), seed: (seed * 1000003 + i * 7919) >>> 0, params });
 }
 
 // Where a pitch crossed, as Statcast's zones put it: 'middle' (zone 5), 'edge' (2, 4, 6, 8, the middle of each side),
@@ -47,6 +53,22 @@ for (const [zn, v] of Object.entries(ZONES)) {
 }
 for (const g of Object.values(GROUPS)) Object.assign(g, { whiff: g.whiffs / g.swings, wobacon: g.w / g.bip });
 
+// The platoon split, 2026's: each hand of pitcher to each side of the plate pooled into the same side (RR and LL) and
+// the other (RL and LR). Its wOBA (Statcast's weights over plate appearances, as the lab counts it), misses per swing,
+// chases and wOBA on contact; and how many of the league's plate appearances were on the same side, 42%.
+const sum = (a, b, f) => f(L.platoon[a]) + f(L.platoon[b]);
+const line = (a, b) => {
+  const hits = p => W['1B'] * p.singles + W['2B'] * p.doubles + W['3B'] * p.triples + W.HR * p.hrs;
+  return {
+    pa: sum(a, b, p => p.pa), woba: sum(a, b, p => W.BB * p.bb + W.HBP * p.hbp + hits(p)) / sum(a, b, p => p.pa),
+    whiff: sum(a, b, p => p.whiffs) / sum(a, b, p => p.swings), wobacon: sum(a, b, p => hits(p)) / sum(a, b, p => p.bip),
+    chase: sum(a, b, p => p.swings - p.zone.swings) / sum(a, b, p => p.pitches - p.zone.pitches),
+    k: sum(a, b, p => p.so) / sum(a, b, p => p.pa), bb: sum(a, b, p => p.bb) / sum(a, b, p => p.pa),
+  };
+};
+export const PLATOON = { same: line('RR', 'LL'), other: line('RL', 'LR'), lines: Object.fromEntries(['RR', 'RL', 'LR', 'LL'].map(k => [k, line(k, k)])) };
+PLATOON.sameShare = PLATOON.same.pa / (PLATOON.same.pa + PLATOON.other.pa);
+
 // How much likelier a miss is right after a pitch 6 mph apart than right after the same pitch: the log of the
 // Mantel-Haenszel odds ratio over strata of { same: [swings, whiffs], apart: [swings, whiffs] }, as tools/league.mjs
 // works out 2026's.
@@ -63,7 +85,18 @@ export function oddsAfter(strata) {
 export function measure(params, pas = 6000, seed = 1) {
   const c = { pa: 0, pitches: 0, k: 0, bb: 0, hbp: 0, swing: 0, whiff: 0, zone: 0, zoneSwing: 0, zoneWhiff: 0, chaseSwing: 0, chaseWhiff: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0, contact: 0, foul: 0, bip: 0, hits: 0, hr: 0, ab: 0 };
   const counts = {}, types = {}, groups = {}, after = {}, contactScores = [];
+  const sides = { same: {}, other: {} };
   for (const ab of atBats(LEAGUE_ARM, params, pas, seed)) {
+    const sd = sides[ab.batter === LEAGUE_ARM.hand ? 'same' : 'other'];
+    for (const k of ['pa', 'w', 'k', 'bb', 'swings', 'whiffs', 'out', 'chases', 'bip', 'wc']) sd[k] ||= 0;
+    sd.pa++; sd.w += wobaEnd(ab.result);
+    if (ab.result === 'K' || ab.result === 'KL') sd.k++;
+    if (ab.result === 'BB') sd.bb++;
+    for (const p of ab.pitches) {
+      if (p.swing) { sd.swings++; if (MISSED(p)) sd.whiffs++; }
+      if (!p.inZone) { sd.out++; if (p.swing) sd.chases++; }
+      if (p.result === 'inplay') { sd.bip++; sd.wc += wobaOf(p.play); }
+    }
     // Each swing beside the pitch before it: the same kind, or one at least 6 mph faster or slower, compared within the
     // same kind of pitch, count and height, as tools/league.mjs compares 2026's (LEAGUE.after).
     ab.pitches.forEach((p, i) => {
@@ -124,6 +157,7 @@ export function measure(params, pas = 6000, seed = 1) {
     }])),
     after: oddsAfter(after),
     groups: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, { pitches: v.pitches, swings: v.swings, bip: v.bip, whiff: v.whiffs / v.swings, wobacon: v.w / v.bip }])),
+    platoon: Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, { pa: v.pa, woba: v.w / v.pa, k: v.k / v.pa, bb: v.bb / v.pa, whiff: v.whiffs / v.swings, chase: v.chases / v.out, wobacon: v.wc / v.bip }])),
     contactScores,
   };
 }
@@ -193,9 +227,12 @@ const own = (j, ab) => autoCall(ab);
 const middle = (j, ab) => ({ code: autoCall(ab).code, spot: S('00') });
 const every = (code, spot) => () => ({ code, spot: S(spot) });
 const turns = (a, sa, b, sb) => j => (j % 2 ? { code: b, spot: S(sb) } : { code: a, spot: S(sa) });
+// The pitchers for whom down the middle every pitch does about as well as their own calls (checks, below).
+export const MIDDLING = new Set(['miller', 'rogers']);
+// Each plan: the pitcher, what it is, its calls, and whether it does about as well as his own calls (checks, below).
 export const PLANS = {
   // Down the middle every pitch, with his own mix: every pitcher.
-  middle: PITCHERS.map(p => [p.key, 'down the middle every pitch', middle]),
+  middle: PITCHERS.map(p => [p.key, 'down the middle every pitch', middle, MIDDLING.has(p.key)]),
   // One pitch to one spot every time: Misiorowski's curve down and away, the league-average righty's curve at the knees,
   // Miller's slider down and away.
   one: [['misiorowski', 'his curve down and away every pitch', every('CU', 'm11')], ['average', 'his curve down in the zone every pitch', every('CU', 'm10')],
@@ -204,8 +241,6 @@ export const PLANS = {
   two: [['average', 'curve and slider at the knees in turn', turns('CU', 'm10', 'SL', 'm10')], ['skenes', 'splitter and slider down and away in turn', turns('FS', 'm11', 'SL', 'm11')],
     ['gausman', 'four-seamer up and splitter down in turn', turns('FF', '10', 'FS', 'm10')], ['sale', 'four-seamer up and slider down and away in turn', turns('FF', '10', 'SL', 'm11')]],
 };
-// The pitchers for whom down the middle every pitch does about as well as their own calls (checks, below).
-export const MIDDLING = new Set(['miller', 'rogers']);
 // Mason Miller's four-seamer up in the zone and his slider down and away, in turn: no surer a strikeout than his real
 // 47.4%, on any seed.
 export const MILLER = ['miller', 'four-seamer up and slider down and away in turn', turns('FF', '10', 'SL', 'm11')];
@@ -214,7 +249,7 @@ export function plan(params, key, call, pas = 1000, seeds = SEEDS) {
   for (const seed of seeds) {
     let k = 0, w = 0;
     for (let i = 0; i < pas; i++) {
-      const ab = startAtBat({ pitcher, batter: i % 5 < 3 ? 'R' : 'L', seed: (seed * 1000003 + i * 7919) >>> 0, params });
+      const ab = startAtBat({ pitcher, batter: batterFor(pitcher, i), seed: (seed * 1000003 + i * 7919) >>> 0, params });
       for (let j = 0; !ab.result; j++) throwCall(ab, call(j, ab));
       if (ab.result === 'K' || ab.result === 'KL') k++;
       w += wobaEnd(ab.result);
@@ -225,18 +260,21 @@ export function plan(params, key, call, pas = 1000, seeds = SEEDS) {
 }
 
 // What the hitter is held to, on three seeds pooled, so knobs that only pass on the seed they were tuned on don't pass:
-// 3,000 at-bats a seed for the league, 1,200 for each real pitcher, 1,000 for each plan. `run` is a measure of them
-// already made. Each check is { group, what, ok, said }: the league overall, each count, each kind of pitch, where
-// pitches crossed, each real pitcher's pitches and strikeouts, changing speeds, and the plans.
+// 3,000 at-bats a seed for the league, and 16,000 for each kind of pitch (enough for one thrown as seldom as the
+// knuckle curve, 2% of the league's pitches) and the platoon split (a few points of wOBA between the two sides of the
+// plate), 1,200 for each real pitcher, 1,000 for each plan. `run` is a measure of them already made. Each check is { group, what, ok, said }: the league
+// overall, each count, each kind of pitch, where pitches crossed, each real pitcher's pitches, strikeouts, walks and
+// wOBA, the platoon split, changing speeds, and the plans.
 export const SEEDS = [21, 22, 23];
 export function run(params) {
   const plans = { own: {} };
   for (const [key] of [...Object.values(PLANS).flat(), MILLER]) plans.own[key] ||= plan(params, key, own);
-  for (const [group, list] of Object.entries(PLANS)) plans[group] = list.map(([key, what, call]) => ({ key, what, ...plan(params, key, call) }));
+  for (const [group, list] of Object.entries(PLANS)) plans[group] = list.map(([key, what, call, even]) => ({ key, what, even, ...plan(params, key, call) }));
   plans.miller = plan(params, MILLER[0], MILLER[2]);
-  return { lab: measure(params, 3000, SEEDS), pitchers: measurePitchers(params, 1200, SEEDS), plans };
+  const big = measure(params, 16000, SEEDS);
+  return { lab: measure(params, 3000, SEEDS), types: big.types, platoon: big.platoon, pitchers: measurePitchers(params, 1200, SEEDS), plans };
 }
-export function checks(params, { lab, pitchers, plans } = run(params)) {
+export function checks(params, { lab, types, platoon, pitchers, plans } = run(params)) {
   const out = [];
   const near = (group, what, sim, real, by, fmt = v => v.toFixed(3)) => out.push({ group, what, ok: Math.abs(sim - real) <= by, said: `${what}: ${fmt(sim)} against ${fmt(real)} (within ${fmt(by)})` });
   for (const [key, by] of [['k', 0.03], ['bb', 0.015], ['hbp', 0.006], ['ppa', 0.2], ['swing', 0.025], ['whiff', 0.025], ['zone', 0.025], ['zoneSwing', 0.025], ['zoneWhiff', 0.025],
@@ -252,7 +290,7 @@ export function checks(params, { lab, pitchers, plans } = run(params)) {
   }
   const pct = v => `${(v * 100).toFixed(1)}%`;
   // Each kind of pitch: missed per swing, in the zone, and swung at in the zone and chased out of it, within 4 points.
-  for (const [t, v] of Object.entries(lab.types)) {
+  for (const [t, v] of Object.entries(types)) {
     if (!TYPES[t] || v.swings < 150) continue;
     near('types', `${t} missed per swing`, v.whiff, TYPES[t].whiff, 0.05, pct);
     near('types', `${t} in the zone`, v.zone, TYPES[t].zone, 0.05, pct);
@@ -276,16 +314,23 @@ export function checks(params, { lab, pitchers, plans } = run(params)) {
     for (const r of rows) if (r.code === 'KN') near('pitchers', `${key}'s knuckleball in the zone`, r.zone, r.zoneReal, 0.04, pct);
   }
   // Each plan is clearly worse for him than his own calls: at least .030 more wOBA, pooled. Two pitchers' stuff, with
-  // their own walks and damage, plays down the middle nearly as well as with their own calls: Mason Miller's, which is
-  // missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch there every time walks nobody. They
-  // are held only to doing no better there than with their own calls, give or take .015. (Matt Waldron's knuckleball,
-  // whose wobble the hitter can't read however often he's seen it, isn't held to the knuckleball to one spot every time:
-  // that does better than his own calls.)
+  // their own walks and damage, plays down the middle nearly as well as with their own calls (even, in PLANS): Mason
+  // Miller's, which is missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch there every time
+  // walks nobody. They are held only to doing no better there than with their own calls, give or take .015. (Matt
+  // Waldron's knuckleball, whose wobble the hitter can't read however often he's seen it, isn't held to the knuckleball
+  // to one spot every time: that does better than his own calls.)
   for (const p of [...plans.middle, ...plans.one, ...plans.two]) {
-    const base = plans.own[p.key].w, by = p.what.startsWith('down the middle') && MIDDLING.has(p.key) ? -0.015 : 0.03;
+    const base = plans.own[p.key].w, by = p.even ? -0.015 : 0.03;
     out.push({ group: 'plans', what: `${p.key}: ${p.what}`, ok: p.w >= base + by, said: `${p.key}, ${p.what}: wOBA ${p.w.toFixed(3)} against his own calls' ${base.toFixed(3)} (${by > 0 ? `.030 more, at least` : 'no more than .015 less'})` });
   }
   out.push({ group: 'plans', what: `miller: ${MILLER[1]}`, ok: plans.miller.per.every(x => x.k < 0.5), said: `miller, ${MILLER[1]}: strikes out ${plans.miller.per.map(x => pct(x.k)).join(', ')} on seeds ${SEEDS.join(', ')} (under 50% on each)` });
+  // The platoon split: the wOBA of a batter on the pitcher's own side of the plate and on the other, each against both of
+  // 2026's lines on that side (a left-hander here is a right-hander in a mirror: RR and LL, RL and LR), within .015, and
+  // the gap between the sides within .010 of 2026's.
+  for (const [side, lines] of [['same', ['RR', 'LL']], ['other', ['RL', 'LR']]]) {
+    for (const l of lines) near('platoon', `${l} wOBA`, platoon[side].woba, PLATOON.lines[l].woba, 0.015);
+  }
+  near('platoon', 'the other side’s wOBA over the same side’s', platoon.other.woba - platoon.same.woba, PLATOON.other.woba - PLATOON.same.woba, 0.01);
   // Changing speeds still works: a changeup after a four-seamer fools him more than one after a changeup.
   const sc = speedChange(params);
   out.push({ group: 'sequence', what: 'changing speeds', ok: sc.afterFastball > sc.afterChangeup + 0.03, said: `a changeup after a four-seamer missed on ${pct(sc.afterFastball)} of swings, after a changeup ${pct(sc.afterChangeup)} (3 points less, at least)` });

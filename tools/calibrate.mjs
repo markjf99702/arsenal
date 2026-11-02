@@ -15,7 +15,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEAGUE, COUNTS, TYPES } from '../js/league.js';
-import { measure, measurePitchers, TARGET, checks, SEEDS, GROUPS } from '../test/lab.mjs';
+import { measure, measurePitchers, TARGET, checks, SEEDS, GROUPS, PLATOON } from '../test/lab.mjs';
 import { PARAMS as START } from '../js/atbat-params.js';
 import { rng } from '../js/rng.js';
 
@@ -34,9 +34,10 @@ const logit = p => Math.log(p / (1 - p));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const clone = o => JSON.parse(JSON.stringify(o));
 let P = clone(START);
-// Each real pitcher's command and contact factor, from nothing when the knobs have none yet.
+// Each real pitcher's command and contact factor, and the platoon split, from nothing when the knobs have none yet.
 P.pitcherCommand ||= {};
 P.pitcherContact ||= {};
+P.platoon ||= { stuff: 0, chase: 0, damage: 0 };
 
 // Where the knobs live in PARAMS, and how far a random step may move each (as a factor).
 const KNOBS = [
@@ -76,11 +77,13 @@ function nudge(m) {
   }
   for (const t of Object.keys(P.typeZone)) P.typeZone[t] /= wsum / w; // keep the average where the counts put it
   // How each kind of pitch looks to him: his swings at it in the zone and his chases, until each is 2026's for that kind.
-  // Each averages out to nothing over the pitches it's for, so the counts' swings stay the counts' knobs.
+  // Each averages out to nothing over the pitches it's for, so the counts' swings stay the counts' knobs. Only on 1,500
+  // pitches of the kind or more, so one thrown as seldom as the knuckle curve waits for the last passes, on four times
+  // the at-bats, and isn't tuned to one run's luck.
   const mean = { zone: [0, 0], chase: [0, 0] };
   for (const [t, v] of Object.entries(m.types)) {
     const look = P.typeSwing[t];
-    if (!TYPES[t] || !look || v.pitches < 300) continue;
+    if (!TYPES[t] || !look || v.pitches < 1500) continue;
     const out = v.pitches - v.zonePitches;
     look.zone = clamp(look.zone + 0.7 * P.swingWidth * (logit(TYPES[t].zoneSwing) - logit(clamp(v.zoneSwing, 0.02, 0.98))), -0.5, 0.5);
     look.chase = clamp(look.chase + 0.7 * P.swingWidth * (logit(TYPES[t].chaseSwing) - logit(clamp(v.chaseSwing, 0.02, 0.98))), -0.5, 0.5);
@@ -128,6 +131,12 @@ function nudge(m) {
   if (g.middle?.bip > 300 && g.out?.bip > 300) {
     P.quality.middle = clamp(P.quality.middle * ((g.middle.wobacon / g.out.wobacon) / (GROUPS.middle.wobacon / GROUPS.out.wobacon)) ** 0.5, 0.5, 6);
   }
+  // The platoon split: the stuff, chases and damage on the pitcher's own side of the plate against the other side's,
+  // each until the gap between the sides is 2026's (PLATOON): in misses per swing, in chases, and in wOBA on contact.
+  const pl = m.platoon, gap = (x, k, f = v => v) => f(x.same[k]) - f(x.other[k]);
+  P.platoon.stuff = clamp(P.platoon.stuff + 0.5 * (gap(PLATOON, 'whiff', logit) - gap(pl, 'whiff', logit)), -0.5, 0.5);
+  P.platoon.chase = clamp(P.platoon.chase + 0.35 * P.swingWidth * (gap(PLATOON, 'chase', logit) - gap(pl, 'chase', logit)), -0.3, 0.3);
+  P.platoon.damage = clamp(P.platoon.damage + 0.6 * (gap(pl, 'wobacon') - gap(PLATOON, 'wobacon')), -0.3, 0.3);
 }
 
 // The timing pull and the lean toward repeating, scaled together by f; under a hundredth, nothing.
