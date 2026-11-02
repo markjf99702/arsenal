@@ -69,13 +69,6 @@ test('the count works: four balls walk him, three strikes sit him down, a foul w
   }
 });
 
-// The words: what made each pitch go how it did, and the scout's note at the end. Thousands of at-bats played by the
-// pitchers' own calls, every pitcher to either side, with each pitch's why and the note checked for what reads badly.
-const PLAYED = [];
-{
-  let seed = 1;
-  for (const pitcher of PITCHERS) for (const batter of ['R', 'L']) for (let i = 0; i < 200; i++) PLAYED.push(autoAtBat({ pitcher, batter, seed: seed++ }));
-}
 // About 2,000 at-bats called at random, the way someone trying things out might call them: every pitcher to either
 // side, each pitch any of his, to any of the 25 spots.
 const RANDOM = [];
@@ -86,6 +79,15 @@ const RANDOM = [];
     while (!ab.result) throwCall(ab, { code: pitcher.pitches[Math.floor(R() * pitcher.pitches.length)].code, spot: SPOTS[Math.floor(R() * SPOTS.length)] });
     RANDOM.push(ab);
   }
+}
+// The words: what made each pitch go how it did, and the scout's note at the end. Thousands of at-bats, every pitcher to
+// either side, with each pitch's why and the note checked for what reads badly: 4,000 played by the pitchers' own calls,
+// and the 2,000 called at random, with the calls the pitchers never make (a curve high and inside, a sinker up and away).
+const PLAYED = [];
+{
+  let seed = 1;
+  for (const pitcher of PITCHERS) for (const batter of ['R', 'L']) for (let i = 0; i < 200; i++) PLAYED.push(autoAtBat({ pitcher, batter, seed: seed++ }));
+  PLAYED.push(...RANDOM);
 }
 const words = ab => [['note', note(ab)], ...ab.pitches.map((p, i) => [`pitch ${p.n}`, why(p, ab.pitches[i - 1], ab.batter)])];
 const READS_BADLY = [
