@@ -7,6 +7,9 @@
 // play, the bat; a foul tip, a tick off the bat and then the mitt. A pitch that hits the batter is a dull thud.
 const KIND = { ball: 'pop', called: 'pop', whiff: 'pop', tip: 'tip', foul: 'crack', inplay: 'crack', hbp: 'thud' };
 export const soundFor = result => KIND[result] || null;
+// How loud, all told: rendered offline, the crack of the bat, the loudest, peaks at about 0.8 of full scale with this, a
+// pop at 0.75, a thud at 0.6 and a foul tip at 0.35.
+const VOLUME = 0.6;
 
 export function makeSound() {
   let ctx = null, out = null, noise = null;
@@ -23,11 +26,10 @@ export function makeSound() {
           const Audio = window.AudioContext || window.webkitAudioContext;
           if (!Audio) return false;
           ctx = new Audio();
-          // Loud enough to hear over a room, never clipping when two sounds overlap.
-          out = ctx.createDynamicsCompressor();
-          const master = ctx.createGain();
-          master.gain.value = 0.7;
-          out.connect(master).connect(ctx.destination);
+          // Every sound goes out through one volume, set so the loudest stays under clipping.
+          out = ctx.createGain();
+          out.gain.value = VOLUME;
+          out.connect(ctx.destination);
           // Half a second of white noise, the leather's slap and the wood's crack, filtered.
           noise = ctx.createBuffer(1, Math.round(ctx.sampleRate / 2), ctx.sampleRate);
           const data = noise.getChannelData(0);
@@ -89,25 +91,26 @@ export function makeSound() {
     g.gain.exponentialRampToValueAtTime(0.0001, t + long);
   }
 
-  // The mitt: a low thump with the leather's slap on top.
+  // The mitt: a low thump with the leather's slap on top. It starts high enough for a phone's small speaker, which
+  // can't play much under a few hundred hertz.
   function pop(t, loud) {
-    tone(t, { from: 170, to: 65, level: 0.9 * loud, long: 0.14 });
-    burst(t, { filter: 'lowpass', hz: 1700, level: 0.55 * loud, long: 0.05 });
+    tone(t, { from: 420, to: 90, level: 1.2 * loud, long: 0.12 });
+    burst(t, { filter: 'lowpass', hz: 2400, level: 0.8 * loud, long: 0.045 });
   }
   // The bat: a sharp crack, the wood ringing a moment, and a little body under it.
   function crack(t) {
-    burst(t, { filter: 'bandpass', hz: 2300, q: 1.1, level: 1, long: 0.075 });
-    tone(t, { type: 'triangle', from: 1080, to: 880, level: 0.3, long: 0.16 });
-    tone(t, { from: 240, to: 120, level: 0.35, long: 0.07 });
+    burst(t, { filter: 'bandpass', hz: 2300, q: 1.1, level: 2.4, long: 0.075 });
+    tone(t, { type: 'triangle', from: 1080, to: 880, level: 0.4, long: 0.16 });
+    tone(t, { from: 240, to: 120, level: 0.6, long: 0.07 });
   }
   // A foul tip: the ball only grazes the bat.
   function tick(t) {
-    burst(t, { filter: 'highpass', hz: 3200, level: 0.35, long: 0.025 });
+    burst(t, { filter: 'highpass', hz: 3200, level: 0.2, long: 0.025 });
   }
   // A pitch that hits the batter: a duller, lower thump, with no leather in it.
   function thud(t) {
-    tone(t, { from: 110, to: 48, level: 0.7, long: 0.13 });
-    burst(t, { filter: 'lowpass', hz: 500, level: 0.3, long: 0.06 });
+    tone(t, { from: 260, to: 70, level: 1.1, long: 0.13 });
+    burst(t, { filter: 'lowpass', hz: 700, level: 0.6, long: 0.06 });
   }
 
   return api;
