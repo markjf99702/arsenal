@@ -524,6 +524,9 @@ test('the README’s strikeouts are the lab’s and the league’s, and its coun
   assert.ok(Math.abs(Number(theirs) - TARGET.k * 100) <= 1, `the README says the league’s were ${theirs}%; js/league.js has ${(TARGET.k * 100).toFixed(1)}%`);
   const total = `${TOTAL.toLocaleString('en-US')} pitches`;
   assert.ok(readme.includes(total), `the README doesn’t give the season’s ${total}`);
+  // The visit's tally sets beside it the share of batters big-league pitchers struck out, from js/league.js.
+  const k = `${((100 * LEAGUE.so) / LEAGUE.pa).toFixed(1)}% big-league pitchers struck out`;
+  assert.ok(readme.includes(k), `the README doesn’t say the tally's ${k}`);
 });
 
 // The same checks turn down knobs that don't play like the league, as tools/calibrate.mjs does before writing any: a

@@ -85,6 +85,26 @@ async function save(path, buffer, colours = 256) {
   await page.evaluate(() => { const r = document.querySelector('#ab-flight').getBoundingClientRect(); scrollTo(0, scrollY + r.top - 12); });
   await page.waitForTimeout(300);
   await save(join(root, 'docs/phone-atbat.png'), await page.screenshot());
+
+  // Be the hitter: Step in against the league-average righty, a fastball taken and the next pitch swung at a little
+  // late and under it.
+  await page.goto(base + '#hit');
+  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => {
+    document.querySelector('#hit-game [data-v="step"]').click();
+    const list = document.getElementById('hit-pitcher');
+    list.value = 'average';
+    list.dispatchEvent(new Event('change'));
+  });
+  for (const swing of [null, { up: 6 / 12, early: -0.045 }]) {
+    await page.evaluate(() => document.getElementById('hit-pitch').click());
+    await page.waitForFunction(() => window.arsenal.hit.state.phase === 'late', null, { timeout: 15000 });
+    if (swing) await page.evaluate(({ up, early }) => { const p = window.arsenal.hit.state.pitch.plate; window.arsenal.hit.swing([p[0], p[1] + up], early); }, swing);
+    await page.waitForFunction(() => ['ready', 'over'].includes(window.arsenal.hit.state.phase), null, { timeout: 15000 });
+  }
+  await page.evaluate(() => { const r = document.querySelector('#hit-flight').getBoundingClientRect(); scrollTo(0, scrollY + r.top - 12); });
+  await page.waitForTimeout(1800);
+  await save(join(root, 'docs/phone-hit.png'), await page.screenshot());
   await page.context().close();
 }
 

@@ -227,5 +227,9 @@ export function setupHit({ dark = false } = {}) {
   }
 
   reset();
-  return { stage, state: H, setDark(d) { stage.set({ dark: d }); } };
+  return {
+    stage, state: H, setDark(d) { stage.set({ dark: d }); },
+    // For the screenshots: a swing at `at`, `early` seconds before the ball got there, once it's in.
+    swing(at, early) { if (H.phase === 'late' && !H.swing) { H.swing = { at, early }; settle(); } },
+  };
 }
