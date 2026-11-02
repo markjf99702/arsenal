@@ -172,15 +172,17 @@ for (let round = 1; round <= rounds; round++) {
 P = kept.P;
 console.log(`keeping round ${kept.round}, error ${kept.err.toFixed(3)}`);
 
-// Each real pitcher's pitches: their stuff, until hitters miss each as often as they missed his in real life.
+// Each real pitcher's pitches: their stuff, until hitters miss each as often as they missed his in real life; and his
+// stuff with two strikes (pitcherPutaway), until he strikes out as many as he did.
 function fitPitchers(steps) {
   for (let i = 0; i < steps; i++) {
-    for (const [key, rows] of Object.entries(measurePitchers(P, 1200, 11 + i))) {
+    for (const [key, { rows, k }] of Object.entries(measurePitchers(P, 1500, [11 + 2 * i, 12 + 2 * i]))) {
       const own = P.pitcherStuff[key] ||= {};
       for (const r of rows) {
         if (r.swings < 40 || r.real == null) continue;
         own[r.code] = clamp((own[r.code] ?? 1) * Math.exp(0.7 * (logit(r.real) - logit(Math.min(0.95, Math.max(0.02, r.sim))))), 0.3, 4);
       }
+      P.pitcherPutaway[key] = clamp((P.pitcherPutaway[key] ?? 1) * Math.exp(0.5 * (logit(k.real) - logit(clamp(k.sim, 0.02, 0.9)))), 0.5, 2.5);
     }
   }
 }
@@ -190,7 +192,7 @@ for (let i = 0; i < 3; i++) nudge(measure(P, PA * 4, seed + 1 + i));
 outcomes(measure(P, PA * 4, seed));
 console.log(`timing pull ${P.memory.toFixed(3)}, lean toward repeating ${P.repeat.lean.toFixed(3)} and ${P.repeat.weight.toFixed(3)}`);
 // Last, each real pitcher: his own knobs only, on top of the league's, so nothing after this moves them.
-fitPitchers(6);
+fitPitchers(8);
 
 // The checks the test holds the hitter to. Knobs that miss any aren't written.
 const failed = checks(P).filter(c => !c.ok);

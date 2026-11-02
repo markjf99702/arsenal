@@ -124,18 +124,24 @@ export function measure(params, pas = 6000, seed = 1) {
   };
 }
 
-// Each real pitcher's simulated miss rate per pitch, beside his real one. `seed` is one, or a list to pool.
+// Each real pitcher's simulated miss rate per pitch, beside his real one (rows), and his strikeouts per plate appearance
+// (k). `seed` is one, or a list to pool.
 export function measurePitchers(params, pas = 1500, seed = 1) {
   const out = {};
   for (const pitcher of PITCHERS.filter(p => p.key !== 'average')) {
     const t = {};
+    let n = 0, k = 0;
     for (const ab of atBats(pitcher, params, pas, seed)) {
+      n++; if (ab.result === 'K' || ab.result === 'KL') k++;
       for (const p of ab.pitches) {
         const c = t[p.code] ||= { swings: 0, whiffs: 0 };
         if (p.swing) { c.swings++; if (p.result === 'whiff') c.whiffs++; }
       }
     }
-    out[pitcher.key] = pitcher.pitches.map(e => ({ code: e.code, share: e.share, real: e.whiff, sim: t[e.code] ? t[e.code].whiffs / Math.max(1, t[e.code].swings) : null, swings: t[e.code]?.swings || 0 }));
+    out[pitcher.key] = {
+      rows: pitcher.pitches.map(e => ({ code: e.code, share: e.share, real: e.whiff, sim: t[e.code] ? t[e.code].whiffs / Math.max(1, t[e.code].swings) : null, swings: t[e.code]?.swings || 0 })),
+      k: { sim: k / n, real: pitcher.so / pitcher.pa, pa: pitcher.pa },
+    };
   }
   return out;
 }
@@ -180,7 +186,7 @@ export function checks(params, { lab, pitchers } = run(params)) {
     near('types', `${t} missed per swing`, v.whiff, TYPES[t].whiff, 0.05, pct);
     near('types', `${t} in the zone`, v.zone, TYPES[t].zone, 0.05, pct);
   }
-  for (const [key, rows] of Object.entries(pitchers)) for (const r of rows) {
+  for (const [key, { rows }] of Object.entries(pitchers)) for (const r of rows) {
     if (r.swings >= 60) near('pitchers', `${key}'s ${r.code} missed per swing`, r.sim, r.real, 0.09, v => `${Math.round(v * 100)}%`);
   }
   // Changing speeds still works: a changeup after a four-seamer fools him more than one after a changeup.

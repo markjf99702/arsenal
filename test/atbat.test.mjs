@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
-import { TARGET, run, checks, SEEDS, measure } from './lab.mjs';
+import { TARGET, run, checks, SEEDS, measure, measurePitchers } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
 import { rng } from '../js/rng.js';
@@ -446,6 +446,13 @@ test('what he has seen this at-bat moves what he looks for, and how hard he hits
   const off = sixth(PARAMS), on = sixth({ ...PARAMS, notice: { at: 0.6, next: 2, where: 0.6 } });
   assert.ok(off.curve < 0.35 && on.curve > 0.7, `looking for the curve after five: ${off.curve.toFixed(2)}, then ${on.curve.toFixed(2)}`);
   assert.ok(on.contact > off.contact + 0.3, `how hard he hit the sixth: ${off.contact.toFixed(2)}, then ${on.contact.toFixed(2)}`);
+});
+
+// A real pitcher's stuff with two strikes (js/atbat-params.js, pitcherPutaway) moves his strikeouts toward his own.
+test('a real pitcher’s stuff with two strikes moves his strikeouts', () => {
+  const k = params => measurePitchers(params, 1500, 12).miller.k.sim;
+  const base = k(PARAMS), more = k({ ...PARAMS, pitcherPutaway: { ...PARAMS.pitcherPutaway, miller: 2 } });
+  assert.ok(more > base + 0.04, `Miller's strikeouts ${base.toFixed(3)}, then ${more.toFixed(3)}`);
 });
 
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => holds('sequence'));

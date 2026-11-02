@@ -274,7 +274,8 @@ export function throwCall(ab, call) {
     // movement alone say (late break, a hidden release, spin he can't read). It comes from how often hitters
     // really miss it: each kind of pitch is calibrated to the league, and each real pitcher's pitches to his own.
     const reach = Math.max(0, -margin(plate[0], plate[1]));
-    const stuff = (P.stuff[call.code] ?? 1) * (P.pitcherStuff[ab.pitcher.key]?.[call.code] ?? 1);
+    // A real pitcher's stuff with two strikes (pitcherPutaway) brings his strikeouts to his own.
+    const stuff = (P.stuff[call.code] ?? 1) * (P.pitcherStuff[ab.pitcher.key]?.[call.code] ?? 1) * (before.strikes === 2 ? P.pitcherPutaway[ab.pitcher.key] ?? 1 : 1);
     out.stuff = stuff;
     // Even a fooled hitter gets a piece of it sometimes (the floor): hitters touch most chase pitches they swing at.
     // His approach by count: a full swing early in the count, shortened up to protect with two strikes.

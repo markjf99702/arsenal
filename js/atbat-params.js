@@ -264,6 +264,17 @@ export const PARAMS = {
    "ST": 0.4906
   }
  },
+ "pitcherPutaway": {
+  "skenes": 1,
+  "misiorowski": 1,
+  "gausman": 1,
+  "sanchez": 1,
+  "sale": 1,
+  "nola": 1,
+  "miller": 1,
+  "rogers": 1,
+  "waldron": 1
+ },
  "approach": {
   "0-0": 1.3794,
   "0-1": 1.3625,
