@@ -2615,6 +2615,21 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await arrived();
   let s = await showing();
   assert.deepEqual(s, { hash: '#four-seam.46ft.60mph', mph: '60.0', pace: '60.0 mph', like: 'Same time to the plate as an 80 mph pitch from 60 ft 6 in', rubber: 46, estimate: true, back: 'Back to 94.8', card: '94.8 mph' }, 'a four-seamer at 60 mph from 46 feet');
+  // On a phone the way back goes on a line under the slider, so the slider keeps its width, under the thumb, when the way
+  // back appears as it's first moved: at 390 and 320px.
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    const fit = await page.evaluate(() => {
+      const r = document.getElementById('pace'), back = document.getElementById('pace-back'), wide = () => Math.round(r.getBoundingClientRect().width);
+      const moved = wide();
+      back.hidden = true;
+      const still = wide();
+      back.hidden = false;
+      return { moved, still, under: back.getBoundingClientRect().top >= r.getBoundingClientRect().bottom };
+    });
+    assert.ok(fit.moved === fit.still && fit.under, `${width}px: the slider is ${fit.still}px wide, and ${fit.moved}px once the way back shows${fit.under ? '' : ' beside it'}`);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   // The changeup keeps the four-seamer's share of its own speed: 86.0 × 60 / 94.8.
   await page.evaluate(() => window.arsenal.pick('CH'));
   s = await showing();

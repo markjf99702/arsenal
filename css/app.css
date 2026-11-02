@@ -434,9 +434,12 @@ p { margin: 0; }
   /* 16px, as the link field is: an iPhone zooms the page into a form field set smaller than that when it's tapped,
      and doesn't zoom back out. The padding gives back what the bigger words take, so it stays as tall. */
   .pairpick select { width: 100%; min-width: 0; font-size: 16px; padding-block: 5px; }
-  /* A row of its own, the slider taking what's left; the way back to the pitch's own speed goes under it on a phone. */
-  .pacepick { flex-basis: 100%; }
+  /* A row of its own, the slider taking what's left; the way back to the pitch's own speed goes on a line under it, so
+     the slider keeps its width when the way back appears, as it's first moved, rather than shrinking under the thumb. */
+  .pacepick { flex-basis: 100%; row-gap: 0; }
   .pacepick input { flex: 1 1 100px; width: auto; min-width: 0; }
+  .pacepick::after { content: ''; flex-basis: 100%; order: 1; }
+  .pacepick .plain { order: 2; margin-top: 6px; }
   .readout .like { font-size: 13px; max-width: 12.5em; }
 }
 /* On the narrowest phones the card's big numbers are a size smaller, and smaller again where even that doesn't fit, so
