@@ -1,6 +1,6 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotName } from './atbat.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotName, linkFor, parseLink } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
 import { markKind } from './tracker.js';
 import { BY_CODE } from './pitches.js';
@@ -406,10 +406,8 @@ export function setupAtBat({ dark = false } = {}) {
   }
 
   // ---------------------------------------------------------------- links
-  // #ab.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat.
-  function code() {
-    return ['ab', S.pitcher.key, S.batter, S.seed.toString(36), ...S.calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
-  }
+  // #ab.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat (linkFor, js/atbat.js).
+  const code = () => linkFor(S);
   // The address follows the at-bat, so a reload replays the one being played and a phone's Share sends it. It's replaced
   // rather than added to, so Back still leaves the page. (A framed one-file copy may not be allowed to change its
   // address; that's fine.) Picking a pitch above takes the address and the tab's title back.
@@ -434,17 +432,27 @@ export function setupAtBat({ dark = false } = {}) {
     }
   }
   // A link that asks for what can't be done still opens, and says so above the call box: a pitcher who isn't here
-  // (the league-average righty pitches instead), or pitches left out after the at-bat ended or from one he can't throw.
+  // (the league-average righty pitches instead), or pitches left out after the at-bat ended, from one he can't throw,
+  // or from where the rest of the link can't be read. One cut off before its seed, or garbled, can't be replayed at
+  // all: a new at-bat opens in its place, and says why. Anything not starting "ab." isn't an at-bat link: false.
   function load(hash) {
-    const m = /^ab\.(\w+)\.([RL])\.([0-9a-z]+)((?:\.[A-Z]{2}\d{1,2})*)$/.exec(hash);
-    if (!m) return false;
-    S.pitcher = pitcherByKey(m[1]);
-    S.batter = m[2];
-    S.seed = parseInt(m[3], 36) >>> 0;
+    if (!/^ab\./i.test(hash)) return false;
+    const link = parseLink(hash);
+    if (!link) {
+      S.seed = newSeed();
+      fresh();
+      $('ab-notice').textContent = 'This at-bat link is cut off or garbled, so here’s a new at-bat.';
+      $('ab-live').textContent = '';
+      stamp();
+      return true;
+    }
+    S.pitcher = pitcherByKey(link.pitcherKey);
+    S.batter = link.batter;
+    S.seed = link.seed;
     fresh();
     const said = [];
-    if (S.pitcher.key !== m[1]) said.push(`There’s no pitcher called “${m[1]}” here, so this is the league-average righty.`);
-    const calls = m[4].split('.').filter(Boolean).map(t => ({ code: t.slice(0, 2), spot: SPOTS[Number(t.slice(2))] }));
+    if (S.pitcher.key !== link.pitcherKey) said.push(`There’s no pitcher called “${link.pitcherKey}” here, so this is the league-average righty.`);
+    const calls = link.calls;
     let i = 0;
     for (; i < calls.length; i++) {
       const c = calls[i];
@@ -461,6 +469,7 @@ export function setupAtBat({ dark = false } = {}) {
         : `The link’s pitch ${i + 1} is called to a spot that isn’t on the grid`;
       said.push(`${reason}, so ${left === 1 ? 'that pitch was' : `the link’s last ${left} pitches were`} left out.`);
     }
+    if (link.rest) said.push('The rest of the link couldn’t be read, so it was left out.');
     // First, what this is: a screen reader hears it rather than the result of the pitch before the one thrown again.
     const n = S.ab.pitches.length;
     if (n) said.unshift(`A shared at-bat: ${who()} to a ${S.batter === 'R' ? 'right' : 'left'}-handed batter, ${plural(n, 'pitch')}.`);

@@ -338,10 +338,12 @@ function address() {
 }
 // Reads a link like that. It's one only if it starts with a pitch, so #at-bat, an at-bat's link (#ab.…) or a word that
 // isn't a pitch gives null and leaves things as they are. A part it doesn't know is left out: #sweeper+nothing is the
-// sweeper alone. A plain #sweeper is a right-hander's, as it always was.
+// sweeper alone. A plain #sweeper is a right-hander's, as it always was. It's read the way an at-bat link is (parseLink,
+// js/atbat.js): in lower case, so #Sweeper is the sweeper too, and without a bracket or quote a message stuck on the end.
 function readLink(h) {
-  if (h.startsWith('ab.')) return null;
-  const [pitches, ...more] = h.split('.');
+  if (/^ab\./i.test(h)) return null;
+  try { h = decodeURIComponent(h); } catch {}
+  const [pitches, ...more] = h.toLowerCase().replace(/[^0-9a-z]+$/, '').split('.');
   const [first, second] = pitches.split('+');
   const pitch = BY_SLUG[first], pair = BY_SLUG[second];
   if (!pitch) return null;
@@ -354,11 +356,12 @@ function follow(link) {
   pick(link.pitch, { push: false });
 }
 
-// Pitch to a hitter. A link like #ab.skenes.R.k3x9a.FF6.SL23 replays one at-bat.
+// Pitch to a hitter. A link like #ab.skenes.R.k3x9a.FF6.SL23 replays one at-bat, and one starting #ab. that can't be
+// read opens a new at-bat that says so (load).
 const atBat = setupAtBat({ dark: isDark() });
 addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
-  if (h.startsWith('ab.')) { if (atBat.load(h)) $('at-bat').scrollIntoView(); return; }
+  if (atBat.load(h)) { $('at-bat').scrollIntoView(); return; }
   const link = readLink(h);
   if (link && (link.pitch !== state.pitch || link.pair !== state.pair || link.hand !== state.hand)) follow(link);
 });
@@ -375,7 +378,7 @@ caption();
 const opened = readLink(location.hash.slice(1));
 if (opened) follow(opened);
 else pick(PITCHES[0], { push: false });
-if (location.hash.startsWith('#ab.') && atBat.load(location.hash.slice(1))) $('at-bat').scrollIntoView();
+if (atBat.load(location.hash.slice(1))) $('at-bat').scrollIntoView();
 
 // Hooks for the screenshot and test scripts.
 window.arsenal = { state, stage, atBat, pick: code => pick(BY_CODE[code]), set: o => { Object.assign(state, o); throwNow(); } };

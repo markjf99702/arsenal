@@ -1,12 +1,13 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, whatIf, PITCHERS, SPOTS, spotById, spotName, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { measure, measurePitchers, TARGET } from './lab.mjs';
 import { PARAMS } from '../js/atbat-params.js';
 import { why, note, boxAt, calledLine, bounced, NAME, resultWord, ENDING } from '../js/atbat-words.js';
+import { rng } from '../js/rng.js';
 
 const RESULTS = new Set(['ball', 'called', 'whiff', 'foul', 'tip', 'inplay', 'hbp']);
 const ENDS = new Set(['K', 'KL', 'BB', 'HBP', 'out', '1B', '2B', '3B', 'HR']);
@@ -74,6 +75,17 @@ const PLAYED = [];
 {
   let seed = 1;
   for (const pitcher of PITCHERS) for (const batter of ['R', 'L']) for (let i = 0; i < 200; i++) PLAYED.push(autoAtBat({ pitcher, batter, seed: seed++ }));
+}
+// About 2,000 at-bats called at random, the way someone trying things out might call them: every pitcher to either
+// side, each pitch any of his, to any of the 25 spots.
+const RANDOM = [];
+{
+  const R = rng(77);
+  for (const pitcher of PITCHERS) for (const batter of ['R', 'L']) for (let i = 0; i < 100; i++) {
+    const ab = startAtBat({ pitcher, batter, seed: (R() * 2 ** 32) >>> 0 });
+    while (!ab.result) throwCall(ab, { code: pitcher.pitches[Math.floor(R() * pitcher.pitches.length)].code, spot: SPOTS[Math.floor(R() * SPOTS.length)] });
+    RANDOM.push(ab);
+  }
 }
 const words = ab => [['note', note(ab)], ...ab.pitches.map((p, i) => [`pitch ${p.n}`, why(p, ab.pitches[i - 1], ab.batter)])];
 const READS_BADLY = [
@@ -193,13 +205,54 @@ test('a pitch under half an inch off the zone was just off the edge, and ball fo
   for (const ab of PLAYED) if (ab.result === 'BB') assert.equal(/^Ball four caught the edge/.test(note(ab)), ab.pitches.at(-1).inZone, `seed ${ab.seed}: ${note(ab)}`);
 });
 
-// An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), played the way the page plays it.
+// An at-bat link (#ab.<pitcher>.<R|L>.<seed>.<pitch><spot>...), read by the page's own parseLink and played call by
+// call. (The page stops at a call it can't throw and says why; here that call throws, and fails the test.)
 function replay(link) {
-  const [, key, batter, seed, ...calls] = link.replace(/^#/, '').split('.');
-  const ab = startAtBat({ pitcher: pitcherByKey(key), batter, seed: parseInt(seed, 36) >>> 0 });
-  for (const c of calls) if (!ab.result) throwCall(ab, { code: c.slice(0, 2), spot: SPOTS[Number(c.slice(2))] });
+  const { pitcherKey, batter, seed, calls } = parseLink(link);
+  const ab = startAtBat({ pitcher: pitcherByKey(pitcherKey), batter, seed });
+  for (const c of calls) if (!ab.result) throwCall(ab, c);
   return ab;
 }
+
+// What a pitch was and what happened to it, all of it, to tell whether two at-bats went exactly alike.
+const played = p => [p.code, p.spot.id, p.result, p.play, ...p.plate, ...p.atDecide, p.early, p.sat.code, p.picked, p.swing, p.contact];
+test('an at-bat link replays the at-bat it was made from, pitch for pitch, and so does the link at every pitch of it', () => {
+  for (const ab of RANDOM) {
+    const calls = ab.pitches.map(p => ({ code: p.code, spot: p.spot }));
+    for (let k = 0; k <= calls.length; k++) {
+      const link = linkFor({ ...ab, calls: calls.slice(0, k) }), read = parseLink(`#${link}`);
+      assert.deepEqual([read.pitcherKey, read.batter, read.seed, read.rest], [ab.pitcher.key, ab.batter, ab.seed, ''], link);
+      assert.deepEqual(read.calls, calls.slice(0, k), link);
+      assert.deepEqual(replay(link).pitches.map(played), ab.pitches.slice(0, k).map(played), link);
+    }
+  }
+  // The seed's whole range.
+  for (const seed of [0, 2 ** 32 - 1]) assert.equal(parseLink(linkFor({ pitcher: AVERAGE, batter: 'R', seed, calls: [] })).seed, seed);
+});
+
+// A link pasted into a message can come back with a full stop, a bracket or a quote on the end (a closing quote as the
+// address has it, %E2%80%9D), or cut off anywhere. What can be read is read, and what can't is never a crash.
+test('a link with something stuck on the end reads the same, and one cut off reads as far as it goes', () => {
+  for (const ab of RANDOM.filter((_, i) => i % 4 === 0)) {
+    const calls = ab.pitches.map(p => ({ code: p.code, spot: p.spot })), link = linkFor({ ...ab, calls }), whole = parseLink(link);
+    for (const end of ['.', ')', ').', ',', '!', '%E2%80%9D', '%22', '%20']) assert.deepEqual(parseLink(link + end), whole, link + end);
+    // In lower case it's the same at-bat, but for the seed, which is read either way.
+    assert.deepEqual(parseLink(link.toLowerCase()), whole, link.toLowerCase());
+    for (let n = 0; n < link.length; n++) {
+      const cut = link.slice(0, n), read = parseLink(cut);
+      if (!read) continue;
+      // Every call but the last read is the link's own: the last can be cut short in its spot's number.
+      assert.ok(read.calls.length <= calls.length, cut);
+      assert.deepEqual(read.calls.slice(0, -1), calls.slice(0, Math.max(0, read.calls.length - 1)), cut);
+    }
+  }
+  assert.equal(parseLink('#ab.skenes.L'), null);
+  assert.equal(parseLink('#ab.skenes'), null);
+  assert.equal(parseLink('#sweeper'), null);
+  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { pitcherKey: 'skenes', batter: 'L', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
+  // A spot off the grid is read as no spot, for the page to say so.
+  assert.deepEqual(parseLink('#ab.average.R.9.FF6.SL40').calls, [{ code: 'FF', spot: SPOTS[6] }, { code: 'SL', spot: undefined }]);
+});
 
 test('the log says where a pitch crossed when it went to another box than the one called', () => {
   for (const ab of PLAYED) for (const p of ab.pitches) {

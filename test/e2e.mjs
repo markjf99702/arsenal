@@ -786,6 +786,12 @@ assert.match(await heading(), /^Forkball/i);
     ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.FF6.FF6.FF6', 'the league-average righty to a right-handed batter, 6 pitches', 'The link had 3 more pitches after the at-bat ended; they were left out.'],
     ['#ab.rogers.R.9.SI16.FF3.SI2', 'Tyler Rogers to a right-handed batter, 1 pitch', 'Tyler Rogers doesn’t throw a four-seamer, so the link’s last 2 pitches were left out.'],
     ['#ab.average.R.9.FF6.SL40', 'the league-average righty to a right-handed batter, 1 pitch', 'The link’s pitch 2 is called to a spot that isn’t on the grid, so that pitch was left out.'],
+    // A link from a message with a full stop or a bracket on the end, and one cut off partway through a pitch: what can
+    // be read is played. (Skenes's first pitch here is put in play.)
+    ['#ab.skenes.L.k3x9a.FF6.ST23.', 'Paul Skenes to a left-handed batter, 1 pitch', 'The link had one more pitch after the at-bat ended; it was left out.'],
+    ['#ab.skenes.L.k3x9a.FF6.ST23)', 'Paul Skenes to a left-handed batter, 1 pitch', 'The link had one more pitch after the at-bat ended; it was left out.'],
+    ['#ab.skenes.L.k3x9a.FF6.S', 'Paul Skenes to a left-handed batter, 1 pitch', 'The rest of the link couldn’t be read, so it was left out.'],
+    ['#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.C', 'the league-average righty to a right-handed batter, 5 pitches', 'The rest of the link couldn’t be read, so it was left out.'],
   ]) {
     await page.goto('about:blank');
     await page.goto(base + hash);
@@ -793,6 +799,34 @@ assert.match(await heading(), /^Forkball/i);
     assert.equal(await page.locator('#ab-notice').textContent(), `A shared at-bat: ${shared}. ${said}`, hash);
     assert.equal(await page.locator('#ab-notice').isVisible(), true, `${hash}: the notice is hidden`);
   }
+  // Where the at-bat is, and what it says over it, once the address changes. A link opened in a new tab or changed in
+  // this one goes to the at-bat, at the top of the screen (12px down, its scroll margin).
+  const opened = () => page.evaluate(() => ({ hash: location.hash, top: Math.round(document.getElementById('at-bat').getBoundingClientRect().top), notice: document.getElementById('ab-notice').textContent, n: window.arsenal.atBat.state.ab.pitches.length, pitcher: window.arsenal.atBat.state.pitcher.key }));
+  const change = hash => page.evaluate(h => new Promise(resolve => { addEventListener('hashchange', () => setTimeout(resolve, 50), { once: true }); location.hash = h; }), hash);
+  // With a full stop on the end, it's the README's strikeout, all of it, and the address drops the full stop.
+  await page.goto('about:blank');
+  await page.goto(base + '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22.');
+  await idle();
+  assert.deepEqual(await opened(), { hash: '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22', top: 12, notice: 'A shared at-bat: the league-average righty to a right-handed batter, 6 pitches.', n: 6, pitcher: 'average' }, 'a link with a full stop on the end');
+  // Cut off before its seed, there's nothing to replay: a new at-bat, which says why, and the address is its own.
+  await page.goto('about:blank');
+  await page.goto(base + '#ab.skenes');
+  await idle();
+  const garbled = 'This at-bat link is cut off or garbled, so here’s a new at-bat.';
+  let o = await opened();
+  assert.deepEqual({ ...o, hash: /^#ab\.average\.R\.[0-9a-z]+$/.test(o.hash) }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'average' }, 'a link cut off before its seed');
+  assert.equal(await page.locator('#ab-notice').isVisible(), true, 'the notice over a garbled link is hidden');
+  // The same in a tab already open, from the explorer at the top: changed to a link cut off partway, it replays what it
+  // can; changed to a garbled one, the pitcher and batter stay, against a new hitter.
+  await page.evaluate(() => scrollTo(0, 0));
+  await change('#ab.skenes.L.k3x9a.FF6.S');
+  await idle();
+  assert.deepEqual(await opened(), { hash: '#ab.skenes.L.k3x9a.FF6', top: 12, notice: 'A shared at-bat: Paul Skenes to a left-handed batter, 1 pitch. The rest of the link couldn’t be read, so it was left out.', n: 1, pitcher: 'skenes' }, 'the address changed to a link cut off partway');
+  await page.evaluate(() => scrollTo(0, 0));
+  await change('#ab.skenes.X.k3x9a.FF6');
+  await idle();
+  o = await opened();
+  assert.deepEqual({ ...o, hash: /^#ab\.skenes\.L\.[0-9a-z]+$/.test(o.hash) && o.hash !== '#ab.skenes.L.k3x9a' }, { hash: true, top: 12, notice: garbled, n: 0, pitcher: 'skenes' }, 'the address changed to a garbled link');
   await page.locator('#ab-pitcher').selectOption('sale');
   assert.equal(await page.locator('#ab-notice').isHidden(), true, 'the link’s notice is still there for a new at-bat');
   await page.goto('about:blank');
@@ -1263,7 +1297,12 @@ for (const [link, kind] of [
   assert.deepEqual(await showing(), { hash: '#slider+nothing.lefty', pitch: 'SL', pair: null, hand: 'L', list: '', pressed: 'L', lefty: true }, 'after changing the address to #slider+nothing.lefty');
 }
 
-// A link straight to a pitch opens on it.
+// A link straight to a pitch opens on it, in capitals too, or with a bracket or quote from a message on the end.
+for (const [hash, name] of [['#Sweeper', /^Sweeper/i], ['#sweeper)', /^Sweeper/i], ['#CHANGEUP%E2%80%9D', /^Changeup/i]]) {
+  await page.goto('about:blank');
+  await page.goto(base + hash);
+  assert.match(await heading(), name, hash);
+}
 await page.goto(base + '#knuckleball');
 assert.match(await heading(), /^Knuckleball/i);
 // The knuckleball's speed is its one regular thrower's, not dragged down by position players' lobs, so there's no
