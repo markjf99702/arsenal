@@ -698,7 +698,7 @@ assert.match(await heading(), /^Forkball/i);
     assert.deepEqual(groups, [{ role: 'radiogroup', radios: true, stops: ['true'] }, { role: 'radiogroup', radios: true, stops: ['true'] }], 'the pitches and the spots as groups of radio buttons');
     const chip = await page.locator('#ab-pitches .ab-chip').first().evaluate(b => ({ said: b.getAttribute('aria-label'), shown: b.querySelector('small').textContent }));
     const [, mph, share] = /^Four-seam, (\d+) mph, (\d+%) of his pitches$/.exec(chip.said) || [];
-    assert.equal(chip.shown, `${mph}\u00a0mph · ${share}`, `a pitch read as "${chip.said}" shows "${chip.shown}"`);
+    assert.equal(chip.shown, `${mph}\u00a0mph\u00a0· ${share}`, `a pitch read as "${chip.said}" shows "${chip.shown}"`);
     await page.locator('#ab-pitches .ab-chip').first().focus();
     let tabs = 0;
     for (; tabs < 30 && (await page.evaluate(() => document.activeElement.id)) !== 'ab-throw'; tabs++) await page.keyboard.press('Tab');
@@ -954,6 +954,24 @@ assert.match(await heading(), /^Forkball/i);
   assert.equal(await page.locator('#ab-count .sr').textContent(), '0 balls, 2 strikes');
 }
 
+// The at-bat's lines that a dot separates: no line starts with the dot (a no-break space before it keeps it on the line
+// before). Gives each line that does, for the message.
+const dotStarts = p => p.evaluate(() => {
+  const out = [], rect = (n, i) => { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1); return r.getClientRects()[0]; };
+  for (const el of document.querySelectorAll('#ab-log li, #ab-pitches .ab-chip, #ab-chart .sum, #ab-ro')) {
+    const chars = [], walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n; (n = walker.nextNode());) if (!n.parentElement.closest('.sr')) for (let i = 0; i < n.data.length; i++) chars.push([n, i]);
+    chars.forEach(([n, i], k) => {
+      if (n.data[i] !== '·') return;
+      let j = k - 1;
+      while (j >= 0 && /\s/.test(chars[j][0].data[chars[j][1]])) j--;
+      const before = j >= 0 && rect(...chars[j]), dot = rect(n, i);
+      if (before && dot && dot.top >= before.bottom - 2) out.push(el.innerText.replace(/\n/g, ' / '));
+    });
+  }
+  return out;
+});
+
 // Pitch to a hitter on a phone, tapped the way a thumb would. The readout over the picture says what each pitch did,
 // and a shared link shows the count and the pitches before the one it throws again.
 const STRIKEOUT = '#ab.average.R.1p.FF6.SL23.CH16.FF3.SL24.CU22'; // the README's: a strikeout swinging on a 2-2 curve
@@ -990,7 +1008,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await idle();
   assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
-  assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike · 94.8\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
+  assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike\u00a0· 94.8\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
 
   // Strike three thrown with the button low: the result card takes the controls' place, out from behind the picture.
   await ph.goto('about:blank');
@@ -1023,10 +1041,10 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.deepEqual(replay.count2, { said: '2 balls, 2 strikes', hidden: true }, `${at}, the count as a screen reader reads it`);
   assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 80.3 mph' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
-  assert.equal(replay.ro, 'Pitch 6 · 80.3\u00a0mph curveball', `${at}, while the link's last pitch flies`);
+  assert.equal(replay.ro, 'Pitch 6\u00a0· 80.3\u00a0mph curveball', `${at}, while the link's last pitch flies`);
   assert.deepEqual(replay.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the link's last pitch flies`);
   await idle();
-  assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()} · 6 pitches`);
+  assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()}\u00a0· 6 pitches`);
   // "mph" stays with its number (a no-break space) when a log line wraps on a phone.
   assert.equal((await ph.locator('#ab-log').textContent()).match(/\d\u00a0mph/g)?.length, 6, `${at}, the log's speeds can wrap before "mph"`);
   // Each pitch in the log starts with the count it was thrown in, as on a broadcast's pitch list, "on 0-1" to a screen
@@ -1055,6 +1073,12 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     await idle();
     assert.deepEqual(await ending(), want, `${at}, at the end of ${link}`);
   }
+  // A log line that wraps keeps each dot at the end of a line, never at the start of the next: here the strikeout's
+  // last line runs to three lines at 320px, and pitch 2's to two at 390px.
+  await ph.goto('about:blank');
+  await ph.goto(base + '#ab.average.R.1nwgaeb.SI6.CU24.SL22.FF2.CH16');
+  await idle();
+  assert.deepEqual(await dotStarts(ph), [], `${at}, a line in the log starts with its dot`);
   await ph.goto('about:blank');
   await ph.goto(base + STRIKEOUT);
   await idle();
@@ -1105,7 +1129,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
       hundreds: bars.filter(b => [...b.children].reduce((n, s) => n + parseFloat(s.style.flexGrow), 0) !== 100).length,
       // Its number printed in each piece with 8 or more, and only those.
       numbered: [...c.querySelectorAll('.sg')].filter(s => (s.textContent === '') !== (parseFloat(s.style.flexGrow) < 8) || (s.textContent && s.textContent !== s.style.flexGrow)).length,
-      sums: [...c.querySelectorAll('.sum')].map(s => s.textContent).filter(t => !/^\d+ strikeouts? · \d+ hits?$/.test(t)),
+      sums: [...c.querySelectorAll('.sum')].map(s => s.textContent).filter(t => !/^\d+ strikeouts?\u00a0· \d+ hits?$/.test(t)),
       labels: bars.map(b => b.getAttribute('aria-label')).filter(l => !/^(\d+ (swinging strikes?|called strikes?|fouls?|outs? in play|balls?|hit batters?|hits?)(, |$))+$/.test(l) || /\b0 /.test(l)),
     };
   });
@@ -1137,6 +1161,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await ph.emulateMedia({ colorScheme: 'light' });
   // Every word on the page, the at-bat's included, uses a typographic apostrophe.
   assert.deepEqual(await ph.evaluate(() => document.body.innerText.match(/\w'\w/g)), null, `${at}, straight apostrophes on the page`);
+  assert.deepEqual(await dotStarts(ph), [], `${at}, a line in the hundred throws, the log or the readout starts with its dot`);
 
   // The next hitter starts clean: no readout left from the last one.
   // Scrolled so the end card is behind the picture, it's still there to tap; the pitch controls come back below it.
@@ -1146,6 +1171,7 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.ok(back.controls >= back.picture && back.controls < height - 100, `${at}, after Next hitter the pitch controls start at ${Math.round(back.controls)}px, under a picture ending at ${Math.round(back.picture)}px`);
   assert.equal(await ph.locator('#ab-ro').textContent(), '', `${at}, the readout still describes the last at-bat`);
   assert.equal(await ph.locator('#ab-count .ct').textContent(), '0-0');
+  assert.deepEqual(await dotStarts(ph), [], `${at}, a pitch's speed and share start a line with their dot`);
   // So does a new pitcher picked while a pitch is in the air.
   await ph.locator('#ab-throw').tap();
   await ph.locator('#ab-pitcher').selectOption('skenes');

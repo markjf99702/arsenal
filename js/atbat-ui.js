@@ -192,11 +192,12 @@ export function setupAtBat({ dark = false } = {}) {
     if (calling) $('ab-result').focus({ preventScroll: true });
   }
 
-  // A no-break space keeps "mph" with its number wherever a line wraps, as on the card.
+  // A no-break space keeps "mph" with its number wherever a line wraps, as on the card, and one before each separating
+  // dot keeps it at the end of a line rather than the start of the next.
   const speed = p => `${p.mph.toFixed(1)}\u00a0mph`;
   const pitchLine = p => `${speed(p)} ${NAME[p.code]}`;
   // The line under the count: what's coming or what happened, then the pitch. On a phone they're two short lines.
-  const readout = (what = '', pitch = '') => { $('ab-ro').innerHTML = what && `${what}<span class="sep"> · </span><span>${pitch}</span>`; };
+  const readout = (what = '', pitch = '') => { $('ab-ro').innerHTML = what && `${what}<span class="sep">\u00a0· </span><span>${pitch}</span>`; };
 
   function marks(ps) {
     return ps.map(p => ({ x: p.plate[0], z: p.plate[1], n: p.n, kind: markKind(p.result) }));
@@ -219,7 +220,7 @@ export function setupAtBat({ dark = false } = {}) {
   function buildCall() {
     $('ab-pitches').innerHTML = S.pitcher.pitches.map(p => {
       const mph = p.mph.toFixed(0), share = pct(p.share);
-      return `<button type="button" role="radio" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-checked="false" tabindex="-1" aria-label="${SHORT(p.code)}, ${mph} mph, ${share} of his pitches"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${mph}\u00a0mph · ${share}</small></button>`;
+      return `<button type="button" role="radio" class="ab-chip fam-${BY_CODE[p.code]?.fam || 'odd'}" data-code="${p.code}" aria-checked="false" tabindex="-1" aria-label="${SHORT(p.code)}, ${mph} mph, ${share} of his pitches"><span class="key" aria-hidden="true"></span>${SHORT(p.code)} <small>${mph}\u00a0mph\u00a0· ${share}</small></button>`;
     }).join('');
     // The grid as the catcher sees it: a right-handed hitter on the left, so his inside is on the left.
     const cols = S.batter === 'R' ? [-2, -1, 0, 1, 2] : [2, 1, 0, -1, -2];
@@ -272,9 +273,9 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-last').replaceChildren();
     }
     // Each pitch: the count it was thrown in, as on a broadcast's pitch list ("on 0-1" to a screen reader), what happened,
-    // the spot called and, if it went to another box, where it crossed. The count keeps its dot, so a line that wraps
-    // doesn't start with one.
-    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><span class="at"><span class="sr">on </span>${p.before.balls}-${p.before.strikes}</span>\u00a0· <b>${resultWord(p)}</b> · ${SHORT(p.code)}, ${calledLine(p, ab.batter)} · ${speed(p)}</span></li>`).join('');
+    // the spot called and, if it went to another box, where it crossed. Each part keeps the dot after it (a no-break
+    // space before it), so a line that wraps doesn't start with one.
+    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><span class="at"><span class="sr">on </span>${p.before.balls}-${p.before.strikes}</span>\u00a0· <b>${resultWord(p)}</b>\u00a0· ${SHORT(p.code)}, ${calledLine(p, ab.batter)}\u00a0· ${speed(p)}</span></li>`).join('');
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     // Once it's over, the hundred throws look back at the last pitch.
@@ -337,7 +338,7 @@ export function setupAtBat({ dark = false } = {}) {
       : strikes === 2 ? [counted(v.whiff + v.called, 'strikeout', 'strikeouts')]
       : balls === 3 ? [counted(v.ball, 'walk', 'walks'), ...hbp]
       : [counted(v.whiff + v.called + v.foul, 'strike', 'strikes'), counted(v.ball, 'ball', 'balls'), ...hbp];
-    return [...parts, counted(v.hit, 'hit', 'hits')].join(' · ');
+    return [...parts, counted(v.hit, 'hit', 'hits')].join('\u00a0· ');
   }
   let charts = 0, charting = 0;
   // A chart still being thrown stops when the at-bat moves on, and goes rather than stay half full.
