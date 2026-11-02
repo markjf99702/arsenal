@@ -2009,6 +2009,16 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.locator('#ab-mode [data-v="ab"]').click();
   w = await where();
   assert.deepEqual([w.batters, w.sr, /^#ab\./.test(w.hash)], [0, '0 balls, 0 strikes', true], 'one at-bat again');
+  // Cut off two pitches into a later batter's at-bat, the way to watch it from the first pitch is his at-bat's, and says so.
+  const counts = done.list.map(t => Number(/(\d+) pitch/.exec(t)[1])), b = counts.findIndex((c, i) => i > 0 && c >= 3);
+  if (b > 0) {
+    const parts = done.hash.split('.'), upTo = counts.slice(0, b).reduce((a, c) => a + c, 0) + 2;
+    await page.goto('about:blank');
+    await page.goto(base + parts.slice(0, 5 + upTo).join('.'));
+    await idle();
+    assert.deepEqual(await page.evaluate(() => { const { state } = window.arsenal.atBat, l = document.getElementById('ab-watch-link'); return [state.inning.abs.length, state.ab.pitches.length, l.checkVisibility(), l.textContent]; }),
+      [b + 1, 2, true, 'Watch this at-bat from its first pitch'], 'a link to an inning cut off partway through a later batter');
+  }
 }
 
 // Challenge the call, as 2026's ABS challenge allows: after a ball called on a pitch close to the zone, next to Throw

@@ -794,8 +794,9 @@ export function setupAtBat({ dark = false } = {}) {
     else if (n) said.unshift(`Replayed from the link: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
     // Under it, a way to watch the link's at-bat from its first pitch, when there's more than the one it throws again.
-    // Once it's over the end card has its own.
+    // Once it's over the end card has its own. In an inning it's the batter who's up whose at-bat is watched again.
     $('ab-watch-link').hidden = n < 2 || !!S.ab.result;
+    $('ab-watch-link').textContent = S.inning?.abs.length > 1 ? 'Watch this at-bat from its first pitch' : 'Watch it from the first pitch';
     // Made against another version of the hitter, the calls are thrown to today's, who may not play them the same way.
     $('ab-version').textContent = all && link.version !== VERSION
       ? `Pitched against ${link.version < VERSION ? 'an earlier' : 'a newer'} version of the hitter, so the same calls may play out differently.` : '';
