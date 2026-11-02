@@ -547,6 +547,40 @@ await page.locator('#hand [data-v="R"]').click();
   }
 }
 
+// Round the chosen pitch's dot, a faint oval over the middle 80% of pitchers by rise and by arm-side movement, its edges
+// where the numbers put them on the chart's own scale; another pitch's shows while its dot has focus, and its tooltip and
+// a screen reader give the range. The knuckleball, one pitcher's, has none.
+{
+  const ovals = await page.evaluate(() => {
+    window.arsenal.pick('FF');
+    const chart = document.querySelector('#move .move-chart'), ticks = [...chart.querySelectorAll('.grid line')];
+    // The chart's scale, from its grid lines: arm side every 6 inches from -18, rise every 6 from -12.
+    const xs = ticks.filter(l => l.getAttribute('x1') === l.getAttribute('x2')).map(l => Number(l.getAttribute('x1')));
+    const ys = ticks.filter(l => l.getAttribute('y1') === l.getAttribute('y2')).map(l => Number(l.getAttribute('y1')));
+    const x = v => xs[0] + ((v + 18) / 6) * (xs[1] - xs[0]), y = v => ys[0] + ((v + 12) / 6) * (ys[1] - ys[0]);
+    const shown = () => chart.querySelectorAll('.spread.on, .spread.near').length;
+    const ff = chart.querySelector('.spread.fam-fast.on'), at = n => Number(ff.getAttribute(n));
+    const sinker = [...chart.querySelectorAll('.dot')].find(g => g.getAttribute('aria-label').startsWith('Sinker'));
+    const before = shown();
+    sinker.dispatchEvent(new FocusEvent('focus'));
+    const during = shown(), tip = document.getElementById('tip').textContent, said = sinker.getAttribute('aria-description');
+    sinker.dispatchEvent(new FocusEvent('blur'));
+    const kn = [...chart.querySelectorAll('.dot')].find(g => g.getAttribute('aria-label').startsWith('Knuckleball'));
+    return {
+      count: chart.querySelectorAll('.spread').length, before, during, after: shown(), tip, said, kn: kn.hasAttribute('aria-description'),
+      edges: [at('cx') - at('rx') - x(3.5), at('cx') + at('rx') - x(11.9), at('cy') - at('ry') - y(18.4), at('cy') + at('ry') - y(12.5)].map(d => Math.round(d * 10) / 10),
+    };
+  });
+  assert.deepEqual(ovals.edges, [0, 0, 0, 0], 'the four-seamer\'s oval is not over 3.5 to 11.9 in arm side and 12.5 to 18.4 in up');
+  assert.deepEqual([ovals.count, ovals.before, ovals.during, ovals.after], [12, 1, 2, 1], 'the ovals shown: the chosen pitch\'s, and one with focus');
+  assert.match(ovals.tip, /Most pitchers 2\.4 to 12\.5 in up, 12\.4 to 17\.5 in arm side/);
+  assert.equal(ovals.said, 'Most pitchers 2.4 to 12.5 inches up, 12.4 to 17.5 inches to the arm side');
+  assert.equal(ovals.kn, false, 'the knuckleball, one pitcher\'s, has a range');
+  // And only those are seen, once they've faded in.
+  await page.waitForTimeout(400);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#move .spread')].map(o => `${o.classList.contains('on')}:${getComputedStyle(o).opacity}`).filter(t => t !== 'false:0')), ['true:1'], 'the ovals seen');
+}
+
 // The spin text counts the turns the thrown ball makes: its spin rate times its time to the plate.
 {
   const turns = await page.evaluate(() => [...document.querySelectorAll('.chip')].map(b => b.dataset.code).map(code => {

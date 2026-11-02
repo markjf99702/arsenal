@@ -3,6 +3,7 @@
 // more per type for where it crosses the plate (aim), and one to Savant's spin-direction leaderboard (spin).
 //   node tools/statcast.mjs --aim    fetches only the aim points, and adds them to js/numbers.js as it stands
 //   node tools/statcast.mjs --spin   the same for the spin directions
+//   node tools/statcast.mjs --spread the same for the spread of movement across pitchers
 import { writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 // The parts that can be fetched on their own and added to js/numbers.js as it stands, with what the file's first line
 // calls them.
-const PARTS = { aim: 'the aim points', spin: 'the spin directions' };
+const PARTS = { aim: 'the aim points', spin: 'the spin directions', spread: 'the movement spreads' };
 const only = Object.keys(PARTS).filter(k => process.argv.includes(`--${k}`));
 const season = Number(process.argv.slice(2).find(a => /^\d{4}$/.test(a))) || 2026;
 const TYPES = ['FF', 'SI', 'FC', 'SL', 'ST', 'CU', 'KC', 'SV', 'CS', 'CH', 'FS', 'FO', 'SC', 'KN', 'EP'];
@@ -104,10 +105,27 @@ function spinOf(board, weights) {
   return round(a < 0 ? a + 360 : a);
 }
 
+// How far pitchers differ in how a pitch moves: the middle 80% of them by their average rise and by their average arm-side
+// movement, each counted by how many he threw, in inches ([10th, 90th percentile]). None when the average is one
+// pitcher's. From the type's rows (`every`), so nothing more is fetched.
+function fetchSpread(code, every) {
+  const rows = regulars(every, code);
+  if (rows.length < 2) return null;
+  const middle = (key, k) => {
+    const vs = rows.filter(r => num(r[key]) != null).map(r => [num(r[key]) * k, Number(r.pitches)]).sort((a, b) => a[0] - b[0]);
+    const m = vs.reduce((s, [, n]) => s + n, 0);
+    const pct = p => { let c = 0; for (const [v, n] of vs) { c += n; if (c >= p * m) return round(v); } return round(vs.at(-1)[0]); };
+    return [pct(0.1), pct(0.9)];
+  };
+  return { rise: middle('api_break_z_induced', 12), arm: middle('api_break_x_arm', 12) };
+}
+
 // js/numbers.js, with the date its numbers were fetched, and the day any part was fetched later (`later`, by PARTS).
 const today = new Date().toISOString().slice(0, 10);
 async function write(numbers, total, made, later = {}) {
-  const when = Object.entries(later).filter(([, day]) => day !== made).map(([k, day]) => `, ${PARTS[k]} on ${day}`).join('');
+  const days = {};
+  for (const [k, day] of Object.entries(later)) if (day !== made) (days[day] ||= []).push(PARTS[k]);
+  const when = Object.entries(days).map(([day, parts]) => `, ${parts.join(' and ')} on ${day}`).join('');
   const js = `// Made by tools/statcast.mjs from Baseball Savant's Statcast search on ${made}${when}.
 // Every pitch of the ${season} regular season, by pitch type. Averages weight each pitcher by how many they threw.
 // The knuckleball's count only pitchers who threw at least ${REGULARS_ONLY.KN} of them, which leaves out position players' lobs.
@@ -118,6 +136,7 @@ async function write(numbers, total, made, later = {}) {
 // the catcher's view (x to his right, z up). The explorer throws each pitch there.
 // spin: which way its spin itself would push it, as Hawk-Eye measured its spin axis, in degrees clockwise from 12 o'clock
 // seen from behind a right-hander, or null where it wasn't measured (the eephus) or doesn't matter (the knuckleball).
+// spread: the middle 80% of pitchers by rise and by arm-side movement, [low, high] in inches, or null for one pitcher.
 export const SEASON = ${season};
 export const TOTAL = ${total};
 export const NUMBERS = ${JSON.stringify(numbers, null, 2).replace(/"(\w+)":/g, '$1:').replace(/\[\s+(-?[\d.]+),\s+(-?[\d.]+)\s+\]/g, '[$1, $2]')};
@@ -125,7 +144,7 @@ export const NUMBERS = ${JSON.stringify(numbers, null, 2).replace(/"(\w+)":/g, '
   await writeFile(join(root, 'js/numbers.js'), js);
 }
 
-const FETCH = { aim: fetchAim, spin: fetchSpin };
+const FETCH = { aim: fetchAim, spin: fetchSpin, spread: fetchSpread };
 if (only.length) {
   // The numbers as they stand, each with these parts added; the rest isn't fetched again.
   const file = join(root, 'js/numbers.js');
@@ -133,7 +152,9 @@ if (only.length) {
   if (SEASON !== season) throw new Error(`js/numbers.js is ${SEASON}'s; run node tools/statcast.mjs --${only[0]} ${SEASON}`);
   const head = (await readFile(file, 'utf8')).split('\n')[0];
   const made = head.match(/Statcast search on (\d{4}-\d\d-\d\d)/)[1];
-  const later = Object.fromEntries(Object.entries(PARTS).map(([k, words]) => [k, head.match(new RegExp(`${words} on (\\d{4}-\\d\\d-\\d\\d)`))?.[1]]).filter(([, day]) => day));
+  // Each part's day: the date after it, or after the parts listed with it ("the spin directions and the movement spreads
+  // on 2026-11-02").
+  const later = Object.fromEntries(Object.entries(PARTS).map(([k, words]) => [k, head.match(new RegExp(`${words}(?: and [a-z ]+?)* on (\\d{4}-\\d\\d-\\d\\d)`))?.[1]]).filter(([, day]) => day));
   const numbers = {};
   for (const [code, n] of Object.entries(NUMBERS)) {
     const every = await fetchType(code);
@@ -206,6 +227,7 @@ for (const code of TYPES) {
     hardest: hardest && { name: name(hardest), mph: num(hardest.velocity), pitches: Number(hardest.pitches) },
     aim: await fetchAim(code, every),
     spin: await fetchSpin(code, every),
+    spread: fetchSpread(code, every),
   };
 }
 

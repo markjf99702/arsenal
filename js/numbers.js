@@ -1,4 +1,4 @@
-// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20, the aim points on 2026-11-01, the spin directions on 2026-11-02.
+// Made by tools/statcast.mjs from Baseball Savant's Statcast search on 2026-10-20, the aim points on 2026-11-01, the spin directions and the movement spreads on 2026-11-02.
 // Every pitch of the 2026 regular season, by pitch type. Averages weight each pitcher by how many they threw.
 // The knuckleball's count only pitchers who threw at least 100 of them, which leaves out position players' lobs.
 // rise and arm are spin-induced movement in inches (arm < 0 means toward the glove side); drop includes gravity.
@@ -8,6 +8,7 @@
 // the catcher's view (x to his right, z up). The explorer throws each pitch there.
 // spin: which way its spin itself would push it, as Hawk-Eye measured its spin axis, in degrees clockwise from 12 o'clock
 // seen from behind a right-hander, or null where it wasn't measured (the eephus) or doesn't matter (the knuckleball).
+// spread: the middle 80% of pitchers by rise and by arm-side movement, [low, high] in inches, or null for one pitcher.
 export const SEASON = 2026;
 export const TOTAL = 713311;
 export const NUMBERS = {
@@ -36,7 +37,11 @@ export const NUMBERS = {
       pitches: 555
     },
     aim: [0.17, 2.77],
-    spin: 34.2
+    spin: 34.2,
+    spread: {
+      rise: [12.5, 18.4],
+      arm: [3.5, 11.9]
+    }
   },
   SI: {
     pitches: 118806,
@@ -63,7 +68,11 @@ export const NUMBERS = {
       pitches: 241
     },
     aim: [-0.17, 2.33],
-    spin: 43
+    spin: 43,
+    spread: {
+      rise: [2.4, 12.5],
+      arm: [12.4, 17.5]
+    }
   },
   FC: {
     pitches: 57245,
@@ -90,7 +99,11 @@ export const NUMBERS = {
       pitches: 275
     },
     aim: [0.47, 2.29],
-    spin: 5.4
+    spin: 5.4,
+    spread: {
+      rise: [4, 11.4],
+      arm: [-4.6, 0.5]
+    }
   },
   SL: {
     pitches: 93541,
@@ -117,7 +130,11 @@ export const NUMBERS = {
       pitches: 286
     },
     aim: [0.53, 1.83],
-    spin: 297.3
+    spin: 297.3,
+    spread: {
+      rise: [-3.4, 5.4],
+      arm: [-7.3, -0.8]
+    }
   },
   ST: {
     pitches: 59341,
@@ -144,7 +161,11 @@ export const NUMBERS = {
       pitches: 533
     },
     aim: [0.66, 1.92],
-    spin: 246
+    spin: 246,
+    spread: {
+      rise: [-3.2, 5.5],
+      arm: [-16.9, -9]
+    }
   },
   CU: {
     pitches: 45416,
@@ -171,7 +192,11 @@ export const NUMBERS = {
       pitches: 283
     },
     aim: [0.37, 1.72],
-    spin: 222.2
+    spin: 222.2,
+    spread: {
+      rise: [-15.6, -4.7],
+      arm: [-14.5, -3.6]
+    }
   },
   KC: {
     pitches: 11687,
@@ -198,7 +223,11 @@ export const NUMBERS = {
       pitches: 309
     },
     aim: [0.51, 1.58],
-    spin: 217.9
+    spin: 217.9,
+    spread: {
+      rise: [-14.9, -4.3],
+      arm: [-13, -1.8]
+    }
   },
   SV: {
     pitches: 3218,
@@ -225,7 +254,11 @@ export const NUMBERS = {
       pitches: 261
     },
     aim: [0.63, 1.62],
-    spin: 229.8
+    spin: 229.8,
+    spread: {
+      rise: [-9.5, -2],
+      arm: [-17.8, -6.4]
+    }
   },
   CS: {
     pitches: 136,
@@ -248,7 +281,11 @@ export const NUMBERS = {
     },
     hardest: null,
     aim: [0.52, 2.13],
-    spin: null
+    spin: null,
+    spread: {
+      rise: [-12.2, -2.4],
+      arm: [-15.4, -7.6]
+    }
   },
   CH: {
     pitches: 79833,
@@ -275,7 +312,11 @@ export const NUMBERS = {
       pitches: 414
     },
     aim: [-0.07, 1.67],
-    spin: 60.4
+    spin: 60.4,
+    spread: {
+      rise: [-0.7, 9.1],
+      arm: [10.8, 16.9]
+    }
   },
   FS: {
     pitches: 23077,
@@ -302,7 +343,11 @@ export const NUMBERS = {
       pitches: 445
     },
     aim: [0, 1.56],
-    spin: 56
+    spin: 56,
+    spread: {
+      rise: [0.2, 6.7],
+      arm: [7.1, 14.6]
+    }
   },
   FO: {
     pitches: 456,
@@ -329,7 +374,11 @@ export const NUMBERS = {
       pitches: 302
     },
     aim: [-0.12, 1.5],
-    spin: 86.6
+    spin: 86.6,
+    spread: {
+      rise: [-2.6, 0.7],
+      arm: [3.1, 11.2]
+    }
   },
   KN: {
     pitches: 310,
@@ -356,7 +405,8 @@ export const NUMBERS = {
       pitches: 208
     },
     aim: [0.22, 2.11],
-    spin: null
+    spin: null,
+    spread: null
   },
   EP: {
     pitches: 1076,
@@ -379,6 +429,10 @@ export const NUMBERS = {
     },
     hardest: null,
     aim: [0.1, 2.99],
-    spin: null
+    spin: null,
+    spread: {
+      rise: [14.4, 21.7],
+      arm: [-3.4, 4.1]
+    }
   }
 };

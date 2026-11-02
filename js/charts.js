@@ -64,6 +64,18 @@ function drawMovement(host, W, { onPick, tooltip }) {
   el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'start', transform: `translate(14 ${y0 - 8}) rotate(-90)` }, axes).textContent = 'Holds up →';
   el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'end', transform: `translate(14 ${y0 + 8}) rotate(-90)` }, axes).textContent = '← Drops';
 
+  // Behind the dots, how far pitchers differ: a faint oval round each dot over the middle 80% of pitchers by rise and by
+  // arm-side movement (spread, from tools/statcast.mjs). The chosen pitch's always shows; another's while its dot is
+  // under the pointer or has focus.
+  const clip = el('clipPath', { id: 'move-plot' }, svg);
+  el('rect', { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b }, clip);
+  const spreads = el('g', { class: 'spreads', 'aria-hidden': 'true', 'clip-path': 'url(#move-plot)' }, svg);
+  const ovals = {};
+  for (const p of PITCHES) {
+    const sp = p.n.spread;
+    if (!sp) continue;
+    ovals[p.code] = el('ellipse', { class: `spread fam-${p.fam}`, cx: (x(sp.arm[0]) + x(sp.arm[1])) / 2, cy: (y(sp.rise[0]) + y(sp.rise[1])) / 2, rx: Math.abs(x(sp.arm[1]) - x(sp.arm[0])) / 2, ry: Math.abs(y(sp.rise[1]) - y(sp.rise[0])) / 2 }, spreads);
+  }
   const dots = el('g', {}, svg);
   const items = [...PITCHES].sort((a, b) => b.n.share - a.n.share);
   const nodes = {};
@@ -75,7 +87,14 @@ function drawMovement(host, W, { onPick, tooltip }) {
     const rise = fixed(Math.abs(p.n.rise)), arm = fixed(Math.abs(p.n.arm));
     const up = p.n.rise >= 0 ? 'up' : 'down', side = p.n.arm >= 0 ? 'arm' : 'glove';
     const inches = s => `${s} inches`; // "1.0 inches", like any number with a decimal place
-    const g = el('g', { class: `dot fam-${p.fam}`, tabindex: '0', role: 'button', 'aria-label': `${p.name}: ${inches(rise)} ${up}, ${inches(arm)} to the ${side} side` }, dots);
+    // The middle 80% of pitchers, in words: "most pitchers 12.5 to 18.4 in up, 3.5 to 11.9 in arm side", the smaller
+    // number first, and a range that crosses zero through it ("2.6 in down to 0.7 in up").
+    const sp = p.n.spread;
+    const span = ([lo, hi], unit, neg, pos) => (lo < 0 && hi > 0 ? `${fixed(-lo)} ${unit} ${neg} to ${fixed(hi)} ${unit} ${pos}`
+      : lo < 0 ? `${fixed(-hi)} to ${fixed(-lo)} ${unit} ${neg}` : `${fixed(lo)} to ${fixed(hi)} ${unit} ${pos}`);
+    const most = sp && `most pitchers ${span(sp.rise, 'in', 'down', 'up')}, ${span(sp.arm, 'in', 'glove side', 'arm side')}`;
+    const said = sp && `Most pitchers ${span(sp.rise, 'inches', 'down', 'up')}, ${span(sp.arm, 'inches', 'to the glove side', 'to the arm side')}`;
+    const g = el('g', { class: `dot fam-${p.fam}`, tabindex: '0', role: 'button', 'aria-label': `${p.name}: ${inches(rise)} ${up}, ${inches(arm)} to the ${side} side`, ...(said ? { 'aria-description': said } : {}) }, dots);
     const cx = x(p.n.arm), cy = y(p.n.rise);
     el('circle', { cx, cy, r: r + 9, class: 'hit' }, g);
     el('circle', { cx, cy, r: r + 4, class: 'sel' }, g);
@@ -84,11 +103,12 @@ function drawMovement(host, W, { onPick, tooltip }) {
     label.textContent = p.short;
     taken.push({ x: cx - r - 2, y: cy - r - 2, w: 2 * r + 4, h: 2 * r + 4 });
     placed.push({ p, label, cx, cy, r });
-    const show = () => tooltip.show(g, `<b>${p.name}</b><br>${rise} in ${up}, ${arm} in ${side} side<br>${mphText(p.n.mph)} mph · ${shareText(p.n.share)}% of pitches`);
+    const show = () => { ovals[p.code]?.classList.add('near'); tooltip.show(g, `<b>${p.name}</b><br>${rise} in ${up}, ${arm} in ${side} side${most ? `<br>${most[0].toUpperCase()}${most.slice(1)}` : ''}<br>${mphText(p.n.mph)} mph · ${shareText(p.n.share)}% of pitches`); };
+    const away = () => ovals[p.code]?.classList.remove('near');
     g.addEventListener('pointerenter', show);
     g.addEventListener('focus', show);
-    g.addEventListener('pointerleave', () => tooltip.leave());
-    g.addEventListener('blur', () => tooltip.hide());
+    g.addEventListener('pointerleave', () => { away(); tooltip.leave(); });
+    g.addEventListener('blur', () => { away(); tooltip.hide(); });
     // Picking scrolls up to the pitch, and a tap leaves the dot focused, so hide the tooltip rather than leave it behind.
     const pickIt = () => { tooltip.hide(); onPick(p); };
     g.addEventListener('click', pickIt);
@@ -117,7 +137,10 @@ function drawMovement(host, W, { onPick, tooltip }) {
     label.setAttribute('y', box.y + h - 3);
   }
   return {
-    select(code) { for (const [k, g] of Object.entries(nodes)) g.classList.toggle('on', k === code); },
+    select(code) {
+      for (const [k, g] of Object.entries(nodes)) g.classList.toggle('on', k === code);
+      for (const [k, o] of Object.entries(ovals)) o.classList.toggle('on', k === code);
+    },
   };
 }
 
