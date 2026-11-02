@@ -35,7 +35,8 @@ export function makeSound() {
           const data = noise.getChannelData(0);
           for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
         }
-        if (ctx.state === 'suspended') ctx.resume();
+        // Asleep since Sound was turned off, or (on an iPhone) interrupted by a call or another app's sound.
+        if (ctx.state !== 'running') ctx.resume().catch(() => {});
         return true;
       } catch {
         ctx = null;
