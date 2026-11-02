@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
-import { Stage } from '../js/stage.js';
+import { Stage, PREV } from '../js/stage.js';
 import { tilt } from '../js/spin.js';
 import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE, MITT, FIGURE, KNEE, LETTERS, figure, onPicture, drawBatter } from '../js/tracker.js';
 import { SPOTS, spotXZ } from '../js/atbat.js';
@@ -95,19 +95,22 @@ test('the at-bat view marks a pitch that crosses at the ground and shows the hig
 // A stand-in for a canvas's 2D context that records what's filled or stroked: each circle (where, how big), or a line,
 // in what colour and how wide. Anything else it's asked to do, it does nothing.
 function recorder() {
-  const drawn = [], nothing = { addColorStop() {}, width: 0 };
+  const drawn = [], nothing = { addColorStop() {}, width: 0 }, saved = [];
   let path = [];
   const ctx = new Proxy({}, {
     get(t, k) {
       if (k in t) return t[k];
       if (k === 'beginPath') return () => { path = []; };
+      // How solid it's drawn, kept and given back as a canvas does.
+      if (k === 'save') return () => saved.push(t.globalAlpha);
+      if (k === 'restore') return () => { t.globalAlpha = saved.pop(); };
       if (k === 'arc') return (x, y, r) => path.push({ x, y, r });
       // A square with rounded corners, by its middle and half its width (r, as for a circle).
       if (k === 'roundRect') return (x, y, w, h) => path.push({ x: x + w / 2, y: y + h / 2, r: w / 2, square: true });
       if (k === 'fillText') return (text, x, y) => drawn.push({ op: 'text', text, x, y, color: t.fillStyle });
       if (k === 'fill' || k === 'stroke' || k === 'strokeRect') {
         return () => {
-          const was = { op: k, color: k === 'fill' ? t.fillStyle : t.strokeStyle, width: t.lineWidth };
+          const was = { op: k, color: k === 'fill' ? t.fillStyle : t.strokeStyle, width: t.lineWidth, alpha: t.globalAlpha ?? 1 };
           if (k === 'strokeRect' || !path.some(a => a.r)) drawn.push(was);
           else for (const a of path) drawn.push({ ...a, ...was });
         };
@@ -322,6 +325,34 @@ test('where the hitter swung is a small ring joined to the mark, with its word o
   assert.ok(drawn.slice(0, mark).some(d => d.op === 'stroke' && d.color === '#fff' && !d.r), 'no line from the ring to the mark');
   const near = draw({ at: [0.21, 1.41], to: [0.2, 1.4], tag: '' }).drawn;
   assert.equal(near.filter(d => d.op === 'stroke' && d.color === '#fff' && d.r && d.r < rr).length, 0, 'a ring on the mark');
+});
+
+// The pitch before, its whole path and its decision ring, faint under the new one's: drawn first, and only so solid.
+test('the last pitch\'s path and decision ring are drawn faint, under the new pitch', () => {
+  const { ctx, drawn } = recorder();
+  Object.assign(globalThis, {
+    window: { devicePixelRatio: 2 }, matchMedia: () => ({ matches: false }), ResizeObserver: class { observe() {} },
+    requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
+    document: { createElement: () => ({ getContext: () => recorder().ctx }) },
+  });
+  const stage = new Stage({ width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => ({ width: 358, height: 235, left: 0, top: 0 }) });
+  const before = throwPitch(BY_CODE.SL, { rng: () => 0.5 }), now = throwPitch(BY_CODE.FF, { rng: () => 0.5 });
+  stage.set({ view: 'catcher', ghost: false, color: '#ffd23f', atBat: true, batter: 'R', prev: before });
+  stage.show([now]);
+  stage.clock = 0.5;
+  drawn.length = 0;
+  stage.draw();
+  const yellow = drawn.filter(d => d.op === 'stroke' && d.color === '#ffd23f');
+  const faint = yellow.filter(d => d.alpha === PREV), solid = yellow.filter(d => d.alpha === 1);
+  assert.ok(PREV >= 0.3 && PREV <= 0.6, `the last pitch is drawn ${PREV} solid`);
+  assert.ok(faint.length >= 2 && drawn.indexOf(faint.at(-1)) < drawn.indexOf(solid[0]), 'the last pitch isn\'t under the new one');
+  const cam = stage.camera(), at = cam.project(before.pos(before.T - 0.175));
+  assert.ok(faint.some(d => d.r && Math.hypot(d.x - at.x, d.y - at.y) < 1e-9), 'the last pitch\'s decision ring');
+  // Its whole path, though the new one has only just left the hand.
+  assert.ok(faint.some(d => !d.r), 'the last pitch\'s path');
+  drawn.length = 0;
+  stage.set({ prev: null });
+  assert.equal(drawn.filter(d => d.alpha === PREV).length, 0, 'a last pitch with none set');
 });
 
 test('a knuckleball never goes the same way twice', () => {

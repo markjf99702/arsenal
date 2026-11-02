@@ -9,6 +9,7 @@ import { drawBatter, drawMarks, drawTarget, drawMiss, drawSwing, atBatCamera, gr
 const WINDUP = 0.45; // seconds (real time) the ball waits at the release point
 const HOLD = 1.6;
 const HALO = 'rgba(20, 30, 45, .65)';
+export const PREV = 0.45; // how solid the last pitch's path is under the new one's, in an at-bat
 
 export class Stage {
   constructor(canvas, { onState = () => {}, onArrive = () => {} } = {}) {
@@ -167,6 +168,7 @@ export class Stage {
 
     const t = this.gameTime();
     const lw = lineWidth(W, cam.dpr);
+    this.drawPrev(ctx, cam, lw);
     const colorsFor = i => (i === 0 ? this.opts.color || '#ffd166' : this.opts.pairColor || '#ffffff');
     // On the light palette's pale sky the yellow, the pale blue and the white would all but vanish, so each path, its
     // dots and its decision ring get a thin dark halo, about 2 CSS pixels wider. The dark palette needs none.
@@ -247,6 +249,23 @@ export class Stage {
       drawBall(ctx, p.x, p.y, r, spun(M0, axisView, angle));
     }
     this.drawMarks(ctx, cam);
+  }
+
+  // In an at-bat, the pitch before the one shown, its whole path and its decision ring, faint under the new one's
+  // (`prev`, a flight), so two pitches out of the same tunnel are seen to look alike until the decision point, then split.
+  drawPrev(ctx, cam, lw) {
+    const f = this.opts.prev;
+    if (cam.kind !== 'catcher' || !f) return;
+    const color = this.opts.color || '#ffd166', halo = this.opts.dark ? null : HALO, hw = 2 * cam.dpr;
+    ctx.save();
+    ctx.globalAlpha = PREV;
+    drawPath(ctx, cam, f, f.T, color, { width: lw, halo, haloWidth: lw + hw });
+    const p = cam.project(f.pos(f.T - DECIDE)), r = Math.max(cam.ballR(p.depth) * 1.9, lw * 4.5);
+    ctx.setLineDash([lw * 2, lw * 2]);
+    if (halo) { ctx.strokeStyle = halo; ctx.lineWidth = lw + hw; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
   }
 
   // The catcher's target in an at-bat, where the pitch is called, under the pitch's path; and once a pitch that missed it

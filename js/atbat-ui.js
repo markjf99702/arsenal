@@ -310,7 +310,12 @@ export function setupAtBat({ dark = false } = {}) {
     let swing = null;
     if (!p && last?.swing) swing = { at: [last.plate[0] - last.miss[0], last.plate[1] - last.miss[1]], to: last.plate, tag: last.result === 'whiff' ? timing(last) : '' };
     else if (!p && last?.result === 'called' && last.inZone && thoughtMiss(last)) swing = { at: last.judged, to: last.plate, tag: 'his read' };
-    stage.set({ target: spotXZ(p ? p.spot : S.spot, S.batter), miss: missed ? last.plate : null, swing });
+    // And the pitch before, faint under it, so two out of the same tunnel are seen to split only after the decision point.
+    const prev = S.ab.pitches.at(-2) || null;
+    stage.set({ target: spotXZ(p ? p.spot : S.spot, S.batter), miss: missed ? last.plate : null, swing, prev: prev?.path || null });
+    // The key to what's drawn faint and dashed, once there's a pitch: the last pitch's path, and the decision ring.
+    const key = (prev ? '<span><i class="ln prev"></i>Last pitch</span>' : '') + (last ? '<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>' : '');
+    if ($('ab-legend').innerHTML !== key) $('ab-legend').innerHTML = key;
   }
 
   function drawState() {

@@ -1486,8 +1486,8 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
 }
 
 // The count and what happened, over the at-bat's picture's top-left corner, never cover a pitch thrown to a spot off
-// the plate: there the high ones, inside to a righty and away to a lefty, cross. Nor does the radar board in its
-// top-right corner, where the high ones on the other side cross. On the narrowest phones, a phone, one held sideways
+// the plate: there the high ones, inside to a righty and away to a lefty, cross. Nor do the radar board and the key
+// under it in its top-right corner, where the high ones on the other side cross. On the narrowest phones, a phone, one held sideways
 // and a tablet held sideways, with the longest lines there are: Aaron Nola's knuckle curve, while it flies, once it's
 // in, and the strikeout swinging it ends in. Every spot's mark off the plate, at its full size, is clear of both boxes.
 for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [1024, 768]]) {
@@ -1499,7 +1499,7 @@ for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [
     const { markRadius } = await import(new URL('js/tracker.js', location.href));
     const { stage, state } = window.arsenal.atBat, cam = stage.camera(), dpr = cam.dpr, r = markRadius(cam) / dpr;
     const c = document.getElementById('ab-flight').getBoundingClientRect();
-    const boxes = ['.bat-stage .readout', '#ab-board'].map(sel => { const b = document.querySelector(sel).getBoundingClientRect(); return { left: b.left - c.left, right: b.right - c.left, top: b.top - c.top, bottom: b.bottom - c.top }; });
+    const boxes = ['.bat-stage .readout', '.bat-stage .corner'].map(sel => { const b = document.querySelector(sel).getBoundingClientRect(); return { left: b.left - c.left, right: b.right - c.left, top: b.top - c.top, bottom: b.bottom - c.top }; });
     const under = boxes.map(box => SPOTS.filter(s => !s.zone).filter(s => {
       const [sx, sz] = spotXZ(s, state.batter), p = cam.project([sx, 17 / 12, sz]), x = p.x / dpr, y = p.y / dpr;
       return x + r > box.left && x - r < box.right && y + r > box.top && y - r < box.bottom;
@@ -1755,6 +1755,31 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   s = await swung();
   assert.deepEqual(s.swing, { at: s.judged, to: s.plate, tag: 'his read' }, 'where he thought a strike he took would cross');
   assert.match(await page.locator('#ab-last p:last-child').textContent(), /He thought it would miss/, 'the words for a strike he took');
+}
+
+// The pitch before, faint under the new one from the moment it's thrown and still once it's in, and the key to it and
+// the decision ring under the radar board: "Decision point" once there's a pitch ("Decide" on a phone), "Last pitch"
+// once there's one before it.
+{
+  const tunnel = () => page.evaluate(() => {
+    const { stage, state } = window.arsenal.atBat, ps = state.ab.pitches;
+    return { busy: state.busy, n: ps.length, prev: stage.opts.prev === (ps.at(-2)?.path ?? null), set: !!stage.opts.prev, key: document.getElementById('ab-legend').innerText.split('\n') };
+  });
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.FF6.*/, ''));
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  assert.deepEqual(await tunnel(), { busy: false, n: 0, prev: true, set: false, key: [''] }, 'before the first pitch');
+  await page.evaluate(() => window.arsenal.atBat.throw('FF', '1m1'));
+  assert.deepEqual(await tunnel(), { busy: true, n: 1, prev: true, set: false, key: ['Decide'] }, 'while the first pitch flies');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  await page.evaluate(() => window.arsenal.atBat.throw('SL', 'm12'));
+  assert.deepEqual(await tunnel(), { busy: true, n: 2, prev: true, set: true, key: ['Last pitch', 'Decide'] }, 'while the second pitch flies');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  assert.deepEqual(await tunnel(), { busy: false, n: 2, prev: true, set: true, key: ['Last pitch', 'Decide'] }, 'once the second pitch is in');
+  // A new batter starts clean.
+  await page.locator('#ab-batter [data-v="L"]').click();
+  assert.deepEqual(await tunnel(), { busy: false, n: 0, prev: true, set: false, key: [''] }, 'after a new batter');
+  await page.locator('#ab-batter [data-v="R"]').click();
 }
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
