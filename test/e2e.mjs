@@ -1967,7 +1967,7 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   assert.equal(await page.locator('#ab-live').textContent(), 'New inning: the league-average righty to right-handed batters.');
   let w = await where();
   assert.deepEqual([w.batters, w.sr], [1, '0 balls, 0 strikes, 0 outs'], 'a new inning');
-  for (let guard = 0; guard < 20 && !(w.over && w.outs === 3); guard++) {
+  for (let guard = 0; guard < 120 && !(w.over && w.outs === 3); guard++) {
     if (w.over) {
       assert.deepEqual([w.next, w.line, w.result !== 'Inning over'], ['Next batter', `${said[w.outs]} after ${w.batters} batter${w.batters === 1 ? '' : 's'}.`, true], `the end card after batter ${w.batters}`);
       await page.locator('#ab-next').click();
