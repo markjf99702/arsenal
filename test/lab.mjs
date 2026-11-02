@@ -2,7 +2,7 @@
 // Statcast measures the league. Used by tools/calibrate.mjs and test/atbat.test.mjs, which hold the hitter to the same
 // checks (checks, below): the test fails on knobs that miss them, and the calibrator won't write them.
 import { LEAGUE, COUNTS, TYPES, ZONES } from '../js/league.js';
-import { autoAtBat, LEAGUE_ARM, PITCHERS, ZONE, inZone } from '../js/atbat.js';
+import { autoAtBat, startAtBat, throwCall, spotById, AVERAGE, LEAGUE_ARM, PITCHERS, ZONE, inZone } from '../js/atbat.js';
 
 const L = LEAGUE;
 const outOfZone = L.pitches - L.zone.pitches;
@@ -43,10 +43,34 @@ for (const [zn, v] of Object.entries(ZONES)) {
 }
 for (const g of Object.values(GROUPS)) Object.assign(g, { whiff: g.whiffs / g.swings, wobacon: g.w / g.bip });
 
+// How much likelier a miss is right after a pitch 6 mph apart than right after the same pitch: the log of the
+// Mantel-Haenszel odds ratio over strata of { same: [swings, whiffs], apart: [swings, whiffs] }, as tools/league.mjs
+// works out 2026's.
+export function oddsAfter(strata) {
+  let num = 0, den = 0, apart = 0, same = 0;
+  for (const { same: [n0, w0], apart: [n1, w1] } of Object.values(strata)) {
+    if (!n0 || !n1) continue;
+    num += (w1 * (n0 - w0)) / (n0 + n1); den += (w0 * (n1 - w1)) / (n0 + n1);
+    apart += n1; same += n0;
+  }
+  return { lor: Math.log(num / den), apart, same };
+}
+
 export function measure(params, pas = 6000, seed = 1) {
   const c = { pa: 0, pitches: 0, k: 0, bb: 0, hbp: 0, swing: 0, whiff: 0, zone: 0, zoneSwing: 0, zoneWhiff: 0, chaseSwing: 0, chaseWhiff: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0, contact: 0, foul: 0, bip: 0, hits: 0, hr: 0, ab: 0 };
-  const counts = {}, types = {}, groups = {}, contactScores = [];
+  const counts = {}, types = {}, groups = {}, after = {}, contactScores = [];
   for (const ab of atBats(LEAGUE_ARM, params, pas, seed)) {
+    // Each swing beside the pitch before it: the same kind, or one at least 6 mph faster or slower, compared within the
+    // same kind of pitch, count and height, as tools/league.mjs compares 2026's (LEAGUE.after).
+    ab.pitches.forEach((p, i) => {
+      const q = ab.pitches[i - 1];
+      if (!p.swing || !q) return;
+      const rel = q.code === p.code ? 'same' : Math.abs(q.mph - p.mph) >= 6 ? 'apart' : null;
+      if (!rel) return;
+      const where = p.inZone ? 'in' : p.plate[1] > (ZONE.top + ZONE.bottom) / 2 ? 'high' : 'low';
+      const g = ((after[`${p.code}|${p.before.balls}-${p.before.strikes}|${where}`] ||= { same: [0, 0], apart: [0, 0] }))[rel];
+      g[0]++; if (p.result === 'whiff') g[1]++;
+    });
     c.pa++;
     if (ab.result === 'K' || ab.result === 'KL') c.k++;
     if (ab.result === 'BB') c.bb++;
@@ -94,6 +118,7 @@ export function measure(params, pas = 6000, seed = 1) {
       pitches: v.pitches, swings: v.swings, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings,
       zonePitches: v.zone, zoneSwing: v.zoneSwings / v.zone, chaseSwing: (v.swings - v.zoneSwings) / (v.pitches - v.zone),
     }])),
+    after: oddsAfter(after),
     groups: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, { pitches: v.pitches, swings: v.swings, bip: v.bip, whiff: v.whiffs / v.swings, wobacon: v.w / v.bip }])),
     contactScores,
   };
@@ -113,6 +138,24 @@ export function measurePitchers(params, pas = 1500, seed = 1) {
     out[pitcher.key] = pitcher.pitches.map(e => ({ code: e.code, share: e.share, real: e.whiff, sim: t[e.code] ? t[e.code].whiffs / Math.max(1, t[e.code].swings) : null, swings: t[e.code]?.swings || 0 }));
   }
   return out;
+}
+
+// Changing speeds: the league-average righty's changeup down in the zone at 0-1, right after a four-seamer down the
+// middle and right after a changeup there, `throws` times each. Misses per swing at the changeup, after each.
+export function speedChange(params, throws = 600) {
+  const after = prevCode => {
+    let swings = 0, whiffs = 0;
+    for (let i = 0; i < throws; i++) {
+      const ab = startAtBat({ pitcher: AVERAGE, seed: 900 + i, params });
+      throwCall(ab, { code: prevCode, spot: spotById('00') });
+      if (ab.result) continue;
+      ab.balls = 0; ab.strikes = 1;
+      const r = throwCall(ab, { code: 'CH', spot: spotById('m10') });
+      if (r.swing) { swings++; if (r.result === 'whiff') whiffs++; }
+    }
+    return whiffs / swings;
+  };
+  return { afterFastball: after('FF'), afterChangeup: after('CH') };
 }
 
 // What the hitter is held to, on three seeds pooled, so knobs that only pass on the seed they were tuned on don't pass:
@@ -140,5 +183,8 @@ export function checks(params, { lab, pitchers } = run(params)) {
   for (const [key, rows] of Object.entries(pitchers)) for (const r of rows) {
     if (r.swings >= 60) near('pitchers', `${key}'s ${r.code} missed per swing`, r.sim, r.real, 0.09, v => `${Math.round(v * 100)}%`);
   }
+  // Changing speeds still works: a changeup after a four-seamer fools him more than one after a changeup.
+  const sc = speedChange(params);
+  out.push({ group: 'sequence', what: 'changing speeds', ok: sc.afterFastball > sc.afterChangeup + 0.03, said: `a changeup after a four-seamer missed on ${pct(sc.afterFastball)} of swings, after a changeup ${pct(sc.afterChangeup)} (3 points less, at least)` });
   return out;
 }

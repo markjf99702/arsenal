@@ -111,6 +111,10 @@ function nudge(m) {
     if (v.pitches * v.swing * (1 - v.whiff) > 150) P.fairBy[c] = clamp(P.fairBy[c] * ((1 - COUNTS[c].foul) / Math.max(0.05, 1 - v.foul)) ** 0.8, 0.3, 2);
   }
   P.hbp.at = clamp(P.hbp.at + 0.08 * Math.log(Math.max(0.001, m.hbp) / TARGET.hbp), 1.2, 2.6);
+  // His timing pulled toward the last pitch's speed (memory) and his lean toward expecting the last pitch again (repeat):
+  // both shrink or grow together until a pitch right after one 6 mph apart is missed as much more or less often than one
+  // right after the same pitch as in 2026 (LEAGUE.after, the log of the odds ratio).
+  if (m.after.apart > 500 && m.after.same > 500) timing(Math.exp(0.5 * (LEAGUE.after.lor - m.after.lor)));
   // Where it crossed: how much more he misses on the corners than over the middle, and how much harder he hits one
   // over the middle than one off the plate, each until it's 2026's (the level of both is the other knobs').
   const g = m.groups;
@@ -121,6 +125,12 @@ function nudge(m) {
   if (g.middle?.bip > 300 && g.out?.bip > 300) {
     P.quality.middle = clamp(P.quality.middle * ((g.middle.wobacon / g.out.wobacon) / (GROUPS.middle.wobacon / GROUPS.out.wobacon)) ** 0.5, 0.5, 6);
   }
+}
+
+// The timing pull and the lean toward repeating, scaled together by f; under a hundredth, nothing.
+function timing(f) {
+  const to = (v, hi) => { const x = clamp(v * f, 0, hi); return x < 0.01 ? 0 : x; };
+  P.memory = to(P.memory, 0.6); P.repeat.lean = to(P.repeat.lean, 2); P.repeat.weight = to(P.repeat.weight, 1);
 }
 
 // Balls in play: thresholds on the contact score at the quantiles that give the league's home runs, extra-base hits
@@ -178,6 +188,7 @@ for (let i = 0; i < 3; i++) nudge(measure(P, PA, seed));
 // A last, finer pass on more at-bats, so rare counts like 3-0 have enough pitches to aim at.
 for (let i = 0; i < 3; i++) nudge(measure(P, PA * 4, seed + 1 + i));
 outcomes(measure(P, PA * 4, seed));
+console.log(`timing pull ${P.memory.toFixed(3)}, lean toward repeating ${P.repeat.lean.toFixed(3)} and ${P.repeat.weight.toFixed(3)}`);
 // Last, each real pitcher: his own knobs only, on top of the league's, so nothing after this moves them.
 fitPitchers(6);
 

@@ -448,21 +448,15 @@ test('what he has seen this at-bat moves what he looks for, and how hard he hits
   assert.ok(on.contact > off.contact + 0.3, `how hard he hit the sixth: ${off.contact.toFixed(2)}, then ${on.contact.toFixed(2)}`);
 });
 
-test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
-  const after = prevCode => {
-    let swings = 0, whiffs = 0;
-    for (let i = 0; i < 600; i++) {
-      const ab = startAtBat({ pitcher: AVERAGE, seed: 900 + i });
-      throwCall(ab, { code: prevCode, spot: spotById('00') });
-      if (ab.result) continue;
-      ab.balls = 0; ab.strikes = 1;
-      const r = throwCall(ab, { code: 'CH', spot: spotById('m10') });
-      if (r.swing) { swings++; if (r.result === 'whiff') whiffs++; }
-    }
-    return whiffs / swings;
-  };
-  const afterFastball = after('FF'), afterChangeup = after('CH');
-  assert.ok(afterFastball > afterChangeup + 0.03, `after a fastball ${afterFastball.toFixed(3)}, after a changeup ${afterChangeup.toFixed(3)}`);
+test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => holds('sequence'));
+
+// The lab measures what 2026's pitch-by-pitch numbers measure (js/league.js, LEAGUE.after): how much likelier a miss is
+// right after a pitch 6 mph faster or slower than right after the same pitch. Pulling his timing toward the last pitch's
+// speed (memory) makes it likelier.
+test('the lab measures how much a change of speed fools him on the next pitch', () => {
+  const lor = memory => measure({ ...PARAMS, memory }, 3000, 11).after.lor;
+  const none = lor(0), pulled = lor(0.4);
+  assert.ok(pulled > none + 0.15, `log odds ratio with no pull ${none.toFixed(3)}, with a pull of 0.4 ${pulled.toFixed(3)}`);
 });
 
 test('a hundred of each from here: every pitch in the arsenal, every outcome counted', () => {
