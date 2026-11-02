@@ -11,6 +11,8 @@
   &nbsp;
   <img src="docs/phone-card.png" alt="The slider: 86.3 mph, 2,434 rpm, drops 2 feet 11 inches; a drawing of the grip with the fingers off centre along a seam, and the ball spinning with a clock showing a 9:45 tilt" width="250">
   &nbsp;
+  <img src="docs/phone-chart.png" alt="The whole arsenal on one movement chart, how far spin moves each pitch up or down and to the arm or glove side: the four-seamer holds up 15.6 inches, the sinker runs 15.1 inches to the arm side, the sweeper 13.6 to the glove side, and the curve and the knuckle curve drop about 10; under it the table starts with the four-seamer, 30.7% of pitches, 94.8 mph, 22 misses per 100 swings" width="250">
+  &nbsp;
   <img src="docs/phone-atbat.png" alt="Pitching to a hitter: six pitches marked where they crossed the plate, red for strikes and green for balls; the readout says K on a 2-2 pitch, a strikeout swinging on a curveball in the dirt, and the scout's note says it was 6 mph slower than the slider before it" width="250">
 </p>
 
@@ -43,7 +45,7 @@ His knobs are tuned by `tools/calibrate.mjs` against the 2026 league, gathered b
 It's a static site: plain HTML, CSS and JavaScript modules, with no build step.
 
 ```sh
-npx serve .                   # or any static file server, then open the printed address
+npm start                     # serves it at http://localhost:8080 (any static file server will do)
 npm install                   # esbuild and upng-js, for the one-file copy in npm test and the tools below
 npm test                      # the flight and at-bat models against the numbers, then the real page and the one-file copy in Chromium (needs Playwright)
 node tools/screenshots.mjs    # redraws docs/*.png and og.png
