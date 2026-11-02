@@ -59,7 +59,7 @@ It's a static site: plain HTML, CSS and JavaScript modules, with no build step.
 npm start                     # serves it at http://localhost:8080 (any static file server will do)
 npm install                   # esbuild and upng-js, for the one-file copy in npm test and the tools below
 npm test                      # the flight and at-bat models against the numbers, then the real page and the one-file copy in Chromium (needs Playwright)
-node tools/screenshots.mjs    # redraws docs/*.png and og.png
+node tools/screenshots.mjs    # redraws docs/*.png and og.png, the link preview: a throw, its grip and the README's strikeout on a strike zone
 node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
 node tools/statcast.mjs       # refreshes js/numbers.js from Baseball Savant
 node tools/league.mjs         # refreshes js/league.js, the at-bat's targets and the real pitchers' arsenals (about ten minutes; --cache=DIR keeps the downloads)

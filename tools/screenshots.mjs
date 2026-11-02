@@ -7,6 +7,9 @@ import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startAtBat, throwLinked, parseLink, pitcherByKey, ZONE } from '../js/atbat.js';
+import { markKind } from '../js/tracker.js';
+import { ENDING } from '../js/atbat-words.js';
 
 const require = createRequire(import.meta.url);
 let pw;
@@ -108,8 +111,37 @@ async function save(path, buffer, colours = 256) {
   await page.context().close();
 }
 
-// Link preview, 1200 x 630: the name and one line on the left, a real throw on the right. The line is the page's own
-// og:description, so the picture and the words a message shows under it say the same.
+// Link preview, 1200 x 630: the name and one line on the left, a real throw on the right, and beside it a small strike
+// zone with the README's strikeout marked on it pitch by pitch, as Pitch to a hitter marks an at-bat. The line is the
+// page's own og:description, so the picture and the words a message shows under it say the same.
+const README_K = '#ab.v3.average.R.2gbo.FF6.SL23.CH16.FF3.SL24.CU22';
+// The at-bat, replayed by the model from its link the way the page replays one, drawn in the catcher's view: the zone in
+// thirds, home plate under it, and each pitch where it crossed, numbered, a red disc for a strike, a green ring for a
+// ball and a blue square for a ball in play (js/tracker.js's colours).
+function tracker() {
+  const link = parseLink(README_K), ab = startAtBat({ pitcher: pitcherByKey(link.pitcherKey), batter: link.batter, seed: link.seed });
+  for (const c of link.calls) throwLinked(ab, c);
+  const W = 220, H = 200, s = 46, cx = W / 2, top = 12, high = 3.7; // s: pixels a foot; high: feet above the ground at the top
+  const X = x => cx + x * s, Z = z => top + (high - z) * s;
+  const half = ZONE.half, lo = ZONE.bottom, hi = ZONE.top;
+  const third = (a, b, i) => a + ((b - a) * i) / 3;
+  const lines = [1, 2].map(i => `<line x1="${X(third(-half, half, i))}" y1="${Z(hi)}" x2="${X(third(-half, half, i))}" y2="${Z(lo)}"/><line x1="${X(-half)}" y1="${Z(third(lo, hi, i))}" x2="${X(half)}" y2="${Z(third(lo, hi, i))}"/>`).join('');
+  const COLOR = { ball: '#23804b', strike: '#c23b33', play: '#2f66b8' }, r = 12;
+  const marks = ab.pitches.map(p => {
+    const k = markKind(p.result), x = X(p.plate[0]), y = Math.min(Z(p.plate[1]), Z(0) - r - 4);
+    const shape = k === 'play' ? `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" rx="3" fill="${COLOR[k]}" stroke="#fff" stroke-width="2.5"/>`
+      : k === 'ball' ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="#fff" stroke-width="2.5"/><circle cx="${x}" cy="${y}" r="${r - 3.5}" fill="none" stroke="${COLOR[k]}" stroke-width="3"/>`
+      : `<circle cx="${x}" cy="${y}" r="${r}" fill="${COLOR[k]}" stroke="#fff" stroke-width="2.5"/>`;
+    return `${shape}<text x="${x}" y="${y + 6}" fill="${k === 'ball' ? COLOR[k] : '#fff'}">${p.n}</text>`;
+  }).join('');
+  // Home plate on the ground, 17 inches wide, seen from just above it.
+  const plate = `<path d="M${X(-17 / 24)} ${Z(0)} h${(17 / 12) * s} l-12 8 h${-(17 / 12) * s + 24} z" fill="#fff" stroke="#c9bfae"/>`;
+  const last = ab.pitches.at(-1);
+  return {
+    svg: `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect x="${X(-half)}" y="${Z(hi)}" width="${2 * half * s}" height="${(hi - lo) * s}" fill="#efe7d6" stroke="#1b2230" stroke-width="2.5"/><g stroke="#1b2230" stroke-opacity=".35" stroke-width="1.2">${lines}</g>${plate}${marks}</svg>`,
+    said: `${ENDING[ab.result]} on a ${last.before.balls}-${last.before.strikes}`,
+  };
+}
 {
   const line = (await readFile(join(root, 'index.html'), 'utf8')).match(/<meta property="og:description" content="([^"]*)"/)?.[1];
   if (!line) throw new Error('index.html has no og:description for the link preview');
@@ -123,6 +155,7 @@ async function save(path, buffer, colours = 256) {
   await page.context().close();
 
   const font = async f => `data:font/woff2;base64,${(await readFile(join(root, 'fonts', f))).toString('base64')}`;
+  const zone = tracker();
   const card = await open({ width: 1200, height: 630 }, 1);
   await card.setContent(`<!doctype html><html><head><style>
     @font-face { font-family: BC; src: url(${await font('barlow-condensed-700.woff2')}); font-weight: 700; }
@@ -137,7 +170,12 @@ async function save(path, buffer, colours = 256) {
     .stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .grip { position: absolute; right: 520px; bottom: 30px; width: 230px; height: 230px; border-radius: 50%; background: #f6f1e6; box-shadow: 0 6px 24px rgba(60,40,20,.2); overflow: hidden; }
     .grip img { width: 100%; height: 100%; display: block; }
-    .tags { position: absolute; right: 48px; bottom: 52px; display: flex; gap: 10px; font: 700 22px BC; letter-spacing: .05em; text-transform: uppercase; color: #1b2230; }
+    .tags { position: absolute; right: 296px; bottom: 50px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font: 700 22px BC; letter-spacing: .05em; text-transform: uppercase; color: #1b2230; }
+    .zone { position: absolute; right: 24px; bottom: 22px; width: 236px; padding: 12px 8px 10px; border-radius: 16px; background: #fffcf6; box-shadow: 0 6px 24px rgba(60,40,20,.2); text-align: center; color: #1b2230; }
+    .zone h2 { font: 700 21px/1 BC; letter-spacing: .05em; text-transform: uppercase; margin: 0; }
+    .zone svg { display: block; margin: 6px auto 4px; }
+    .zone svg text { font: 700 16px BC; text-anchor: middle; }
+    .zone p { font: 700 19px/1 BC; letter-spacing: .04em; text-transform: uppercase; color: #c23b33; margin: 0; }
     .tags span { display: flex; align-items: center; gap: 8px; }
     .tags i { width: 28px; height: 5px; border-radius: 3px; }
   </style></head><body><div class="wrap">
@@ -146,6 +184,7 @@ async function save(path, buffer, colours = 256) {
     <div class="stage"><img src="${flight}"></div>
     <div class="grip"><img src="${grip}"></div>
     <div class="tags"><span><i style="background:#e0b000"></i>Four-seam</span><span><i style="background:#3aa7d8"></i>Curveball</span></div>
+    <div class="zone"><h2>Pitch to a hitter</h2>${zone.svg}<p>${zone.said} pitch</p></div>
   </div></body></html>`);
   await card.evaluate(() => document.fonts.ready);
   await save(join(root, 'og.png'), await card.screenshot());
