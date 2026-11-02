@@ -2563,6 +2563,8 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.goto(base + '#slider.sale');
   let s = await showing();
   assert.deepEqual(s.who, ['the league average', 'Paul Skenes', 'Jacob Misiorowski', 'Kevin Gausman', 'Cristopher Sánchez (lefty)', 'Chris Sale (lefty)', 'Mason Miller', 'Tyler Rogers'], 'who throws a slider');
+  // At the foot of his card, the slider's neighbours, as on the league's.
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('prev').textContent, document.getElementById('next').textContent]), ['← Cutter', 'Sweeper →'], 'previous and next on his slider');
   assert.deepEqual({ hash: s.hash, by: s.by, pressed: s.pressed, mph: s.mph, speed: s.speed, release: s.release, rings: s.rings, line: s.line, height: s.height, rpm: s.rpm, pairs: s.pairs },
     { hash: '#slider.sale', by: 'sale', pressed: 'L', mph: '79.8', speed: '79.8 mph league 86.3', release: '4 ft 10 in league 5 ft 10 in', rings: 4, line: 'Chris Sale’s, from his 2026 numbers, beside the league’s.', height: 4.81, rpm: 2529, pairs: ['FF', 'CH', 'SI'] }, 'opened from #slider.sale');
   // His own hand leaves him be; with another of his pitches, the address keeps both.

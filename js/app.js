@@ -239,7 +239,8 @@ function renderCard() {
   if (p.note) facts.push(p.note);
   facts.push(`${n.pitchers.toLocaleString('en-US')} pitcher${n.pitchers === 1 ? '' : 's'} threw at least one in ${SEASON}.`);
   $('c-facts').innerHTML = facts.map(f => `<li>${f}</li>`).join('');
-  const i = PITCHES.indexOf(p);
+  // The pitch picked, not his copy of it, which isn't in the list.
+  const i = PITCHES.indexOf(state.pitch);
   const prev = PITCHES[(i + PITCHES.length - 1) % PITCHES.length], next = PITCHES[(i + 1) % PITCHES.length];
   $('prev').textContent = `← ${prev.short}`; $('prev').onclick = () => pick(prev, { scroll: true });
   $('next').textContent = `${next.short} →`; $('next').onclick = () => pick(next, { scroll: true });
