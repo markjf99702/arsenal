@@ -569,8 +569,19 @@ p { margin: 0; }
 .last .res-play, .end-result.res-play { color: var(--res-play); }
 .last .lbl { font: 600 13px/1 var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
 .last p { color: var(--ink-2); }
-.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--ink-2); }
-.log li { display: flex; gap: 8px; align-items: baseline; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 14px; color: var(--ink-2); }
+/* Each pitch is a button that opens why it went that way under it: the plain line it was, a little taller to tap, with a
+   chevron at its end that turns up while it's open, and the paper's colour behind the open one. */
+.log .row {
+  display: flex; gap: 8px; align-items: baseline; box-sizing: border-box; width: calc(100% + 12px); min-height: 28px; margin: 0 -6px;
+  padding: 4px 6px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+@media (hover: hover) { .log .row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); } }
+.log .row[aria-expanded="true"] { background: var(--paper); }
+.log .row:focus-visible { outline-offset: -2px; }
+.log .more { flex: none; align-self: center; width: 7px; height: 7px; margin: 0 3px 4px auto; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.log .row[aria-expanded="true"] .more { transform: rotate(-135deg); margin-bottom: 0; margin-top: 4px; }
+.log .why { margin: 2px 0 8px 28px; color: var(--ink-2); }
 /* Each pitch's number in the shape and colour of its mark on the picture: a strike's in a red disc, a ball's in a green
    ring, a ball in play's in a blue square, the white numbers at 5 to 1 or more in either palette. The ring is the end
    card's own green, which is paler in the dark palette, so its number reads on the dark card too. */

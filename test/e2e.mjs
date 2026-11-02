@@ -1812,6 +1812,51 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.locator('#ab-speed [data-v="1"]').click();
 }
 
+// Each pitch in the log opens why it went that way, under it, when it's tapped: one at a time, and tapped again it
+// closes. Its mark comes to the front of the picture, drawn as the newest is, with the catcher's target where it was
+// called, the line to where it crossed and where the hitter swung at it. Focus stays on the row. Picking a spot for
+// the next pitch closes it, and so does throwing.
+{
+  const rows = () => page.evaluate(async () => {
+    const { why } = await import(new URL('js/atbat-words.js', location.href));
+    const { spotXZ } = await import(new URL('js/atbat.js', location.href));
+    const { stage, state } = window.arsenal.atBat, ps = state.ab.pitches;
+    const open = [...document.querySelectorAll('#ab-log li')].flatMap((li, i) => (li.querySelector('.row').getAttribute('aria-expanded') === 'true' ? [i] : []));
+    const i = open[0], p = ps[i];
+    return {
+      open, whys: document.querySelectorAll('#ab-log .why').length, top: stage.opts.marks.at(-1)?.n, marks: stage.opts.marks.length,
+      said: i == null ? null : document.querySelector('#ab-log .why').textContent === why(p, ps[i - 1], state.batter),
+      target: i == null ? null : JSON.stringify(stage.opts.target) === JSON.stringify(spotXZ(p.spot, state.batter)),
+      focus: document.activeElement.closest('li') ? [...document.querySelectorAll('#ab-log li')].indexOf(document.activeElement.closest('li')) : document.activeElement.id,
+    };
+  });
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT);
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  assert.deepEqual(await rows(), { open: [], whys: 0, top: 6, marks: 6, said: null, target: null, focus: '' }, 'the log before a row is tapped');
+  await page.locator('#ab-log li:nth-child(2) .row').click();
+  assert.deepEqual(await rows(), { open: [1], whys: 1, top: 2, marks: 6, said: true, target: true, focus: 1 }, 'the second pitch\'s row tapped');
+  // The README's third pitch, a changeup called down and in that crossed off the plate inside, 9 inches off its spot.
+  await page.locator('#ab-log li:nth-child(3) .row').click();
+  assert.deepEqual(await rows(), { open: [2], whys: 1, top: 3, marks: 6, said: true, target: true, focus: 2 }, 'the third pitch\'s row tapped after the second\'s');
+  assert.deepEqual(await page.evaluate(() => { const { stage, state } = window.arsenal.atBat; return stage.opts.miss === state.ab.pitches[2].plate; }), true, 'the line to where the third pitch crossed');
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await rows(), { open: [], whys: 0, top: 6, marks: 6, said: null, target: null, focus: 2 }, 'the third pitch\'s row closed with Enter');
+  assert.equal(await page.evaluate(() => window.arsenal.atBat.stage.opts.swing?.tag), 'early', 'where he swung at strike three, back once the row is closed');
+  // Partway through, a spot picked for the next pitch closes the row, and the target goes there.
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.CU22$/, ''));
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  await page.locator('#ab-log li:first-child .row').click();
+  assert.equal((await rows()).top, 1, 'the first pitch\'s row tapped partway through');
+  await page.locator('#ab-spots [data-spot="00"]').click();
+  assert.deepEqual(await rows(), { open: [], whys: 0, top: 5, marks: 5, said: null, target: null, focus: '' }, 'after a spot was picked with a row open');
+  await page.locator('#ab-log li:first-child .row').click();
+  await page.evaluate(() => window.arsenal.atBat.throw('FF', '00'));
+  assert.equal((await rows()).whys, 0, 'a row stayed open once the next pitch was thrown');
+  await page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+}
+
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
   const showing = () => page.evaluate(() => {

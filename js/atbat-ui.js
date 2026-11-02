@@ -34,7 +34,7 @@ const batterWords = (side, hitter) => {
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
-  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0 };
+  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null };
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
@@ -132,6 +132,12 @@ export function setupAtBat({ dark = false } = {}) {
   // Where the clipboard is refused, the link is in a field to copy by hand: all of it is selected whenever it's touched.
   for (const ev of ['focus', 'click']) $('ab-link').addEventListener(ev, () => $('ab-link').select());
   $('ab-run').addEventListener('click', () => { if (!S.busy && !S.charting) hundred(); });
+  // Each pitch in the log is a button: tapped, it opens why that pitch went the way it did, under it, and brings its mark
+  // to the front of the picture (openRow). Tapped again, it closes. Not while a pitch flies: the log is a pitch behind.
+  $('ab-log').addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if (b && !S.busy) openRow(S.open === Number(b.dataset.i) ? null : Number(b.dataset.i));
+  });
 
   function seg(id, on) {
     const box = $(id);
@@ -160,6 +166,7 @@ export function setupAtBat({ dark = false } = {}) {
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
     S.busy = false;
     S.pending = null;
+    S.open = null;
     stopChart();
     // The pitcher's name, set apart from his line (which can have a colon of its own: "A submariner: an 83 mph sinker"),
     // and the kind of hitter, when he isn't the average one.
@@ -187,6 +194,7 @@ export function setupAtBat({ dark = false } = {}) {
 
   function pitch() {
     if (S.busy || S.ab.result || !S.code) return;
+    if (S.open != null) openRow(null);
     const call = { code: S.code, spot: S.spot };
     const rec = throwCall(S.ab, call);
     S.calls.push(call);
@@ -210,7 +218,7 @@ export function setupAtBat({ dark = false } = {}) {
     board(rec);
     drawPicture();
     cue(rec);
-    stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
+    stage.set({ marks: markList(S.ab.pitches.slice(0, -1)) });
     stage.show([rec.path]);
   }
 
@@ -252,6 +260,12 @@ export function setupAtBat({ dark = false } = {}) {
   function marks(ps) {
     return ps.map(p => ({ x: p.plate[0], z: p.plate[1], n: p.n, kind: markKind(p.result) }));
   }
+  // The same, with the pitch whose row is open in the log last, so it's drawn on top as the newest is: whole, with its
+  // thicker white edge, over any that crossed where it did.
+  function markList(ps) {
+    const ms = marks(ps), i = S.open;
+    return i == null || i >= ms.length ? ms : [...ms.slice(0, i), ...ms.slice(i + 1), ms[i]];
+  }
 
   // What a screen reader hears as a pitch lands: which pitch, where it was called (and crossed, if somewhere else), what
   // happened and the count, then why, so even three fouls in a row are three new lines. At the end, how it ended and
@@ -289,6 +303,7 @@ export function setupAtBat({ dark = false } = {}) {
   function choose(b, keys = false) {
     if (b.dataset.code) S.code = b.dataset.code;
     else S.spot = spotById(b.dataset.spot);
+    if (S.open != null) openRow(null);
     drawCall();
     $('ab-hint').textContent = '';
     if (keys) b.focus();
@@ -307,18 +322,20 @@ export function setupAtBat({ dark = false } = {}) {
   // another spot moves it there at once; and once a pitch is in, a line from the target to where it crossed, if it missed
   // by more than 6 inches. The line is the last pitch's: it goes with the target when another spot is picked. And once
   // it's in, where the hitter swung at it, "early" or "late" if he missed out in front or behind, or for a strike he
-  // took thinking it would miss, where he thought it would cross. Only the last pitch's, so the picture doesn't clutter.
+  // took thinking it would miss, where he thought it would cross. Only the last pitch's, so the picture doesn't clutter,
+  // or with a row of the log open, that pitch's: where it was called, its line and where he swung.
   function drawPicture() {
-    const p = S.pending, last = S.ab.pitches.at(-1);
-    const missed = !p && last && last.spot.id === S.spot.id && Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]) > MISSED;
+    const p = S.pending, open = !p && S.open != null ? S.ab.pitches[S.open] : null, last = p ? null : open || S.ab.pitches.at(-1);
+    const spot = p ? p.spot : open ? open.spot : S.spot;
+    const missed = last && last.spot.id === spot.id && Math.hypot(last.plate[0] - last.aim[0], last.plate[1] - last.aim[1]) > MISSED;
     let swing = null;
-    if (!p && last?.swing) swing = { at: [last.plate[0] - last.miss[0], last.plate[1] - last.miss[1]], to: last.plate, tag: last.result === 'whiff' ? timing(last) : '' };
-    else if (!p && last?.result === 'called' && last.inZone && thoughtMiss(last)) swing = { at: last.judged, to: last.plate, tag: 'his read' };
+    if (last?.swing) swing = { at: [last.plate[0] - last.miss[0], last.plate[1] - last.miss[1]], to: last.plate, tag: last.result === 'whiff' ? timing(last) : '' };
+    else if (last?.result === 'called' && last.inZone && thoughtMiss(last)) swing = { at: last.judged, to: last.plate, tag: 'his read' };
     // And the pitch before, faint under it, so two out of the same tunnel are seen to split only after the decision point.
     const prev = S.ab.pitches.at(-2) || null;
-    stage.set({ target: spotXZ(p ? p.spot : S.spot, S.batter), miss: missed ? last.plate : null, swing, prev: prev?.path || null });
+    stage.set({ target: spotXZ(spot, S.batter), miss: missed ? last.plate : null, swing, prev: prev?.path || null });
     // The key to what's drawn faint and dashed, once there's a pitch: the last pitch's path, and the decision ring.
-    const key = (prev ? '<span><i class="ln prev"></i>Last pitch</span>' : '') + (last ? '<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>' : '');
+    const key = (prev ? '<span><i class="ln prev"></i>Last pitch</span>' : '') + (S.ab.pitches.length ? '<span><i class="ring"></i><span class="wide">Decision point</span><span class="narrow">Decide</span></span>' : '');
     if ($('ab-legend').innerHTML !== key) $('ab-legend').innerHTML = key;
   }
 
@@ -360,10 +377,7 @@ export function setupAtBat({ dark = false } = {}) {
       // Before the first pitch there's nothing to say: how to play is at the top of the call box.
       $('ab-last').replaceChildren();
     }
-    // Each pitch: the count it was thrown in, as on a broadcast's pitch list ("on 0-1" to a screen reader), what happened,
-    // the spot called and, if it went to another box, where it crossed. Each part keeps the dot after it (a no-break
-    // space before it), so a line that wraps doesn't start with one.
-    $('ab-log').innerHTML = shown.map(p => `<li class="k-${markKind(p.result)}"><span class="n">${p.n}</span><span><span class="at"><span class="sr">on </span>${p.before.balls}-${p.before.strikes}</span>\u00a0· <b>${resultWord(p)}</b>\u00a0· ${SHORT(p.code)}, ${calledLine(p, ab.batter)}\u00a0· ${speed(p)}</span></li>`).join('');
+    drawLog(shown);
     $('ab-end').hidden = !over;
     $('ab-callbox').hidden = !!over;
     // Once it's over, the hundred throws look back at the last pitch.
@@ -386,6 +400,33 @@ export function setupAtBat({ dark = false } = {}) {
       else readout();
       board(last);
     }
+  }
+
+  // Each pitch: the count it was thrown in, as on a broadcast's pitch list ("on 0-1" to a screen reader), what happened,
+  // the spot called and, if it went to another box, where it crossed. Each part keeps the dot after it (a no-break
+  // space before it), so a line that wraps doesn't start with one. Each is a button that opens why it went that way
+  // (openRow). The rows are made again only when what they say changes, so the one with focus keeps it.
+  let logHtml = '';
+  function drawLog(shown) {
+    const html = shown.map((p, i) => `<li class="k-${markKind(p.result)}"><button type="button" class="row" data-i="${i}" aria-expanded="false"><span class="n">${p.n}</span><span><span class="at"><span class="sr">on </span>${p.before.balls}-${p.before.strikes}</span>\u00a0· <b>${resultWord(p)}</b>\u00a0· ${SHORT(p.code)}, ${calledLine(p, S.ab.batter)}\u00a0· ${speed(p)}</span><span class="more" aria-hidden="true"></span></button></li>`).join('');
+    if (html !== logHtml) { $('ab-log').innerHTML = html; logHtml = html; }
+    if (S.open != null && S.open >= shown.length) S.open = null;
+    // The open row's why, under it: there only while it's open, so the log's words are only what's showing.
+    [...$('ab-log').children].forEach((li, i) => {
+      const on = i === S.open, b = li.firstElementChild, why$ = li.querySelector('.why');
+      b.setAttribute('aria-expanded', String(on));
+      if (on && !why$) li.insertAdjacentHTML('beforeend', `<p class="why">${why(shown[i], shown[i - 1], S.ab.batter)}</p>`);
+      else if (!on && why$) why$.remove();
+    });
+  }
+  // A row of the log opened (`i`, the pitch's place in the at-bat) or, with null, closed. One is open at a time. Its
+  // mark comes to the front of the picture, drawn as the last pitch's is, and the picture shows where the catcher set
+  // up for it, the line to where it crossed and where the hitter swung (drawPicture).
+  function openRow(i) {
+    S.open = i;
+    drawLog(S.pending ? S.ab.pitches.slice(0, -1) : S.ab.pitches);
+    stage.set({ marks: markList(S.pending ? S.ab.pitches.slice(0, -1) : S.ab.pitches) });
+    drawPicture();
   }
 
   // While a pitch is in the air, Throw and the buttons that would give it away wait (see the listeners above), and while
