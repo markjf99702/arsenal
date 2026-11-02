@@ -429,6 +429,25 @@ test('a pitch’s speed can vary from throw to throw as the pitcher’s does', (
   }
 });
 
+// The hitter who notices patterns (js/atbat-params.js, notice): after five curves in a row he's looking for the curve,
+// not a fastball, and a curve that crosses where the last five did gets hit harder.
+test('what he has seen this at-bat moves what he looks for, and how hard he hits a pitch where they have crossed', () => {
+  const sixth = params => {
+    let curve = 0, hard = 0, inPlay = 0;
+    for (let seed = 1; seed <= 1500; seed++) {
+      const ab = startAtBat({ pitcher: AVERAGE, seed, params });
+      for (let i = 0; i < 5 && !ab.result; i++) { throwCall(ab, { code: 'CU', spot: spotById('m11') }); ab.balls = 0; ab.strikes = 0; ab.result = null; }
+      const r = throwCall(ab, { code: 'CU', spot: spotById('m11') });
+      if (r.sat.code === 'CU') curve++;
+      if (r.result === 'inplay') { inPlay++; hard += r.contact; }
+    }
+    return { curve: curve / 1500, contact: hard / inPlay };
+  };
+  const off = sixth(PARAMS), on = sixth({ ...PARAMS, notice: { at: 0.6, next: 2, where: 0.6 } });
+  assert.ok(off.curve < 0.35 && on.curve > 0.7, `looking for the curve after five: ${off.curve.toFixed(2)}, then ${on.curve.toFixed(2)}`);
+  assert.ok(on.contact > off.contact + 0.3, `how hard he hit the sixth: ${off.contact.toFixed(2)}, then ${on.contact.toFixed(2)}`);
+});
+
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {
     let swings = 0, whiffs = 0;

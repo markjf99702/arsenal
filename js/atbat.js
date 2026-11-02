@@ -153,20 +153,33 @@ function template(ab, code) {
   return { code, mph: mix('mph'), rise: mix('rise'), arm: mix('arm') };
 }
 
-// The hitter's guess before the pitch: a fastball or not, from the count and what this pitcher throws, leaning
+// What the hitter expects from this pitcher, a share for each of his pitches: the season's mix, and what he has thrown
+// this at-bat. Each pitch he's seen counts as notice.at of a whole season's mix, and, after the pitch just thrown, each
+// pitch that followed the same pitch earlier in the at-bat counts notice.next more. So one pitch every time, or the
+// same two in turn, gets figured out, and a changeup after a four-seamer fools him more than one after a changeup.
+function expected(ab) {
+  const N = ab.params.notice, ps = ab.pitches, last = ps.at(-1)?.code, seen = {};
+  let n = 0;
+  for (const p of ps) { seen[p.code] = (seen[p.code] || 0) + N.at; n += N.at; }
+  for (let i = 1; i < ps.length; i++) if (ps[i - 1].code === last) { seen[ps[i].code] = (seen[ps[i].code] || 0) + N.next; n += N.next; }
+  return ab.pitcher.pitches.map(p => (p.share + (seen[p.code] || 0)) / (1 + n));
+}
+
+// The hitter's guess before the pitch: a fastball or not, from the count and what he expects of this pitcher, leaning
 // toward whatever he just saw; then which pitch of that kind he's sitting on, again leaning toward the last one.
 function guess(ab) {
   const P = ab.params, R = ab.rand;
   const last = ab.pitches.at(-1)?.code;
-  const fbShare = ab.pitcher.pitches.filter(p => FASTBALLS.has(p.code)).reduce((s, p) => s + p.share, 0);
+  const mix = expected(ab), own = ab.pitcher.pitches.map((p, i) => ({ code: p.code, share: mix[i] }));
+  const fbShare = own.filter(p => FASTBALLS.has(p.code)).reduce((s, p) => s + p.share, 0);
   let pFast = fbShare;
   if (fbShare > 0 && fbShare < 1) {
     const lean = (P.lookFastball[countKey(ab)] ?? 0) + (last == null ? 0 : FASTBALLS.has(last) ? P.repeat.lean : -P.repeat.lean);
     pFast = sigmoid(Math.log(fbShare / (1 - fbShare)) + lean);
   }
   const fastball = R.chance(pFast);
-  const group = ab.pitcher.pitches.filter(p => FASTBALLS.has(p.code) === fastball);
-  const pool = group.length ? group : ab.pitcher.pitches;
+  const group = own.filter(p => FASTBALLS.has(p.code) === fastball);
+  const pool = group.length ? group : own;
   const sitOn = R.pick(pool, pool.map(p => p.share + (p.code === last ? P.repeat.weight : 0)));
   return { fastball, code: sitOn.code };
 }
@@ -286,7 +299,10 @@ export function throwCall(ab, call) {
         // How hard: squared up, and how hittable the spot was (the middle of the zone is where damage happens).
         const middle = Math.hypot(plate[0] / 0.9, (plate[1] - 2.55) / 0.9);
         const q = Math.exp(-((missBy / P.quality.miss) ** 2) - (early / P.quality.timing) ** 2) * Math.exp(-((middle / P.quality.middle) ** 2));
-        const s = q + R.normal() * P.quality.noise;
+        // And where pitches have been crossing this at-bat, he's ready for one there: each earlier pitch that crossed
+        // within about 7 inches of where he reads this one crossing adds to how hard he hits it (notice.where).
+        const ready = ab.pitches.reduce((a, e) => a + Math.exp(-((e.plate[0] - r.at[0]) ** 2 + (e.plate[1] - r.at[1]) ** 2) / 0.36), 0);
+        const s = q + P.notice.where * ready + R.normal() * P.quality.noise;
         const O = P.outcome;
         let play;
         if (s > O.hr) play = 'HR';

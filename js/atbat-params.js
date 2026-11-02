@@ -281,5 +281,10 @@ export const PARAMS = {
  "repeat": {
   "lean": 0.5,
   "weight": 0.35
+ },
+ "notice": {
+  "at": 0,
+  "next": 0,
+  "where": 0
  }
 };
