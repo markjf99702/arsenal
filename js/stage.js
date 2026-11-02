@@ -125,9 +125,10 @@ export class Stage {
 
   gameTime() { return Math.max(0, (this.clock - WINDUP) * this.opts.speed); }
   // The game time at `stamp` (an event's timeStamp, on performance.now's clock), between one frame and the next: a tap
-  // is timed to the moment it came, not to the frame after it.
+  // is timed to the moment it came, not to the frame after it. A touch can reach the page a frame or more after it
+  // came down, after the last frame was drawn, so a stamp up to as long before that frame counts too.
   timeAt(stamp) {
-    const since = this.tickAt == null ? 0 : Math.max(0, Math.min(0.05, (stamp - this.tickAt) / 1000));
+    const since = this.tickAt == null ? 0 : Math.max(-0.05, Math.min(0.05, (stamp - this.tickAt) / 1000));
     return Math.max(0, (this.clock + (this.held ? 0 : since) - WINDUP) * this.opts.speed);
   }
 

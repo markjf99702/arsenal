@@ -355,6 +355,20 @@ test('the last pitch\'s path and decision ring are drawn faint, under the new pi
   assert.equal(drawn.filter(d => d.alpha === PREV).length, 0, 'a last pitch with none set');
 });
 
+// Step in times a tap by the event's own time between frames (Stage.timeAt): one that came after the last frame counts
+// that much later, and one that came before it, as a touch that reaches the page a frame late does, that much earlier,
+// up to 0.05 s either way. Held, the clock doesn't move. At Slow the game clock runs at its speed.
+test('a tap is timed to the moment it came, before or after the last frame', () => {
+  const at = (stamp, o = {}) => Stage.prototype.timeAt.call({ clock: 1, tickAt: 1000, held: false, opts: { speed: 1 }, ...o }, stamp);
+  const close = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a} against ${b}`);
+  close(at(1010) - at(1000), 0.01, 'a tap 10 ms after the last frame');
+  close(at(1000) - at(990), 0.01, 'a tap 10 ms before the last frame');
+  close(at(1000) - at(900), 0.05, 'a tap long before the last frame');
+  close(at(1100) - at(1000), 0.05, 'a tap long after the last frame');
+  close(at(990, { held: true }), at(1000, { held: true }), 'a tap while the throw is held');
+  close(at(990, { opts: { speed: 0.25 } }) - at(1000, { opts: { speed: 0.25 } }), -0.0025, 'a tap 10 ms before the last frame at Slow');
+});
+
 test('a knuckleball never goes the same way twice', () => {
   let seed = 1;
   const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
