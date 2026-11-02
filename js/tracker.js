@@ -1,6 +1,7 @@
 // Drawn over the view from behind the plate during an at-bat: the batter in his box, and each pitch so far
 // where it crossed the plate, numbered, the way a broadcast's pitch tracker shows them.
 import { PLATE_Y, catcherCamera } from './flight.js';
+import { LEAGUE } from './league.js';
 
 // Result colours, as broadcasts use them: green for a ball, red for a strike, blue for a ball in play. They're the end
 // card's own (--res-*, css/app.css), a shade darker than broadcasts' so a white number on them reads at 4.9 to 5.7 to 1.
@@ -136,15 +137,73 @@ export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
   ctx.restore();
 }
 
-// The batter's box he's standing in, shaded, so it's clear which side he hits from.
+// The batter, a flat figure in his box, the way a broadcast's strike zone graphic stands one beside it: side on from
+// behind the plate, facing it, his bat up behind him. He's made of simple shapes, drawn in feet: across, toward the
+// plate from the middle of his stance, and up from the ground, with the hollow under his front knee at KNEE and the
+// letters on his chest at LETTERS. A line is a limb, `r` thick either side (or tapering from one to the other).
+// On the picture he's stretched to fit the strike zone (2026's average, js/league.js): that hollow and the letters are
+// level with its bottom and its top. The middle of his stance is 2.55 feet out from the middle of the plate.
+const STANCE = 2.55;
+export const KNEE = 1.62, LETTERS = 3.22;
+export const FIGURE = [
+  { circle: [0.06, 4.56], r: 0.36 }, // his head, in a helmet
+  { poly: [[0.08, 4.68], [0.62, 4.62], [0.62, 4.54], [0.1, 4.5]] }, // its brim
+  { line: [[0.02, 4.3], [0.04, 4]], r: 0.17 }, // neck
+  { poly: [[-0.42, 4.02], [0.22, 4.08], [0.4, 3.64], [0.42, 3.22], [0.3, 2.74], [-0.5, 2.6], [-0.5, 3.4]] }, // body
+  { circle: [-0.2, 2.64], r: 0.38 }, // hips
+  { line: [[-0.12, 2.5], [0.22, 1.7]], r: [0.36, 0.25] }, { line: [[0.22, 1.7], [0.02, 0.24]], r: [0.25, 0.17] }, // back leg
+  { line: [[0.06, 2.46], [0.44, 1.76]], r: [0.32, 0.23] }, { line: [[0.44, 1.76], [0.3, 0.22]], r: [0.23, 0.16] }, // front leg
+  { poly: [[-0.34, 0], [0.48, 0], [0.48, 0.1], [0.28, 0.22], [-0.12, 0.32], [-0.34, 0.2]] }, // back foot
+  { poly: [[0.06, 0], [0.76, 0], [0.75, 0.1], [0.5, 0.22], [0.16, 0.3]] }, // front foot
+  { line: [[0.12, 3.9], [0.28, 3.5]], r: 0.15 }, { line: [[0.28, 3.5], [-0.28, 4.16]], r: 0.13 }, // front arm
+  { line: [[-0.32, 3.9], [-0.76, 3.86]], r: 0.15 }, { line: [[-0.76, 3.86], [-0.3, 4.2]], r: 0.13 }, // back arm, elbow up
+  { circle: [-0.3, 4.18], r: 0.14 }, // hands
+  { line: [[-0.3, 4.18], [-1.66, 6.52]], r: [0.05, 0.11] }, // bat
+];
+// Each shape as an outline of points.
+const arc = ([x, z], r, from, to, n = 8) => Array.from({ length: n + 1 }, (_, i) => { const a = from + ((to - from) * i) / n; return [x + r * Math.cos(a), z + r * Math.sin(a)]; });
+const outlineOf = s => {
+  if (s.poly) return s.poly;
+  if (s.circle) return arc(s.circle, s.r, 0, 2 * Math.PI, 20).slice(1);
+  const [[ax, az], [bx, bz]] = s.line, [ra, rb] = [].concat(s.r, s.r), t = Math.atan2(bz - az, bx - ax);
+  return [...arc([bx, bz], rb, t - Math.PI / 2, t + Math.PI / 2), ...arc([ax, az], ra, t + Math.PI / 2, t + (3 * Math.PI) / 2)];
+};
+
+// Where a point of the figure's drawing is on the picture, for a batter on `batter`'s side (a right-handed batter stands
+// on the catcher's left, facing right), as if he stood level with the front of the plate, where the zone is.
+export function onPicture(cam, batter) {
+  const sx = batter === 'R' ? -1 : 1, k = (LEAGUE.sz.top - LEAGUE.sz.bottom) / (LETTERS - KNEE);
+  return ([u, z]) => cam.project([sx * (STANCE - u * k), PLATE_Y, LEAGUE.sz.bottom + (z - KNEE) * k]);
+}
+// And each of its shapes, each going round the same way, so drawn as one path they add up where they overlap rather
+// than cut holes in each other.
+export function figure(cam, batter) {
+  const at = onPicture(cam, batter);
+  return FIGURE.map(s => {
+    const shape = outlineOf(s).map(at);
+    const area = shape.reduce((a, p, i) => { const q = shape[(i + 1) % shape.length]; return a + p.x * q.y - q.x * p.y; }, 0);
+    return area < 0 ? shape.reverse() : shape;
+  });
+}
+
+// The batter's box he's standing in, shaded, so it's clear which side he hits from, and him in it, see-through, in a
+// dark ink on the light palette and a pale one on the dark, under everything else on the picture. His shapes are one
+// path, so where they overlap he isn't any darker.
 export function drawBatter(ctx, cam, batter, dark) {
-  const sx = batter === 'R' ? -1 : 1; // a right-handed batter stands on the catcher's left
+  const sx = batter === 'R' ? -1 : 1;
   const pts = [[1.208, -2.29], [5.208, -2.29], [5.208, 3.71], [1.208, 3.71]].map(([x, y]) => cam.project([sx * x, y, 0.01]));
   ctx.save();
   ctx.fillStyle = dark ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.28)';
   ctx.beginPath();
   pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
   ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  for (const shape of figure(cam, batter)) {
+    shape.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+  }
+  ctx.fillStyle = dark ? 'rgba(236,231,220,.2)' : 'rgba(22,30,44,.3)';
   ctx.fill();
   ctx.restore();
 }

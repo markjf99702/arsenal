@@ -6,7 +6,9 @@ import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
 import { Stage } from '../js/stage.js';
 import { tilt } from '../js/spin.js';
-import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE } from '../js/tracker.js';
+import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE, FIGURE, KNEE, LETTERS, figure, onPicture, drawBatter } from '../js/tracker.js';
+import { SPOTS, spotXZ } from '../js/atbat.js';
+import { LEAGUE } from '../js/league.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
 
@@ -226,6 +228,46 @@ test('a strike is marked with a red disc, a ball with a green ring and a ball in
   assert.deepEqual(MARK, light, 'the marks and the end card are coloured differently');
   const lum = hex => { const [R, G, B] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
   for (const [kind, c] of Object.entries(MARK)) assert.ok((1.05) / (lum(c) + 0.05) >= 4.9, `a white number on a ${kind}'s ${c}`);
+});
+
+// The batter stands in his box, a flat figure facing the plate, on a right-handed batter's side or a left-handed one's,
+// one the other's mirror image. The hollow under his front knee and the letters on his chest are level with the bottom
+// and the top of the strike zone. On a phone, a computer and a tablet he's clear of every pitch thrown to a spot off the
+// plate inside, at its mark's full size; he's under the marks anyway, in the picture's background, and see-through.
+test('the batter is drawn in his box, his knees and letters level with the zone, clear of the spots inside', () => {
+  // His drawing: the front knee's joint a little above the hollow under it, the letters on the front of his chest.
+  const knee = FIGURE.find(s => s.line && s.line[1][1] > 1.6 && s.line[1][1] < 1.9 && s.line[1][0] > 0.35);
+  assert.ok(knee && knee.line[1][1] - KNEE > 0.05 && knee.line[1][1] - KNEE < 0.2, `the front knee at ${knee?.line[1]}`);
+  assert.ok(FIGURE.some(s => s.poly?.some(([u, z]) => z === LETTERS && u >= 0.4)), 'nothing on the front of his chest at the letters');
+  for (const [name, w, h, dpr] of [['phone', 358, 235, 2], ['computer', 650, 447, 1], ['tablet', 736, 506, 2]]) {
+    const cam = atBatCamera(w * dpr, h * dpr, { dpr }), r = markRadius(cam);
+    const zone = { top: cam.project([0, 17 / 12, LEAGUE.sz.top]).y, bottom: cam.project([0, 17 / 12, LEAGUE.sz.bottom]).y };
+    for (const batter of ['R', 'L']) {
+      const shapes = figure(cam, batter), pts = shapes.flat(), toward = batter === 'R' ? 1 : -1, at = onPicture(cam, batter);
+      // Level with the zone: his knees and letters where its bottom and top are, and his feet on the ground under them.
+      assert.ok(Math.abs(at([0, KNEE]).y - zone.bottom) < 1e-6 && Math.abs(at([0, LETTERS]).y - zone.top) < 1e-6, `${name}, ${batter}: knees and letters at ${at([0, KNEE]).y.toFixed(1)} and ${at([0, LETTERS]).y.toFixed(1)}, the zone from ${zone.bottom.toFixed(1)} to ${zone.top.toFixed(1)}`);
+      const bottom = Math.max(...pts.map(p => p.y));
+      assert.ok(Math.abs(bottom - at([0, 0]).y) < 1e-6, `${name}, ${batter}: his feet at ${bottom.toFixed(1)}, the ground at ${at([0, 0]).y.toFixed(1)}`);
+      // On his own side of the plate, and clear of each spot off the plate inside.
+      const inside = SPOTS.filter(s => s.c === -2).map(s => cam.project([...spotXZ(s, batter)].flatMap((v, i) => (i ? [17 / 12, v] : [v]))));
+      const front = Math.max(...pts.map(p => toward * p.x));
+      for (const m of inside) assert.ok(front < toward * m.x - r, `${name}, ${batter}: he reaches ${front.toFixed(1)}, a mark inside starts at ${(toward * m.x - r).toFixed(1)}`);
+      // Every shape goes round the same way, so one path adds them up.
+      const signs = shapes.map(sh => Math.sign(sh.reduce((a, p, i) => { const q = sh[(i + 1) % sh.length]; return a + p.x * q.y - q.x * p.y; }, 0)));
+      assert.ok(signs.every(x => x === signs[0]), `${name}, ${batter}: his shapes go round different ways`);
+    }
+    // Each side the mirror image of the other.
+    const R = figure(cam, 'R').flat(), L = figure(cam, 'L').flat();
+    const mirrored = R.every(p => L.some(q => Math.abs(q.x - (cam.W - p.x)) < 1e-6 && Math.abs(q.y - p.y) < 1e-6));
+    assert.ok(mirrored, `${name}: the left-handed batter isn't the right-handed one turned round`);
+  }
+  // See-through: dark on the light palette, pale on the dark, and well short of solid either way.
+  for (const dark of [false, true]) {
+    const { ctx, drawn } = recorder();
+    drawBatter(ctx, atBatCamera(716, 470, { dpr: 2 }), 'R', dark);
+    const alpha = Number(drawn.filter(d => d.op === 'fill').at(-1).color.match(/[\d.]+\)$/)[0].slice(0, -1));
+    assert.ok(alpha >= 0.15 && alpha <= 0.35, `the batter is ${alpha} solid on the ${dark ? 'dark' : 'light'} palette`);
+  }
 });
 
 test('a knuckleball never goes the same way twice', () => {
