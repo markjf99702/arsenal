@@ -175,7 +175,7 @@ function tracker() {
     .zone h2 { font: 700 21px/1 BC; letter-spacing: .05em; text-transform: uppercase; margin: 0; }
     .zone svg { display: block; margin: 6px auto 4px; }
     .zone svg text { font: 700 16px BC; text-anchor: middle; }
-    .zone p { font: 700 19px/1 BC; letter-spacing: .04em; text-transform: uppercase; color: #c23b33; margin: 0; }
+    .zone p { font: 700 19px/1.05 BC; letter-spacing: .04em; text-transform: uppercase; color: #c23b33; margin: 0; text-wrap: balance; }
     .tags span { display: flex; align-items: center; gap: 8px; }
     .tags i { width: 28px; height: 5px; border-radius: 3px; }
   </style></head><body><div class="wrap">
