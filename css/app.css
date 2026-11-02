@@ -575,8 +575,19 @@ p { margin: 0; }
   .spots-wrap .side.left { text-align: left; }
   .spots-wrap .side.right { order: 0; text-align: right; }
   .ab-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ab-chips .ab-chip { white-space: normal; text-align: left; border-radius: 16px; padding: 6px 12px; }
-  .ab-chips .ab-chip small { display: block; margin: 1px 0 0; padding-left: 15px; }
+  /* The colour dot hangs in the left padding, so a name that wraps ("Knuckle curve" on the narrowest phones) lines up
+     under its first word, and the numbers under both. */
+  .ab-chips .ab-chip { white-space: normal; text-align: left; border-radius: 16px; padding: 6px 12px 6px 27px; position: relative; }
+  .ab-chips .ab-chip .key { position: absolute; left: 12px; top: calc(6px + (1.5em - .62em) / 2); margin: 0; }
+  .ab-chips .ab-chip small { display: block; margin: 1px 0 0; }
+}
+/* On the narrowest phones the sides are closer in, and the names a size smaller, so "Knuckle curve" keeps to a line. */
+@media (max-width: 360px) {
+  .ab-chips .ab-chip { padding-left: 25px; padding-right: 10px; }
+  .ab-chips .ab-chip .key { left: 10px; }
+}
+@media (max-width: 340px) {
+  .ab-chips .ab-chip { font-size: 14px; padding-left: 24px; }
 }
 /* On a phone the picture stays at the top of the screen while you call the pitch, and the call fits under it: from the
    first pitch to Throw on an iPhone 14 once Safari has tucked its bars away (750px tall). The pitches are two lines
@@ -585,6 +596,7 @@ p { margin: 0; }
 @media (max-width: 640px) {
   .callbox { gap: 8px; }
   .ab-chips .ab-chip { line-height: 1.2; min-height: 48px; }
+  .ab-chips .ab-chip .key { top: calc(6px + (1.2em - .62em) / 2); }
   #ab-where-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .spots-wrap { gap: 4px; }
   .choice { line-height: 1.25; }

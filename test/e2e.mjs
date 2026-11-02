@@ -1216,8 +1216,8 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await phoneCtx.close();
 }
 
-// Phones, short: an iPhone 14 with Safari's bars tucked away (390x750).
-for (const [width, height] of [[390, 750]]) {
+// Phones, short and narrow: an iPhone 14 with Safari's bars tucked away (390x750), and the narrowest phones.
+for (const [width, height] of [[390, 750], [360, 640], [320, 640]]) {
   const narrowCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const ph = await narrowCtx.newPage();
   watch(ph);
@@ -1248,6 +1248,13 @@ for (const [width, height] of [[390, 750]]) {
     assert.equal(await ph.getByRole('radiogroup', { name: 'Where' }).getAttribute('aria-describedby'), 'ab-side ab-key', `${at}, the grid's name and description`);
     await ph.locator('#ab-pitcher').selectOption('nola');
   }
+  // The pitches' chips are all one height, Aaron Nola's "Knuckle curve" kept to one line, on the narrowest phones too.
+  const chips = await ph.evaluate(() => {
+    const all = [...document.querySelectorAll('#ab-pitches .ab-chip')], kc = all[0].childNodes[1], r = document.createRange();
+    r.selectNodeContents(kc);
+    return { heights: [...new Set(all.map(c => Math.round(c.getBoundingClientRect().height)))], name: kc.textContent.trim(), lines: [...r.getClientRects()].filter(x => x.width > 1).length };
+  });
+  assert.deepEqual(chips, { heights: [48], name: 'Knuckle curve', lines: 1 }, `${at}, Nola's pitches`);
   await narrowCtx.close();
 }
 
