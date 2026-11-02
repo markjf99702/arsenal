@@ -452,8 +452,8 @@ p { margin: 0; }
 .count .dots { display: inline-flex; align-items: center; gap: 4px; font-size: 15px; }
 .count .dots b { margin-right: 2px; }
 .count .dots i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85); }
-.count .dots i.b { background: #2f9e5f; border-color: #fff; }
-.count .dots i.s { background: #d6463e; border-color: #fff; }
+.count .dots i.b { background: #23804b; border-color: #fff; }
+.count .dots i.s { background: #c23b33; border-color: #fff; }
 .count .ct.kl { display: inline-block; transform: scaleX(-1); }
 .count .on { font-size: 16px; font-weight: 600; }
 /* What happened, in a tag filled with its mark's colour, a shade darker so the white words on it read at 4.5 to 1 or
@@ -539,10 +539,13 @@ p { margin: 0; }
 .last p { color: var(--ink-2); }
 .log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--ink-2); }
 .log li { display: flex; gap: 8px; align-items: baseline; }
-.log .n { flex: none; width: 20px; height: 20px; border-radius: 50%; color: #fff; font: 700 12px/20px var(--display); text-align: center; }
-.log .k-strike .n { background: #d6463e; }
-.log .k-ball .n { background: #2f9e5f; }
-.log .k-play .n { background: #3a78d4; }
+/* Each pitch's number in the shape and colour of its mark on the picture: a strike's in a red disc, a ball's in a green
+   ring, a ball in play's in a blue square, the white numbers at 5 to 1 or more in either palette. The ring is the end
+   card's own green, which is paler in the dark palette, so its number reads on the dark card too. */
+.log .n { flex: none; box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; color: #fff; font: 700 12px/20px var(--display); text-align: center; }
+.log .k-strike .n { background: #c23b33; }
+.log .k-ball .n { border: 2px solid var(--res-ball); color: var(--res-ball); line-height: 16px; }
+.log .k-play .n { background: #2f66b8; border-radius: 4px; }
 .log b { color: var(--ink); font-weight: 600; }
 .log .at { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .end { display: grid; gap: 10px; padding: 14px; border-radius: 12px; background: var(--paper); }

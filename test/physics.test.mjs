@@ -6,7 +6,7 @@ import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
 import { Stage } from '../js/stage.js';
 import { tilt } from '../js/spin.js';
-import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK } from '../js/tracker.js';
+import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE } from '../js/tracker.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
 
@@ -100,6 +100,9 @@ function recorder() {
       if (k in t) return t[k];
       if (k === 'beginPath') return () => { path = []; };
       if (k === 'arc') return (x, y, r) => path.push({ x, y, r });
+      // A square with rounded corners, by its middle and half its width (r, as for a circle).
+      if (k === 'roundRect') return (x, y, w, h) => path.push({ x: x + w / 2, y: y + h / 2, r: w / 2, square: true });
+      if (k === 'fillText') return (text, x, y) => drawn.push({ op: 'text', text, x, y, color: t.fillStyle });
       if (k === 'fill' || k === 'stroke' || k === 'strokeRect') {
         return () => {
           const was = { op: k, color: k === 'fill' ? t.fillStyle : t.strokeStyle, width: t.lineWidth };
@@ -197,11 +200,32 @@ test('a mark mostly covered by a later one keeps a ring of its colour showing ro
   // Every mark, the newest too, is where its pitch crossed, and none of them is bigger for it.
   const discs = drawn.filter(d => d.op === 'fill');
   assert.equal(discs.length, 4);
-  discs.forEach((d, i) => assert.ok(near(d, marks[i]) && d.r === r, `mark ${i + 1} moved or changed size`));
+  discs.forEach((d, i) => assert.ok(near(d, marks[i]) && Math.abs(d.r - (d.square ? r * 0.9 : r)) < 1e-9, `mark ${i + 1} moved or changed size`));
   // Marks that only touch, more than a mark's width apart, are left alone.
   const apart = recorder();
   drawMarks(apart.ctx, cam, [marks[0], { ...marks[1], x: -0.5 + (1.05 * r) / cam.project([0, 17 / 12, 3]).k }]);
   assert.equal(apart.drawn.filter(d => d.op === 'stroke' && d.r > r * 1.2).length, 0, 'a ring round a mark that shows');
+});
+
+// Told apart by their shapes as well as their colours: a strike is a filled red disc, a ball a green ring round a white
+// middle with its number in green, a ball in play a blue square. The colours are the end card's own in the light
+// palette (css/app.css), and every number reads at 4.9 to 1 or more on what's behind it.
+test('a strike is marked with a red disc, a ball with a green ring and a ball in play with a blue square', async () => {
+  const cam = atBatCamera(716, 470, { dpr: 2 }), r = markRadius(cam);
+  const marks = [{ x: -0.5, z: 3, n: 1, kind: 'strike' }, { x: 0.5, z: 2, n: 2, kind: 'ball' }, { x: 0, z: 1.2, n: 3, kind: 'play' }];
+  const { ctx, drawn } = recorder();
+  drawMarks(ctx, cam, marks);
+  const fills = drawn.filter(d => d.op === 'fill'), texts = drawn.filter(d => d.op === 'text');
+  assert.deepEqual(fills.map(d => [d.square ? 'square' : 'disc', d.color]), [['disc', MARK.strike], ['disc', '#fff'], ['square', MARK.play]], 'what each mark is filled with');
+  const ring = drawn.filter(d => d.op === 'stroke' && d.color === MARK.ball);
+  assert.ok(ring.length === 1 && ring[0].r < r && ring[0].r - ring[0].width / 2 > r * 0.5, `the ball's ring: ${JSON.stringify(ring)}`);
+  assert.deepEqual(texts.map(d => [d.text, d.color]), [['1', '#fff'], ['2', MARK.ball], ['3', '#fff']], 'the numbers');
+  assert.deepEqual(SHAPE, { strike: 'disc', ball: 'ring', play: 'square' });
+  const css = await readFile(new URL('../css/app.css', import.meta.url), 'utf8');
+  const light = Object.fromEntries([...css.slice(0, css.indexOf('@media')).matchAll(/--res-(\w+): (#[0-9a-f]{6})/g)].map(m => [m[1], m[2]]));
+  assert.deepEqual(MARK, light, 'the marks and the end card are coloured differently');
+  const lum = hex => { const [R, G, B] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
+  for (const [kind, c] of Object.entries(MARK)) assert.ok((1.05) / (lum(c) + 0.05) >= 4.9, `a white number on a ${kind}'s ${c}`);
 });
 
 test('a knuckleball never goes the same way twice', () => {

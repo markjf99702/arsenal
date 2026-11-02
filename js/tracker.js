@@ -2,8 +2,12 @@
 // where it crossed the plate, numbered, the way a broadcast's pitch tracker shows them.
 import { PLATE_Y, catcherCamera } from './flight.js';
 
-// Result colours, as broadcasts use them: green for a ball, red for a strike, blue for a ball in play.
-export const MARK = { ball: '#2f9e5f', strike: '#d6463e', play: '#3a78d4' };
+// Result colours, as broadcasts use them: green for a ball, red for a strike, blue for a ball in play. They're the end
+// card's own (--res-*, css/app.css), a shade darker than broadcasts' so a white number on them reads at 4.9 to 5.7 to 1.
+// And each has a shape of its own, so they're told apart without the colours: a strike is a filled disc, a ball a ring
+// and a ball in play a square.
+export const MARK = { ball: '#23804b', strike: '#c23b33', play: '#2f66b8' };
+export const SHAPE = { strike: 'disc', ball: 'ring', play: 'square' };
 export const markKind = result => (result === 'ball' || result === 'hbp' ? 'ball' : result === 'inplay' ? 'play' : 'strike');
 
 // A mark's radius: a little more than a ball's at the plate, and never under 7 CSS pixels.
@@ -63,11 +67,20 @@ export function readoutRoom(W, H, dpr, [x, z]) {
   return (cam.project([x, PLATE_Y, z]).x - markRadius(cam)) / dpr;
 }
 
+// A mark's outline, `r` from its middle: a circle, or for a ball in play a square with rounded corners, as wide.
+function outline(ctx, kind, x, y, r) {
+  ctx.beginPath();
+  if (SHAPE[kind] !== 'square') { ctx.arc(x, y, r, 0, Math.PI * 2); return; }
+  const s = r * 0.9;
+  if (ctx.roundRect) ctx.roundRect(x - s, y - s, 2 * s, 2 * s, s * 0.32); else ctx.rect(x - s, y - s, 2 * s, 2 * s);
+}
+
 // Each pitch where it crossed. One that crossed below the bottom edge (it bounced) sits on the edge with a notch
 // under its number, pointing down: lower than this. `grow` is how many times its size the newest is drawn (growth).
-// A later pitch that crossed within a mark's width of an earlier one covers most of it, so the earlier one keeps a thin
-// ring of its colour round the outside, one ring further out for each that covers it, and can still be found. Every
-// mark stays where its pitch crossed.
+// A strike is filled with its red and a ball in play with its blue, each with a white number; a ball is a green ring
+// round a white middle, with its number in green. A later pitch that crossed within a mark's width of an earlier one
+// covers most of it, so the earlier one keeps a thin outline of its colour round the outside, one further out for each
+// that covers it, and can still be found. Every mark stays where its pitch crossed.
 export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
   const r0 = markRadius(cam);
   const floor = cam.H - r0 - 2;
@@ -82,20 +95,30 @@ export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
   marks.forEach((m, i) => {
     const p = at[i], { low, y } = p;
     const last = i === marks.length - 1, r = last ? r0 * grow : r0;
+    const color = MARK[m.kind], hollow = SHAPE[m.kind] === 'ring';
     ctx.globalAlpha = last ? 1 : 0.88;
     const covered = at.slice(i + 1).filter(q => Math.hypot(q.x - p.x, q.y - y) < r0).length;
     if (covered) {
-      // Outside the white edge of the mark on top, with a white line between each ring and the next.
-      ctx.beginPath(); ctx.arc(p.x, y, r0 * 1.12 + ring * (1.6 * covered - 0.5), 0, Math.PI * 2);
+      // Outside the white edge of the mark on top, with a white line between each outline and the next.
+      outline(ctx, m.kind, p.x, y, r0 * 1.12 + ring * (1.6 * covered - 0.5));
       ctx.strokeStyle = '#fff'; ctx.lineWidth = ring * 1.8; ctx.stroke();
-      ctx.strokeStyle = MARK[m.kind]; ctx.lineWidth = ring; ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = ring; ctx.stroke();
     }
-    ctx.fillStyle = MARK[m.kind];
+    const edge = Math.max(1.5, r * (last ? 0.26 : 0.16));
+    outline(ctx, m.kind, p.x, y, r);
+    ctx.fillStyle = hollow ? '#fff' : color;
+    ctx.fill();
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = Math.max(1.5, r * (last ? 0.26 : 0.16));
-    ctx.beginPath(); ctx.arc(p.x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = `700 ${Math.round(r * 1.15)}px "Barlow Condensed", system-ui, sans-serif`;
+    ctx.lineWidth = edge;
+    ctx.stroke();
+    if (hollow) {
+      // The ring, inside the white edge.
+      const w = Math.max(1.5 * (cam.dpr || 1), r * 0.24);
+      ctx.beginPath(); ctx.arc(p.x, y, r - edge / 2 - w / 2, 0, Math.PI * 2);
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke();
+    }
+    ctx.fillStyle = hollow ? color : '#fff';
+    ctx.font = `700 ${Math.round(r * (hollow ? 1.02 : 1.15))}px "Barlow Condensed", system-ui, sans-serif`;
     ctx.fillText(String(m.n), p.x, y + r * (low ? -0.18 : 0.06));
     if (low) {
       ctx.beginPath();

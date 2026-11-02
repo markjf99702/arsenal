@@ -737,7 +737,7 @@ assert.match(await heading(), /^Forkball/i);
     last: getComputedStyle(document.getElementById('ab-last')).display,
   }));
   assert.deepEqual(first, {
-    how: 'Pick a pitch and a spot, then throw it. The hitter has to commit at the decision point (the dashed ring on each pitch’s path), DECIDE seconds from the plate, and a swing at a pitch out of the zone is a chase. Strikes are red (called, swinging or fouled), balls green, balls in play blue.',
+    how: 'Pick a pitch and a spot, then throw it. The hitter has to commit at the decision point (the dashed ring on each pitch’s path), DECIDE seconds from the plate, and a swing at a pitch out of the zone is a chase. Strikes are red discs (called, swinging or fouled), balls green rings, balls in play blue squares.',
     above: true, last: 'none',
   }, 'before the first pitch');
   // The pitches and the spots are each a group of radio buttons, one stop for Tab at the one checked, so Throw is a few
@@ -1085,6 +1085,23 @@ const tagged = p => p.evaluate(() => {
   const lum = c => { const [R, G, B] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
   const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
   return { words: tag.textContent, kind: tag.className.replace('tag k-', ''), fill: cs.backgroundColor, ratio: Math.floor(((hi + 0.05) / (lo + 0.05)) * 10) / 10 };
+});
+
+// Each pitch's number in the log, by kind (strike, ball or play): the shape it's in (a disc, a ring or a square), and
+// how its number stands off what's behind it, its fill or, in a ring, the card.
+const badges = p => p.evaluate(() => {
+  const rgb = c => c.match(/[\d.]+/g).map(Number);
+  const lum = c => { const [R, G, B] = c.slice(0, 3).map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * R + 0.7152 * G + 0.0722 * B; };
+  const card = getComputedStyle(document.querySelector('.bat-call')).backgroundColor;
+  const out = {};
+  for (const li of document.querySelectorAll('#ab-log li')) {
+    const cs = getComputedStyle(li.querySelector('.n')), filled = (rgb(cs.backgroundColor)[3] ?? 1) > 0;
+    const shape = cs.borderTopLeftRadius === '50%' ? (filled ? 'disc' : parseFloat(cs.borderTopWidth) >= 2 && cs.borderTopColor === cs.color ? 'ring' : 'unringed') : 'square';
+    const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(filled ? cs.backgroundColor : card))].sort((x, y) => y - x);
+    const ratio = Math.floor(((hi + 0.05) / (lo + 0.05)) * 10) / 10, kind = li.className.replace('k-', '');
+    out[kind] = { shape, readable: ratio >= 4.5 && (out[kind]?.readable ?? true) };
+  }
+  return out;
 });
 
 // The at-bat's lines that a dot separates: no line starts with the dot (a no-break space before it keeps it on the line
@@ -1606,6 +1623,7 @@ for (const [width, height, want] of [[1280, 800, 2], [390, 844, 0]]) {
   assert.deepEqual(await page.evaluate(() => [location.hash, document.title]), ['#sweeper', 'Sweeper · Arsenal'], 'after picking a pitch');
 }
 
+const seenBadges = new Set();
 // The end card's headline is coloured like the last pitch's mark and its number in the log: a strikeout red, a walk or
 // a hit by pitch green, a ball in play blue, a home run too. The last pitch's box under it says why without repeating
 // the headline in other words. Over the picture, how it ended is in a tag of that colour, the same in either palette as
@@ -1636,8 +1654,17 @@ for (const [link, kind] of [
   }
   await page.emulateMedia({ colorScheme: 'light' });
   assert.ok(tags[0]?.ratio >= 4.5, `the readout's tag at the end of ${link}: ${JSON.stringify(tags[0])}`);
+  for (const colorScheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme });
+    for (const [k, b] of Object.entries(await badges(page))) {
+      assert.deepEqual(b, { shape: { strike: 'disc', ball: 'ring', play: 'square' }[k], readable: true }, `${colorScheme}: the log's numbers for a ${k} at the end of ${link}`);
+      seenBadges.add(k);
+    }
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
   assert.deepEqual(tags, [0, 1].map(() => ({ ...tags[0], words: end.result, kind })), `the readout's tag at the end of ${link}, in the light and dark palettes`);
 }
+assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs checked for their numbers’ shapes');
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
