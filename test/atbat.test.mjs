@@ -523,7 +523,7 @@ test('the hundred throws face a hitter who remembers the whole at-bat, not just 
 // The page throws each pitch 400 times, a slice of 100 at a time, and shows it per 100: at 100 throws a pitch's misses
 // per 100 wander by about 8 either way from chart to chart, enough to put the wrong pitch on top. Paul Skenes to a
 // right-handed batter, 1-2 after a four-seamer up and in, down and off the plate away: over 20,000 throws the slider is
-// missed most, 30 times in 100 to the sweeper's 24.
+// missed most, 33 times in 100 to the changeup's 29.
 test('four hundred throws of each put the same pitch on top whatever the seed', () => {
   const ab = startAtBat({ pitcher: pitcherByKey('skenes'), batter: 'R', seed: 12345 });
   throwCall(ab, { code: 'FF', spot: spotById('1m1') });
