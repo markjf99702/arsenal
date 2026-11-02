@@ -12,10 +12,13 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const rounded = await readFile(join(root, 'icon.svg'), 'utf8');
 const square = await readFile(join(root, 'tools/icon-full-bleed.svg'), 'utf8');
+// Android keeps only the middle circle, 80% across, of a maskable icon. The ball's trail reaches past it in the
+// full-bleed SVG, so the maskable icon has its own copy with the art inside it, tools/icon-maskable.svg.
+const maskable = await readFile(join(root, 'tools/icon-maskable.svg'), 'utf8');
 const out = [
   ['icon-192.png', 192, rounded, true],
   ['icon-512.png', 512, rounded, true],
-  ['icon-512-maskable.png', 512, square, false],
+  ['icon-512-maskable.png', 512, maskable, false],
   ['icon-180.png', 180, square, false], // iOS rounds the corners itself
 ];
 
