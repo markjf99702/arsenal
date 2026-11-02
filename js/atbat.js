@@ -48,14 +48,16 @@ export function trimmed(h) {
   while (n && !/[0-9a-z]/i.test(h[n - 1])) n--;
   return h.slice(0, n);
 }
-export const linkFor = ({ pitcher, batter, hitter = 'average', seed, calls }) => ['ab', `v${VERSION}`, pitcher.key, hitter === 'average' ? batter : `${batter}-${hitter}`, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
+// An inning's link is the same with inning for ab, its seed the inning's and its calls every pitch of the inning in
+// turn: each batter's at-bat ends where the model says it does, and the next call is to the next batter (playInning).
+export const linkFor = ({ inning = false, pitcher, batter, hitter = 'average', seed, calls }) => [inning ? 'inning' : 'ab', `v${VERSION}`, pitcher.key, hitter === 'average' ? batter : `${batter}-${hitter}`, (seed >>> 0).toString(36), ...calls.map(c => `${c.code}${SPOTS.indexOf(c.spot)}`)].join('.');
 // Reads a link like that, with or without its #, or gives null when even its pitcher, batter and seed can't be read. It
 // reads what it can, the way a link arrives from a message: a full stop, bracket or quote stuck on the end is dropped,
 // a pitch's letters can be in lower case, and the calls are read up to the first that can't be (`rest` is what's left
 // from there, '' when nothing is). A call's spot is undefined when its number is off the grid, and its pitch can be one
 // the pitcher doesn't throw: what to do then is the page's to say. `version` is the hitter's the link was made against,
 // and `hitter` his kind, in lower case: 'average' when the link has none, and as the link has it when it isn't one of
-// HITTER_TYPES, for the page to say so too.
+// HITTER_TYPES, for the page to say so too. `inning` is whether it's an inning's link.
 export function parseLink(hash) {
   let h = String(hash).replace(/^#/, '');
   try { h = decodeURIComponent(h); } catch {}
@@ -64,14 +66,14 @@ export function parseLink(hash) {
   if (v) parts.splice(1, 1);
   const [ab, key = '', side = '', seed = '', ...tokens] = parts;
   const [, batter, hitter = 'average'] = /^([RL])(?:-(\w+))?$/i.exec(side) || [];
-  if (!/^ab$/i.test(ab) || !/^\w+$/.test(key) || !batter || !/^[0-9a-z]+$/i.test(seed)) return null;
+  if (!/^(ab|inning)$/i.test(ab) || !/^\w+$/.test(key) || !batter || !/^[0-9a-z]+$/i.test(seed)) return null;
   const calls = [];
   for (const t of tokens) {
     const m = /^([A-Za-z]{2})(\d{1,2})$/.exec(t);
     if (!m) break;
     calls.push({ code: m[1].toUpperCase(), spot: SPOTS[Number(m[2])] });
   }
-  return { version: v ? Number(v[1]) : 1, pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), hitter: hitter.toLowerCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
+  return { inning: /^inning$/i.test(ab), version: v ? Number(v[1]) : 1, pitcherKey: key.toLowerCase(), batter: batter.toUpperCase(), hitter: hitter.toLowerCase(), seed: parseInt(seed, 36) >>> 0, calls, rest: tokens.slice(calls.length).join('.') };
 }
 
 // Where a spot is, from the catcher's view: away is the catcher's right for a right-handed hitter.
@@ -380,6 +382,28 @@ export function throwCall(ab, call) {
   else if (out.result === 'inplay') ab.result = out.play;
   ab.pitches.push(out);
   return out;
+}
+
+// ---------------------------------------------------------------- an inning
+
+// An inning: one pitcher to batter after batter, all on one side of the plate and of one kind, until three are out (a
+// strikeout, swinging or looking, or an out in play). Each batter is a hitter of his own, with luck of his own: the
+// first faces the inning's seed, and each after him a seed drawn from it, so a link brings back the same batters.
+export const OUTS = new Set(['K', 'KL', 'out']);
+export const batterSeed = (seed, i) => (i ? (Math.imul((seed ^ 0x9e3779b9) >>> 0, 2 * i + 1) + Math.imul(i, 0x85ebca6b)) >>> 0 : seed >>> 0);
+export const outsIn = abs => abs.filter(ab => OUTS.has(ab.result)).length;
+// Every call of an inning in turn, each to the batter who's up, a new one once an at-bat ends. `abs` are the at-bats,
+// and `thrown` how many calls were thrown: none after the third out.
+export function playInning({ pitcher = AVERAGE, batter = 'R', hitter = 'average', seed = 1, calls, params = DEFAULTS }) {
+  const abs = [];
+  let thrown = 0;
+  for (const call of calls) {
+    if (outsIn(abs) >= 3) break;
+    if (!abs.length || abs.at(-1).result) abs.push(startAtBat({ pitcher, batter, hitter, seed: batterSeed(seed, abs.length), params }));
+    throwCall(abs.at(-1), call);
+    thrown++;
+  }
+  return { abs, outs: outsIn(abs), thrown };
 }
 
 // ---------------------------------------------------------------- a pitcher who picks for himself

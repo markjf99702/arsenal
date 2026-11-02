@@ -371,12 +371,12 @@ function address() {
   if (location.hash.slice(1) !== here()) { try { history.replaceState(null, '', `#${here()}`); } catch {} }
   document.title = `${state.pitch.name} · Arsenal`;
 }
-// Reads a link like that. It's one only if it starts with a pitch, so #at-bat, an at-bat's link (#ab.…) or a word that
-// isn't a pitch gives null and leaves things as they are. A part it doesn't know is left out: #sweeper+nothing is the
+// Reads a link like that. It's one only if it starts with a pitch, so #at-bat, an at-bat's or an inning's link (#ab.…,
+// #inning.…) or a word that isn't a pitch gives null and leaves things as they are. A part it doesn't know is left out: #sweeper+nothing is the
 // sweeper alone. A plain #sweeper is a right-hander's, as it always was. It's read the way an at-bat link is (parseLink,
 // js/atbat.js): in lower case, so #Sweeper is the sweeper too, and without a bracket or quote a message stuck on the end.
 function readLink(h) {
-  if (/^ab\./i.test(h)) return null;
+  if (/^(ab|inning)\./i.test(h)) return null;
   try { h = decodeURIComponent(h); } catch {}
   const [pitches, ...more] = trimmed(h.toLowerCase()).split('.');
   const [first, second] = pitches.split('+');
@@ -407,8 +407,8 @@ function follow(link) {
   pick(link.pitch, { push: false });
 }
 
-// Pitch to a hitter. A link like #ab.v3.skenes.R.k3x9a.FF6.SL23 replays one at-bat, and one starting #ab. that can't be
-// read opens a new at-bat that says so (load).
+// Pitch to a hitter. A link like #ab.v3.skenes.R.k3x9a.FF6.SL23 replays one at-bat, #inning.v3.skenes.R.k3x9a.FF6... a
+// whole inning, and one starting #ab. or #inning. that can't be read opens a new one that says so (load).
 const atBat = setupAtBat({ dark: isDark() });
 addEventListener('hashchange', () => {
   const h = location.hash.slice(1);

@@ -1944,6 +1944,73 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   assert.equal(await page.locator('#ab-tally').textContent(), line(rs), 'the tally after three batters');
 }
 
+// An inning: one pitcher to batter after batter until three are out. The count over the picture has the outs, the end
+// card after each batter says where the inning stands and offers the next batter, and at the third out it's the
+// inning's own: each batter's at-bat, and another inning. The address is the inning's link, which replays the whole of
+// it, and says so; calls after the third out are left out. One at-bat again is an at-bat's link.
+{
+  const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const where = () => page.evaluate(() => {
+    const { state } = window.arsenal.atBat, abs = state.inning?.abs || [];
+    const outs = abs.filter(ab => ['K', 'KL', 'out'].includes(ab.result)).length;
+    return {
+      outs, batters: abs.length, over: !!state.ab.result, hash: location.hash, next: document.getElementById('ab-next').textContent, line: document.getElementById('ab-inning').textContent,
+      result: document.getElementById('ab-result').textContent, list: [...document.querySelectorAll('#ab-batters li')].map(li => li.textContent),
+      sr: document.querySelector('#ab-count .sr')?.textContent, ro: document.getElementById('ab-ro').textContent, log: document.getElementById('ab-log').innerText,
+    };
+  });
+  const said = ['No outs', 'One out', 'Two outs'];
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT.replace(/\.FF6.*/, ''));
+  await idle();
+  await page.locator('#ab-mode [data-v="inning"]').click();
+  assert.equal(await page.locator('#ab-live').textContent(), 'New inning: the league-average righty to right-handed batters.');
+  let w = await where();
+  assert.deepEqual([w.batters, w.sr], [1, '0 balls, 0 strikes, 0 outs'], 'a new inning');
+  for (let guard = 0; guard < 20 && !(w.over && w.outs === 3); guard++) {
+    if (w.over) {
+      assert.deepEqual([w.next, w.line, w.result !== 'Inning over'], ['Next batter', `${said[w.outs]} after ${w.batters} batter${w.batters === 1 ? '' : 's'}.`, true], `the end card after batter ${w.batters}`);
+      await page.locator('#ab-next').click();
+      w = await where();
+      assert.equal(await page.locator('#ab-live').textContent(), `Batter ${w.batters}, ${said[w.outs].toLowerCase()}: the league-average righty to a right-handed batter.`);
+      assert.equal(w.sr, `0 balls, 0 strikes, ${w.outs} out${w.outs === 1 ? '' : 's'}`, `the count for batter ${w.batters}`);
+    }
+    await page.evaluate(() => window.arsenal.atBat.throw('SL', 'm11'));
+    await idle();
+    w = await where();
+    assert.match(w.hash, new RegExp(`^#inning\\.v${VERSION}\\.average\\.R\\.[0-9a-z]+(\\.[A-Z]{2}\\d+)+$`), 'the address while pitching an inning');
+  }
+  assert.equal(w.outs, 3, 'the inning never ended');
+  assert.equal(w.result, 'Inning over', 'the inning\'s end card');
+  assert.equal(w.next, 'Pitch another inning');
+  assert.equal(w.list.length, w.batters, 'a line for each batter of the inning');
+  assert.match(w.line, new RegExp(`^Three outs: ${w.batters} batters and \\d+ pitches, \\d\u00a0K\u00a0· \\d\u00a0BB\u00a0· \\d\u00a0H`), w.line);
+  assert.match(w.ro, /, 3 outs$/, 'the line under how it ended, over the picture');
+  // The inning's link replays it, all of it, and says so.
+  const done = w;
+  await page.goto('about:blank');
+  await page.goto(base + done.hash);
+  await idle();
+  w = await where();
+  assert.deepEqual({ ...w, sr: undefined }, { ...done, sr: undefined }, 'the inning\'s link replayed another inning');
+  const pitches = done.hash.split('.').length - 5;
+  assert.equal(await page.locator('#ab-notice').textContent(), `Replayed from the link: an inning by the league-average righty to right-handed batters, ${done.batters} batters, ${pitches} pitches.`);
+  // With calls after the third out, they're left out.
+  await page.goto('about:blank');
+  await page.goto(base + done.hash + '.FF6.CH16');
+  await idle();
+  assert.match(await page.locator('#ab-notice').textContent(), / The link had 2 more pitches after the inning ended; they were left out\.$/);
+  // Another inning starts clean, and its address is its own.
+  await page.locator('#ab-next').click();
+  w = await where();
+  assert.deepEqual([w.batters, w.outs, w.over, w.list, w.log], [1, 0, false, [], ''], 'another inning');
+  assert.ok(/^#inning\./.test(w.hash) && w.hash !== done.hash, `the address of another inning: ${w.hash}`);
+  // One at-bat again.
+  await page.locator('#ab-mode [data-v="ab"]').click();
+  w = await where();
+  assert.deepEqual([w.batters, w.sr, /^#ab\./.test(w.hash)], [0, '0 balls, 0 strikes', true], 'one at-bat again');
+}
+
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.
 {
   const showing = () => page.evaluate(() => {

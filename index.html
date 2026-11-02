@@ -124,6 +124,10 @@
             <button type="button" data-v="L" aria-pressed="false">Lefty batter</button>
           </div>
           <label class="pairpick">Hitter <select id="ab-hitter"></select></label>
+          <div class="seg" role="group" aria-label="How many batters" id="ab-mode">
+            <button type="button" data-v="ab" aria-pressed="true">One at-bat</button>
+            <button type="button" data-v="inning" aria-pressed="false">An inning</button>
+          </div>
           <div class="seg" role="group" aria-label="Speed" id="ab-speed">
             <button type="button" data-v="1" aria-pressed="true">Real speed</button>
             <button type="button" data-v="0.25" aria-pressed="false">Slow</button>
@@ -155,6 +159,8 @@
         <div class="end" id="ab-end" hidden>
           <h3 class="end-result" id="ab-result" tabindex="-1"></h3>
           <p id="ab-note"></p>
+          <p class="inning-line" id="ab-inning"></p>
+          <ol class="batters" id="ab-batters" aria-label="The inning’s batters"></ol>
           <div class="call-row">
             <button class="throw" id="ab-next" type="button">Next hitter</button>
             <button class="plain" id="ab-copy" type="button">Copy link to this at-bat</button>

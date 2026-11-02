@@ -1,7 +1,7 @@
 // The at-bat model:  node --test test/atbat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES } from '../js/atbat.js';
+import { startAtBat, throwCall, autoAtBat, autoCall, whatIf, PITCHERS, SPOTS, spotById, spotName, spotXZ, AVERAGE, pitcherByKey, ZONE, linkFor, parseLink, VERSION, HITTER_TYPES, batterSeed, outsIn, playInning, OUTS } from '../js/atbat.js';
 import { COUNTS, TYPES, PITCHERS as REAL, LEAGUE } from '../js/league.js';
 import { readFile } from 'node:fs/promises';
 import { TARGET, run, checks, SEEDS, measure, measurePitchers, measureHitters } from './lab.mjs';
@@ -303,6 +303,36 @@ test('an at-bat link replays the at-bat it was made from, pitch for pitch, and s
   for (const seed of [0, 2 ** 32 - 1]) assert.equal(parseLink(linkFor({ pitcher: AVERAGE, batter: 'R', seed, calls: [] })).seed, seed);
 });
 
+// An inning: one pitcher, batter after batter until three are out, each with his own seed drawn from the inning's. Its
+// link is every pitch of it in turn, and replays the same inning: each at-bat ends where the model says, and the next
+// call goes to the next batter. Nothing is thrown after the third out.
+test('an inning link replays the inning it was made from, batter by batter, until three are out', () => {
+  const R = rng(91);
+  for (let k = 0; k < 60; k++) {
+    const pitcher = PITCHERS[k % PITCHERS.length], batter = k % 2 ? 'L' : 'R', hitter = HITTER_TYPES[k % HITTER_TYPES.length].key, seed = (R() * 2 ** 32) >>> 0;
+    const abs = [];
+    while (outsIn(abs) < 3) {
+      const ab = startAtBat({ pitcher, batter, hitter, seed: batterSeed(seed, abs.length) });
+      while (!ab.result) throwCall(ab, { code: pitcher.pitches[Math.floor(R() * pitcher.pitches.length)].code, spot: SPOTS[Math.floor(R() * SPOTS.length)] });
+      abs.push(ab);
+    }
+    const calls = abs.flatMap(ab => ab.pitches.map(p => ({ code: p.code, spot: p.spot })));
+    const link = linkFor({ inning: true, pitcher, batter, hitter, seed, calls }), read = parseLink(`#${link}.FF6.SL7`);
+    assert.match(link, /^inning\.v\d+\./);
+    assert.deepEqual([read.inning, read.pitcherKey, read.batter, read.hitter, read.seed], [true, pitcher.key, batter, hitter, seed], link);
+    const again = playInning({ pitcher, batter, hitter, seed, calls: read.calls });
+    assert.equal(again.thrown, calls.length, `${link}: pitches thrown after the third out`);
+    assert.deepEqual(again.abs.map(ab => ab.pitches.map(played)), abs.map(ab => ab.pitches.map(played)), link);
+    assert.equal(again.outs, 3);
+    assert.ok(again.abs.slice(0, -1).every(ab => ab.result) && OUTS.has(again.abs.at(-1).result), `${link}: an inning that didn't end on its third out`);
+  }
+  // Each batter is a hitter of his own: no two of an inning's first twenty have the same seed, and the first has the inning's.
+  assert.equal(new Set(Array.from({ length: 20 }, (_, i) => batterSeed(12345, i))).size, 20);
+  assert.equal(batterSeed(12345, 0), 12345);
+  // An at-bat link is still an at-bat's.
+  assert.equal(parseLink('#ab.v3.average.R.2gbo.FF6').inning, false);
+});
+
 // Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 3 of the hitter plays them.
 // Anything that changes how a link replays fails here until VERSION in js/atbat.js goes up and these are pinned again,
 // so a link made before the change opens saying it may play out differently. Each plays all its calls, so every pitch
@@ -348,7 +378,7 @@ test('a link with something stuck on the end reads the same, and one cut off rea
   assert.equal(parseLink('#ab.skenes.L'), null);
   assert.equal(parseLink('#ab.skenes'), null);
   assert.equal(parseLink('#sweeper'), null);
-  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { version: 1, pitcherKey: 'skenes', batter: 'L', hitter: 'average', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
+  assert.deepEqual(parseLink('#ab.skenes.L.k3x9a.FF6.S'), { inning: false, version: 1, pitcherKey: 'skenes', batter: 'L', hitter: 'average', seed: parseInt('k3x9a', 36), calls: [{ code: 'FF', spot: SPOTS[6] }], rest: 'S' });
   // A hitter of another kind is on his side, after a hyphen; one the page doesn't know is read as the link has it, for
   // the page to say so. A side with a hyphen and nothing after it is garbled.
   assert.deepEqual(parseLink('#ab.v3.skenes.L-patient.k3x9a.FF6'), { ...parseLink('#ab.v3.skenes.L.k3x9a.FF6'), hitter: 'patient' });

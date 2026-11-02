@@ -1,6 +1,6 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION, batterSeed, outsIn } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME, timing, thoughtMiss } from './atbat-words.js';
 import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
@@ -30,11 +30,17 @@ const batterWords = (side, hitter) => {
   const hand = `${side === 'R' ? 'right' : 'left'}-handed`;
   return { average: `a ${hand} batter`, free: `a ${hand} free swinger`, patient: `a patient ${hand} hitter`, contact: `a ${hand} contact hitter`, power: `a ${hand} power hitter` }[hitter] || `a ${hand} batter`;
 };
+// The same for an inning's batters: "right-handed batters", "patient left-handed hitters".
+const battersWords = (side, hitter) => {
+  const hand = `${side === 'R' ? 'right' : 'left'}-handed`;
+  return { free: `${hand} free swingers`, patient: `patient ${hand} hitters`, contact: `${hand} contact hitters`, power: `${hand} power hitters` }[hitter] || `${hand} batters`;
+};
+const OUTS_SAID = ['No outs', 'One out', 'Two outs', 'Three outs'];
 // How each ending goes in a scorebook. A strikeout looking is the same K, drawn backwards.
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
-  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null, watching: null, visit: [] };
+  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null, watching: null, visit: [], mode: 'ab', inning: null };
   const stage = new Stage($('ab-flight'), { onArrive: () => (S.watching ? watched() : land()) });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
@@ -74,6 +80,8 @@ export function setupAtBat({ dark = false } = {}) {
   $('ab-hitter').innerHTML = HITTER_TYPES.map(h => `<option value="${h.key}">${h.name}</option>`).join('');
   $('ab-hitter').addEventListener('change', e => { S.hitter = hitterByKey(e.target.value).key; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   seg('ab-speed', v => { S.speed = Number(v); stage.set({ speed: S.speed }); });
+  // One at-bat, or a whole inning: batter after batter, all of this side and kind, until three are out.
+  seg('ab-mode', v => { S.mode = v; S.seed = newSeed(); fresh({ picked: true, changed: true }); });
   $('ab-throw').addEventListener('click', () => pitch());
   // The pitches and the spots are each a group of radio buttons: one stop for Tab, at the one picked, and the arrow keys
   // pick another. Picked, one is checked where it is (drawCall), so focus stays on it.
@@ -109,7 +117,7 @@ export function setupAtBat({ dark = false } = {}) {
     let c;
     // Another call than the one picked now, if one comes up in a few tries.
     for (let tries = 0; tries < 8; tries++) {
-      const look = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: (S.seed + S.calls.length * 7919 + 1 + S.asked++ * 104729) >>> 0 });
+      const look = startAtBat({ pitcher: S.pitcher, batter: S.batter, seed: (S.ab.seed + S.ab.pitches.length * 7919 + 1 + S.asked++ * 104729) >>> 0 });
       look.balls = S.ab.balls; look.strikes = S.ab.strikes;
       c = autoCall(look);
       if (c.code !== S.code || c.spot !== S.spot) break;
@@ -122,9 +130,10 @@ export function setupAtBat({ dark = false } = {}) {
   });
   // The next hitter: the pitch controls come back where the result was, and into view (under the picture, on a phone),
   // with focus on Throw, the button that was gone with the end card.
+  // In an inning, it's the next batter, until three are out; then another inning.
   $('ab-next').addEventListener('click', () => {
-    S.seed = newSeed();
-    fresh({ picked: true });
+    if (S.inning && outsIn(S.inning.abs) < 3) fresh({ picked: true, next: true });
+    else { S.seed = newSeed(); fresh({ picked: true }); }
     reveal($('ab-callbox'));
     $('ab-throw').focus({ preventScroll: true });
   });
@@ -158,13 +167,17 @@ export function setupAtBat({ dark = false } = {}) {
   // address then would cut the link short. On a plain page the address waits for the first pitch.) `changed` is another
   // pitcher or batter: if that cut short an at-bat with pitches in it, wiping its count, marks and log, it says so
   // under Throw too, for everyone to see.
-  function fresh({ keepCalls = false, picked = false, changed = false } = {}) {
-    const cut = changed && S.ab?.pitches.length > 0;
+  // In an inning, `next` is the next batter in it; anything else starts a new inning, with S.seed as its seed, and the
+  // batters' own seeds drawn from it (batterSeed).
+  function fresh({ picked = false, changed = false, next = false } = {}) {
+    const cut = changed && (S.ab?.pitches.length > 0 || S.inning?.abs.length > 1);
     // An at-bat that ended on a pitch thrown here goes into this visit's tally (drawTally) as the next one starts.
     if (S.ab?.result && S.ab.here) S.visit.push(S.ab.result);
-    S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.seed });
+    if (S.mode !== 'inning') S.inning = null;
+    else if (!next || !S.inning) S.inning = { seed: S.seed, abs: [] };
+    S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.inning ? batterSeed(S.inning.seed, S.inning.abs.length) : S.seed });
+    S.inning?.abs.push(S.ab);
     S.asked = 0;
-    if (!keepCalls) S.calls = [];
     S.code = S.pitcher.pitches[0].code;
     S.spot = spotById(S.pitcher.pitches[0].code === 'SI' ? 'm1m1' : '1m1');
     stopWatch();
@@ -180,6 +193,7 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-pitcher').value = S.pitcher.key;
     $('ab-hitter').value = S.hitter;
     for (const b of $('ab-batter').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === S.batter));
+    for (const b of $('ab-mode').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === S.mode));
     stage.set({ hand: S.pitcher.hand, batter: S.batter, marks: [] });
     stage.clear();
     $('ab-chart').replaceChildren();
@@ -190,10 +204,13 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-watch-link').hidden = true;
     $('ab-version').textContent = '';
     if (picked) {
-      const said = `New at-bat: ${who()} to ${batterWords(S.batter, S.hitter)}.`;
+      const n = S.inning?.abs.length, outs = S.inning && outsIn(S.inning.abs);
+      const said = !S.inning ? `New at-bat: ${who()} to ${batterWords(S.batter, S.hitter)}.`
+        : n === 1 ? `New inning: ${who()} to ${battersWords(S.batter, S.hitter)}.`
+        : `Batter ${n}, ${OUTS_SAID[outs].toLowerCase()}: ${who()} to ${batterWords(S.batter, S.hitter)}.`;
       $('ab-live').textContent = said;
       if (cut) $('ab-hint').textContent = said;
-      if (location.hash.startsWith('#ab.')) stamp();
+      if (/^#(ab|inning)\./i.test(location.hash)) stamp();
     }
   }
 
@@ -203,7 +220,6 @@ export function setupAtBat({ dark = false } = {}) {
     const call = { code: S.code, spot: S.spot };
     const rec = throwCall(S.ab, call);
     S.ab.here = true;
-    S.calls.push(call);
     stamp();
     stopChart();
     S.busy = true;
@@ -280,7 +296,7 @@ export function setupAtBat({ dark = false } = {}) {
   function say(i = S.ab.pitches.length - 1) {
     const ab = S.ab, p = ab.pitches[i];
     $('ab-live').textContent = ab.result && i === ab.pitches.length - 1
-      ? `${ENDING[ab.result]} on a ${p.before.balls}-${p.before.strikes} pitch. ${note(ab)}`
+      ? `${ENDING[ab.result]} on a ${p.before.balls}-${p.before.strikes} pitch. ${note(ab)}${S.inning && !S.watching ? ` ${inningLine()}` : ''}`
       : `Pitch ${p.n}, ${NAME[p.code]}, ${calledLine(p, ab.batter)}: ${lower(resultWord(p))}. ${p.after.balls} and ${p.after.strikes}. ${why(p, ab.pitches[i - 1], ab.batter)}`;
   }
 
@@ -369,12 +385,26 @@ export function setupAtBat({ dark = false } = {}) {
 
   // The count after `last` (a pitch, or nothing before the first), or once it's `over`, the scorebook's mark for how it
   // ended and the count it ended on. The count is read as "1 ball, 2 strikes", not "1-2, B, S".
+  // In an inning, the outs before this batter too, as dots after the strikes. (Once he's done, the outs after him are
+  // in the line under the count: readout.)
   function drawCount(last, over) {
     const balls = last ? last.after.balls : 0, strikes = last ? last.after.strikes : 0, r = S.ab.result;
     const dots = (n, of, cls) => Array.from({ length: of }, (_, i) => `<i class="${i < n ? cls : ''}"></i>`).join('');
+    const outs = S.inning ? outsIn(over ? S.inning.abs : S.inning.abs.slice(0, -1)) : 0;
+    $('ab-count').classList.toggle('outs', !!S.inning && !over);
     $('ab-count').innerHTML = over
       ? `<span class="ct${r === 'KL' ? ' kl' : ''}" role="img" aria-label="${ENDING[r]}">${SCOREBOOK[r]}</span><span class="on">on a ${last.before.balls}-${last.before.strikes} pitch</span>`
-      : `<span class="sr">${plural(balls, 'ball')}, ${plural(strikes, 'strike')}</span><span class="ct" aria-hidden="true">${balls}-${strikes}</span><span class="dots" aria-hidden="true"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots" aria-hidden="true"><b>S</b>${dots(strikes, 2, 's')}</span>`;
+      : `<span class="sr">${plural(balls, 'ball')}, ${plural(strikes, 'strike')}${S.inning ? `, ${plural(outs, 'out')}` : ''}</span><span class="ct" aria-hidden="true">${balls}-${strikes}</span><span class="dots" aria-hidden="true"><b>B</b>${dots(balls, 3, 'b')}</span><span class="dots" aria-hidden="true"><b>S</b>${dots(strikes, 2, 's')}</span>${S.inning ? `<span class="dots" aria-hidden="true"><b>Out</b>${dots(outs, 2, 'o')}</span>` : ''}`;
+  }
+  // Under how an at-bat ended, over the picture: how many pitches it took, and in an inning the outs after it.
+  const ended$ = () => `${plural(S.ab.pitches.length, 'pitch')}${S.inning ? `, ${plural(outsIn(S.inning.abs), 'out')}` : ''}`;
+  // Where an inning stands once a batter is done: "One out after 2 batters.", or at the third out, how it went.
+  function inningLine() {
+    const abs = S.inning.abs, outs = outsIn(abs), ps = abs.reduce((n, ab) => n + ab.pitches.length, 0);
+    if (outs < 3) return `${OUTS_SAID[outs]} after ${plural(abs.length, 'batter')}.`;
+    const of = (...keys) => abs.filter(ab => keys.includes(ab.result)).length, hbp = of('HBP'), inPlay = of('out');
+    const parts = [`${of('K', 'KL')}\u00a0K`, `${of('BB')}\u00a0BB`, `${of('1B', '2B', '3B', 'HR')}\u00a0H`, ...(hbp ? [`${hbp}\u00a0HBP`] : []), ...(inPlay ? [`${inPlay === 1 ? 'one out' : `${inPlay} outs`} in play`] : [])];
+    return `Three outs: ${plural(abs.length, 'batter')} and ${plural(ps, 'pitch')}, ${parts.join('\u00a0· ')}.`;
   }
 
   function drawState() {
@@ -400,18 +430,28 @@ export function setupAtBat({ dark = false } = {}) {
     waiting();
     drawPicture();
     if (over) {
-      $('ab-result').textContent = ENDING[ab.result];
+      const done = S.inning && outsIn(S.inning.abs) >= 3;
       // Coloured like the last pitch's mark and its number in the log: a strikeout red, a walk green, a ball in play blue.
-      $('ab-result').className = `end-result res-${markKind(last.result)}`;
-      $('ab-note').textContent = note(ab);
+      // At the end of an inning, the end card is the inning's: each batter, how it went, and the last batter's note.
+      $('ab-result').textContent = done ? 'Inning over' : ENDING[ab.result];
+      $('ab-result').className = done ? 'end-result' : `end-result res-${markKind(last.result)}`;
+      $('ab-note').textContent = done ? `The last batter: ${lower(ENDING[ab.result])}. ${note(ab)}` : note(ab);
+      $('ab-inning').textContent = S.inning ? inningLine() : '';
+      $('ab-batters').innerHTML = done ? S.inning.abs.map(b => `<li><b>${ENDING[b.result]}</b>\u00a0· ${plural(b.pitches.length, 'pitch')}</li>`).join('') : '';
+      $('ab-next').textContent = !S.inning ? 'Next hitter' : done ? 'Pitch another inning' : 'Next batter';
+      $('ab-copy').textContent = S.inning ? 'Copy link to this inning' : 'Copy link to this at-bat';
+      $('ab-watch').textContent = done ? 'Watch the last at-bat' : 'Watch it again';
       drawTally();
       $('ab-copied').textContent = '';
       $('ab-link').hidden = true;
+    } else {
+      $('ab-inning').textContent = '';
+      $('ab-batters').replaceChildren();
     }
     // While a pitch flies the readout says what's coming (fly); once it's in, what happened, and the radar board keeps
     // its speed.
     if (!S.pending) {
-      if (over) readout(ENDING[ab.result], `${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`, markKind(last.result));
+      if (over) readout(ENDING[ab.result], ended$(), markKind(last.result));
       else if (last) readout(resultWord(last), '', markKind(last.result));
       else readout();
       board(last);
@@ -510,7 +550,7 @@ export function setupAtBat({ dark = false } = {}) {
     // A copy of where things stand, so a slice thrown a frame later is thrown from the same place.
     const view = ab.result ? { ...ab, balls: last.before.balls, strikes: last.before.strikes, pitches: ab.pitches.slice(0, -1) } : { ...ab, pitches: ab.pitches.slice() };
     const spot = ab.result ? last.spot : S.spot;
-    const seed = (S.seed ^ (view.pitches.length * 2654435761)) >>> 0;
+    const seed = (S.ab.seed ^ (view.pitches.length * 2654435761)) >>> 0;
     const before = view.pitches.at(-1);
     const caption = `${ab.result
       ? `On that ${view.balls}-${view.strikes} pitch, called ${spotName(spot)}, instead of the ${NAME[last.code]}`
@@ -604,7 +644,7 @@ export function setupAtBat({ dark = false } = {}) {
     cueFrame.classList.remove('deciding');
     stage.set({ marks: marks(ps.slice(0, w.i + 1)), grow: true });
     drawCount(rec, end);
-    if (end) readout(ENDING[S.ab.result], `${ps.length} pitch${ps.length === 1 ? '' : 'es'}`, markKind(rec.result));
+    if (end) readout(ENDING[S.ab.result], ended$(), markKind(rec.result));
     else readout(resultWord(rec), '', markKind(rec.result));
     drawPicture();
     say(w.i);
@@ -632,7 +672,11 @@ export function setupAtBat({ dark = false } = {}) {
   // ---------------------------------------------------------------- links
   // #ab.v<version>.<pitcher>.<batter>.<seed>.<pitch><spot>.<pitch><spot>... replays this exact at-bat on the same version of
   // the hitter (linkFor, js/atbat.js).
-  const code = () => linkFor(S);
+  // An inning's is every pitch of it in turn.
+  const callsOf = abs => abs.flatMap(ab => ab.pitches.map(p => ({ code: p.code, spot: p.spot })));
+  const code = () => (S.inning
+    ? linkFor({ inning: true, pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.inning.seed, calls: callsOf(S.inning.abs) })
+    : linkFor({ pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.seed, calls: callsOf([S.ab]) }));
   // The address follows the at-bat, so a reload replays the one being played and a phone's Share sends it. It's replaced
   // rather than added to, so Back still leaves the page. (A framed one-file copy may not be allowed to change its
   // address; that's fine.) Picking a pitch above takes the address and the tab's title back.
@@ -647,7 +691,7 @@ export function setupAtBat({ dark = false } = {}) {
     try {
       await navigator.clipboard.writeText(url);
       field.hidden = true;
-      $('ab-copied').textContent = 'Link copied. Whoever opens it sees this exact at-bat.';
+      $('ab-copied').textContent = `Link copied. Whoever opens it sees this exact ${S.inning ? 'inning' : 'at-bat'}.`;
     } catch {
       $('ab-copied').textContent = 'Couldn’t copy here. Select the link and copy it:';
       field.value = url;
@@ -661,7 +705,7 @@ export function setupAtBat({ dark = false } = {}) {
   // or from where the rest of the link can't be read. One cut off before its seed, or garbled, can't be replayed at
   // all: a new at-bat opens in its place, and says why. Anything not starting "ab." isn't an at-bat link: false.
   function load(hash) {
-    if (!/^ab\./i.test(hash)) return false;
+    if (!/^(ab|inning)\./i.test(hash)) return false;
     const link = parseLink(hash);
     if (!link) {
       S.seed = newSeed();
@@ -674,6 +718,7 @@ export function setupAtBat({ dark = false } = {}) {
     S.pitcher = pitcherByKey(link.pitcherKey);
     S.batter = link.batter;
     S.hitter = hitterByKey(link.hitter).key;
+    S.mode = link.inning ? 'inning' : 'ab';
     S.seed = link.seed;
     fresh();
     const said = [];
@@ -681,14 +726,16 @@ export function setupAtBat({ dark = false } = {}) {
     if (S.hitter !== link.hitter) said.push(`There’s no kind of hitter called “${link.hitter}” here, so this is the average one.`);
     const calls = link.calls;
     let i = 0;
+    // In an inning, once a batter's at-bat ends the next call is to the next batter, until three are out.
+    const over = () => S.ab.result && (!S.inning || outsIn(S.inning.abs) >= 3);
     for (; i < calls.length; i++) {
       const c = calls[i];
-      if (S.ab.result || !c.spot || !S.pitcher.pitches.some(p => p.code === c.code)) break;
+      if (over() || !c.spot || !S.pitcher.pitches.some(p => p.code === c.code)) break;
+      if (S.ab.result) fresh({ next: true });
       throwCall(S.ab, c);
-      S.calls.push(c);
     }
     const left = calls.length - i, c = calls[i];
-    if (left && S.ab.result) said.push(`The link had ${left === 1 ? 'one more pitch' : `${left} more pitches`} after the at-bat ended; ${left === 1 ? 'it was' : 'they were'} left out.`);
+    if (left && over()) said.push(`The link had ${left === 1 ? 'one more pitch' : `${left} more pitches`} after the ${S.inning ? 'inning' : 'at-bat'} ended; ${left === 1 ? 'it was' : 'they were'} left out.`);
     else if (left) {
       const name = NAME[c.code];
       const reason = !name ? `The link’s pitch ${i + 1} isn’t a pitch Arsenal knows`
@@ -698,14 +745,15 @@ export function setupAtBat({ dark = false } = {}) {
     }
     if (link.rest) said.push('The rest of the link couldn’t be read, so it was left out.');
     // First, what this is: a screen reader hears it rather than the result of the pitch before the one thrown again.
-    const n = S.ab.pitches.length;
-    if (n) said.unshift(`Replayed from the link: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
+    const n = S.ab.pitches.length, all = S.inning ? callsOf(S.inning.abs).length : n;
+    if (S.inning && all) said.unshift(`Replayed from the link: an inning by ${who()} to ${battersWords(S.batter, S.hitter)}, ${plural(S.inning.abs.length, 'batter')}, ${plural(all, 'pitch')}.`);
+    else if (n) said.unshift(`Replayed from the link: ${who()} to ${batterWords(S.batter, S.hitter)}, ${plural(n, 'pitch')}.`);
     $('ab-notice').textContent = said.join(' ');
     // Under it, a way to watch the link's at-bat from its first pitch, when there's more than the one it throws again.
     // Once it's over the end card has its own.
     $('ab-watch-link').hidden = n < 2 || !!S.ab.result;
     // Made against another version of the hitter, the calls are thrown to today's, who may not play them the same way.
-    $('ab-version').textContent = n && link.version !== VERSION
+    $('ab-version').textContent = all && link.version !== VERSION
       ? `Pitched against ${link.version < VERSION ? 'an earlier' : 'a newer'} version of the hitter, so the same calls may play out differently.` : '';
     $('ab-live').textContent = '';
     // The last pitch is thrown again, so the count and the log show where things stood before it. The call stands as it
