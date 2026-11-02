@@ -76,31 +76,40 @@ function distance(n, spoken = false) {
 }
 const lowerName = p => p.short.toLowerCase();
 
+// Each frame the readout is worked out again, but it's written only when it changes: through the windup it says
+// "Ready…" for a quarter of a second or more, and writing the same words again still costs the page a layout and a
+// paint.
 let roRaf = 0;
+const shown = {};
+function write(id, text, html = false) {
+  if (shown[id] === text) return;
+  shown[id] = text;
+  if (html) $(id).innerHTML = text; else $(id).textContent = text;
+}
 function readoutLoop() {
   cancelAnimationFrame(roRaf);
-  $('landed').textContent = '';
+  write('landed', '');
   const tick = () => {
     const s = stage.summary();
     if (s) {
       const main = s[0];
       const t = stage.gameTime();
       if (!main.arrived) {
-        $('ro-time').textContent = t === 0 ? 'Ready…' : `${t.toFixed(2)} s`;
+        write('ro-time', t === 0 ? 'Ready…' : `${t.toFixed(2)} s`);
       } else {
-        $('ro-time').textContent = s.length > 1
+        write('ro-time', s.length > 1
           ? s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} s`).join(' · ')
-          : `${main.f.T.toFixed(2)} s to the plate`;
+          : `${main.f.T.toFixed(2)} s to the plate`);
       }
       const deciding = s.some(x => t >= x.f.T - DECIDE && t < x.f.T) && state.speed < 1;
-      $('frame').classList.toggle('deciding', deciding);
+      if ($('frame').classList.contains('deciding') !== deciding) $('frame').classList.toggle('deciding', deciding);
       if (!s.every(x => x.arrived) || t === 0) { roRaf = requestAnimationFrame(tick); return; }
       // Every ball is in: say it once to a screen reader, since the time above changes every frame. Two pitches: how far
       // apart they were where he has to decide, and at the plate.
       if (s.length > 1) {
         const a = apart();
-        $('landed').textContent = `${s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} seconds`).join(', ')}. When the hitter has to decide they’re ${distance(a.decide, true)} apart; at the plate, ${distance(a.plate, true)}.`;
-      } else $('landed').textContent = `${main.f.p.short}, ${main.f.T.toFixed(2)} seconds to the plate`;
+        write('landed', `${s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} seconds`).join(', ')}. When the hitter has to decide they’re ${distance(a.decide, true)} apart; at the plate, ${distance(a.plate, true)}.`);
+      } else write('landed', `${main.f.p.short}, ${main.f.T.toFixed(2)} seconds to the plate`);
     }
   };
   roRaf = requestAnimationFrame(tick);

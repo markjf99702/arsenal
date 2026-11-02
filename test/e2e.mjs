@@ -84,6 +84,21 @@ assert.match(await page.locator('#ro-time').innerText(), /s to the plate/);
   assert.match(heard[0], /^Four-seam, 0\.\d\d seconds to the plate$/);
 }
 
+// The time over the picture is written only when it changes, not each frame: through the windup, at real speed, it
+// says "Ready…" once.
+{
+  const writes = await page.evaluate(() => new Promise(resolve => {
+    const said = [];
+    const watch = new MutationObserver(() => said.push(document.getElementById('ro-time').textContent));
+    watch.observe(document.getElementById('ro-time'), { childList: true, characterData: true, subtree: true });
+    document.querySelector('#speed [data-v="1"]').click();
+    const landed = () => (window.arsenal.stage.summary().every(s => s.arrived) ? setTimeout(() => { watch.disconnect(); document.querySelector('#speed [data-v="0.25"]').click(); resolve(said); }, 300) : requestAnimationFrame(landed));
+    requestAnimationFrame(landed);
+  }));
+  const again = writes.filter((w, i) => i > 0 && w === writes[i - 1]);
+  assert.deepEqual({ ready: writes.filter(w => w === 'Ready…').length, again }, { ready: 1, again: [] }, `the time over the picture was written ${writes.length} times: ${writes.slice(0, 6).join(' | ')}`);
+}
+
 // On a phone the legend still labels the dashed ring, in one word so it stays clear of two pitches' times.
 assert.equal(await page.locator('#legend > span:last-child').innerText(), 'Decide', 'the decision point is not labelled on a phone');
 assert.equal(await page.locator('#legend .ring').isVisible(), true, 'the decision point is not labelled on a phone');
