@@ -305,14 +305,16 @@ test('an at-bat link replays the at-bat it was made from, pitch for pitch, and s
 
 // Five at-bats, pitch by pitch (what happened, and where it crossed the plate), as version 3 of the hitter plays them.
 // Anything that changes how a link replays fails here until VERSION in js/atbat.js goes up and these are pinned again,
-// so a link made before the change opens saying it may play out differently.
+// so a link made before the change opens saying it may play out differently. Each plays all its calls, so every pitch
+// in it is pinned (Waldron's knuckleball too), and Waldron's is to a power hitter, so a change to a kind of hitter's
+// knobs fails here as well.
 const PINNED = {
   version: 3,
   links: {
     'ab.v3.average.R.2v.CH17.SI7.CH22.SI19.CH18.FF18.CH21': ['called 0.743 2.631', 'foul 0.105 3.258', 'foul 0.455 1.762', 'ball 1.142 1.298', 'foul 1.204 2.389', 'ball -0.591 1.670', 'whiff -1.047 1.247'],
     'ab.v3.skenes.L.5p.CH17.SI8.ST24.FF10.SI10': ['ball 0.626 1.362', 'foul -0.249 2.789', 'ball -1.003 0.576', 'ball 0.946 2.726', 'ball 1.924 2.777'],
     'ab.v3.miller.R.8h.SL18.FF18.FF13.FF14.SL13': ['ball -0.079 0.994', 'foul -0.084 2.651', 'foul 0.838 2.097', 'ball 1.774 2.752', 'whiff -0.011 3.311'],
-    'ab.v3.waldron.L.b9.FF1.FC7.KN18.SI22.ST22': ['inplay out 0.478 3.539'],
+    'ab.v3.waldron.L-power.p.FF1.FC7.KN18.SI22.ST22': ['ball 0.687 3.767', 'called -0.587 3.089', 'whiff 0.080 1.855', 'ball 0.276 0.948', 'foul -0.414 1.194'],
     'ab.v3.rogers.R.e1.SI17.SL23.SI10.SL24.SI12': ['called 0.910 2.363', 'whiff 0.975 1.111', 'ball -0.937 1.270', 'ball 2.485 1.691', 'inplay out -0.492 1.590'],
   },
 };
@@ -320,7 +322,10 @@ const pitchByPitch = ab => ab.pitches.map(p => `${p.result}${p.play ? ` ${p.play
 test('five pinned links replay as they did, until the hitter’s version goes up', () => {
   const now = Object.fromEntries(Object.keys(PINNED.links).map(link => [link, pitchByPitch(replay(link))]));
   const pinned = `\n${JSON.stringify(Object.fromEntries(Object.entries(now).map(([link, ps]) => [link.replace(/^ab\.v\d+/, `ab.v${VERSION}`), ps])), null, 1)}`;
-  if (VERSION === PINNED.version) assert.deepEqual(now, PINNED.links, 'This changes how at-bat links replay: raise VERSION in js/atbat.js, then pin these links again.');
+  if (VERSION === PINNED.version) {
+    for (const [link, ps] of Object.entries(now)) assert.equal(ps.length, parseLink(link).calls.length, `${link} ends before its last call, so its last pitches aren't pinned: pin one with another seed that plays them all`);
+    assert.deepEqual(now, PINNED.links, 'This changes how at-bat links replay: raise VERSION in js/atbat.js, then pin these links again.');
+  }
   else assert.fail(`The hitter is version ${VERSION} now: pin these links again for it, as version ${VERSION} plays them:${pinned}`);
 });
 

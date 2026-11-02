@@ -1378,7 +1378,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   });
   assert.deepEqual(chips, { heights: [48], name: 'Knuckle curve', lines: 1 }, `${at}, Nola's pitches`);
   // The lists are in 16px words, which an iPhone doesn't zoom into when they're tapped.
-  assert.deepEqual(await ph.evaluate(() => ['pair', 'ab-pitcher'].map(id => getComputedStyle(document.getElementById(id)).fontSize)), ['16px', '16px'], `${at}, the lists' words`);
+  assert.deepEqual(await ph.evaluate(() => ['pair', 'ab-pitcher', 'ab-hitter'].map(id => getComputedStyle(document.getElementById(id)).fontSize)), ['16px', '16px', '16px'], `${at}, the lists' words`);
   // Two pitches thrown together, the longest pair and an eephus with a four-seamer: the words in the readout's top-left
   // corner are clear of the legend's, line by line, and the times are in the legend, beside each pitch.
   if (width < 390) {
