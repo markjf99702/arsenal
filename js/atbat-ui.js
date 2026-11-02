@@ -8,6 +8,7 @@ import { newSeed } from './rng.js';
 import { makeSound } from './sound.js';
 import { COUNTS, HITTERS, LEAGUE } from './league.js';
 import { DECIDE } from './flight.js';
+import { pitcherChart } from './charts.js';
 
 const $ = id => document.getElementById(id);
 const pct = v => `${Math.round(v * 100)}%`;
@@ -201,6 +202,7 @@ export function setupAtBat({ dark = false } = {}) {
     const name = document.createElement('b');
     name.textContent = `${S.pitcher.name}.`;
     $('ab-line').replaceChildren(name, ` ${S.pitcher.line}${S.hitter === 'average' ? '' : ` ${QUARTER(S.hitter)}`}`);
+    drawHis();
     $('ab-pitcher').value = S.pitcher.key;
     $('ab-hitter').value = S.hitter;
     for (const b of $('ab-batter').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === S.batter));
@@ -314,6 +316,27 @@ export function setupAtBat({ dark = false } = {}) {
     $('ab-live').textContent = ab.result && i === ab.pitches.length - 1
       ? `${ENDING[ab.result]} on a ${p.before.balls}-${p.before.strikes} pitch. ${note(ab)}${S.inning && !S.watching ? ` ${inningLine()}` : ''}`
       : `Pitch ${p.n}, ${NAME[p.code]}, ${calledLine(p, ab.batter)}: ${lower(resultWord(p))}. ${p.after.balls} and ${p.after.strikes}. ${why(p, ab.pitches[i - 1], ab.batter)}`;
+  }
+
+  // ---------------------------------------------------------------- his pitches
+  // Under the pitcher's line, "His pitches": how each moves on a small movement chart, his filled and the league's
+  // average of each kind a ring joined to it, and under it a row for each: its speed, its share of his pitches to this
+  // batter's side (as on its button) and how often hitters missed it when they swung, his own 2026 numbers. Open on a
+  // computer or a tablet; on a phone, where it would push the pitch controls down, folded away to be opened.
+  $('ab-his').open = !matchMedia('(max-width: 640px), (max-height: 540px)').matches;
+  function drawHis() {
+    const p = S.pitcher, mix = mixFor(p, S.batter), to = S.batter === 'R' ? 'right' : 'left', own = p.key !== 'average';
+    const inches = v => `${Math.abs(v).toFixed(1)}`;
+    const moves = (rise, arm) => `${inches(rise)} inches ${rise >= 0 ? 'up' : 'down'} and ${inches(arm)} to the ${arm >= 0 ? 'arm' : 'glove'} side`;
+    const said = p.pitches.map(e => {
+      const lg = BY_CODE[e.code]?.n;
+      return `${SHORT(e.code)}, ${moves(e.rise, e.arm)}${own && lg ? ` (the league's ${moves(lg.rise, lg.arm)})` : ''}`;
+    });
+    pitcherChart($('ab-his-chart'), { pitches: p.pitches, label: `How far spin moves each of his pitches${own ? ', beside the league’s average of it' : ''}: ${said.join('; ')}.` });
+    $('ab-his-rows').innerHTML = p.pitches.map((e, i) => `<li class="fam-${BY_CODE[e.code]?.fam || 'odd'}"><span class="key" aria-hidden="true"></span><b>${SHORT(e.code)}</b> <span>${speed(e)}\u00a0· ${pct(mix[i])} of his pitches\u00a0· missed on ${pct(e.whiff)} of swings</span></li>`).join('');
+    $('ab-his-note').textContent = own
+      ? `His 2026 numbers: filled dots are his, rings the league’s average of each kind. Shares are of his pitches to ${to}-handed batters.`
+      : `Each at the league average in 2026. Shares are of right-handers’ pitches to ${to}-handed batters, among these five.`;
   }
 
   // ---------------------------------------------------------------- drawing

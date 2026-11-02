@@ -441,7 +441,7 @@ p { margin: 0; }
 }
 @media (orientation: landscape) and (max-height: 540px) and (min-width: 600px) {
   .bat-stage > .frame { margin-inline: auto; max-width: calc((100vh - 24px) * 16 / 11); max-width: calc((100svh - 24px) * 16 / 11); }
-  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, .seg, .spots) { scroll-margin-top: 12px; }
+  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, summary, .seg, .spots) { scroll-margin-top: 12px; }
 }
 #ab-flight, #hit-flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
 @media (max-width: 640px) { #ab-flight, #hit-flight { aspect-ratio: 16 / 10.5; } }
@@ -455,7 +455,7 @@ p { margin: 0; }
   .bat-stage { display: contents; }
   .bat-stage > .frame { position: sticky; top: 0; z-index: 3; box-shadow: 0 0 0 12px var(--paper); }
   .bat-call { margin-top: 18px; }
-  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, .seg, .spots) { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
+  #ab-callbox, #ab-end, #ab-chart, .hit .callbox, #hit-end, .bat-grid :is(button, select, input, summary, .seg, .spots) { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
 }
 .count { display: flex; align-items: center; gap: 12px; }
 .count .ct { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -558,6 +558,21 @@ p { margin: 0; }
 /* Focus is ringed inside the spot, clear of the zone's frame in the gap round it. */
 .spot:focus-visible { outline-offset: -2px; }
 .spot[aria-checked="true"]::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: #fbf7ee; box-shadow: 0 0 0 2px #c8202f, 0 1px 3px rgba(0, 0, 0, .35); }
+/* His pitches, under the pitcher's line: folded away on a phone. The chart beside the rows where there's room. */
+.his { margin-top: 10px; }
+.his summary { font: 600 15px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); cursor: pointer; padding: 12px 0; margin: -12px 0; width: max-content; }
+.his summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.his-body { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 8px 18px; align-items: start; margin-top: 18px; }
+@media (max-width: 640px) { .his-body { grid-template-columns: minmax(0, 1fr); } .his-chart-wrap { max-width: 340px; } }
+.his-rows { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.his-rows li { padding-left: 1.05em; text-indent: -1.05em; }
+.his-rows b { color: var(--ink); font-weight: 600; }
+.his-chart .his-own circle { fill: var(--fam); stroke: var(--card); stroke-width: 1.5; }
+.his-chart .his-league circle { fill: none; stroke: var(--fam); stroke-width: 1.6; }
+.his-chart .his-league line { stroke: var(--fam); stroke-width: 1.4; opacity: .55; }
+.his-chart .name { fill: var(--ink-2); font: 600 11px var(--display); letter-spacing: .02em; paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+.his-chart .tick { font-size: 9.5px; }
+.his-chart .axis { font-size: 10px; }
 /* The map of the spots: each shaded in the hundred throws' swinging-strike blue, by what the pitch does there (--f, from
    0 for the map's fewest to 1 for its most), with the number in it and the hits under it, in the ink, which reads on the
    darkest shade at 4.5 to 1 or more in either palette (--map-max). The spot picked is ringed round its edge instead, so

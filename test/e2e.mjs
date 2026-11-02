@@ -7,7 +7,8 @@ import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { VERSION, SPOTS, AVERAGE, playInning, linkFor } from '../js/atbat.js';
+import { VERSION, SPOTS, AVERAGE, playInning, linkFor, pitcherByKey, mixFor } from '../js/atbat.js';
+import { BY_CODE } from '../js/pitches.js';
 import { LEAGUE } from '../js/league.js';
 
 const require = createRequire(import.meta.url);
@@ -1446,11 +1447,11 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     });
     assert.deepEqual(box, { rows: 3, oneLine: true, above: true, width: true, align: batter === 'R' ? 'left' : 'right' }, `${at}, the call box for a ${batter === 'R' ? 'right' : 'left'}-handed batter`);
   }
-  // With a keyboard, Shift+Tab back from the pitches reaches Sound and the speed buttons, which had scrolled away under
-  // the picture: each comes out from behind it, as the call box's buttons do.
+  // With a keyboard, Shift+Tab back from the pitches reaches His pitches, Sound and the speed buttons, which had
+  // scrolled away under the picture: each comes out from behind it, as the call box's buttons do.
   await ph.evaluate(() => scrollBy(0, document.getElementById('ab-throw').getBoundingClientRect().bottom - (innerHeight - 40)));
   await ph.locator('#ab-pitches .ab-chip').first().focus();
-  for (const want of ['Sound', 'speed']) {
+  for (const want of ['His pitches', 'Sound', 'speed']) {
     await ph.keyboard.press('Shift+Tab');
     const shifted = await ph.evaluate(() => {
       const a = document.activeElement;
@@ -2151,6 +2152,47 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   });
   assert.ok(dark >= 4.5, `the dark map's ink reads at ${dark.toFixed(2)} to 1 on its darkest shade`);
   await page.emulateMedia({ colorScheme: 'light' });
+}
+
+// His pitches, under the pitcher's line: open on a computer, folded away on a phone. A small movement chart, his pitches
+// filled dots and each kind's league average a ring joined to his (none for the league-average righty, whose are the
+// league's), and a row for each: its speed, its share of his pitches to this batter's side, as on its button, and how
+// often hitters missed it when they swung, his own 2026 numbers. Another pitcher or batter redraws it.
+{
+  const his = p => p.evaluate(() => ({
+    open: document.getElementById('ab-his').open,
+    rows: [...document.querySelectorAll('#ab-his-rows li')].map(li => li.textContent),
+    chips: [...document.querySelectorAll('#ab-pitches .ab-chip small')].map(c => c.textContent.split('· ')[1]),
+    dots: document.querySelectorAll('#ab-his-chart .his-own circle').length, rings: document.querySelectorAll('#ab-his-chart .his-league circle').length,
+    said: document.querySelector('#ab-his-chart svg').getAttribute('aria-label'),
+  }));
+  const want = (key, side) => {
+    const pitcher = pitcherByKey(key), mix = mixFor(pitcher, side);
+    return pitcher.pitches.map((e, i) => `${BY_CODE[e.code].short} ${e.mph.toFixed(1)}\u00a0mph\u00a0· ${Math.round(mix[i] * 100)}% of his pitches\u00a0· missed on ${Math.round(e.whiff * 100)}% of swings`);
+  };
+  const deskHis = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' });
+  const desk = await deskHis.newPage();
+  watch(desk);
+  await desk.goto(base + '#at-bat');
+  let h = await his(desk);
+  assert.deepEqual([h.open, h.rows, h.dots, h.rings], [true, want('average', 'R'), 5, 0], 'his pitches, the league-average righty, on a computer');
+  await desk.locator('#ab-pitcher').selectOption('skenes');
+  h = await his(desk);
+  assert.deepEqual([h.rows, h.dots, h.rings], [want('skenes', 'R'), 6, 6], 'Paul Skenes\'s pitches');
+  assert.deepEqual(h.rows.map(r => r.split('· ')[1].replace(' of his pitches\u00a0', '')), h.chips, 'his shares, beside his buttons\'');
+  assert.match(h.said, /^How far spin moves each of his pitches, beside the league’s average of it: Four-seam, 13\.0 inches up and 12\.6 to the arm side \(the league's 15\.6 inches up and 7\.8 to the arm side\); /);
+  await desk.locator('#ab-batter [data-v="L"]').click();
+  assert.deepEqual((await his(desk)).rows, want('skenes', 'L'), 'Skenes\'s pitches to a left-handed batter');
+  await deskHis.close();
+  const phoneHis = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  const ph = await phoneHis.newPage();
+  watch(ph);
+  await ph.goto(base + '#at-bat');
+  assert.equal((await his(ph)).open, false, 'his pitches open on a phone');
+  await ph.locator('#ab-his summary').click();
+  assert.equal((await his(ph)).open, true, 'his pitches don\'t open on a phone');
+  assert.equal(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'his pitches make the page scroll sideways');
+  await phoneHis.close();
 }
 
 // Under Next hitter, a line on how this visit has gone: every at-bat that ended on a pitch thrown here, with the share

@@ -166,3 +166,57 @@ export function lineupTable(host, { onPick }) {
 }
 
 export { famName };
+
+// One pitcher's pitches on a small movement chart, as the whole arsenal's is drawn: how far spin moves each, up or down
+// and to his arm or glove side, in inches. His are filled dots; each kind's league average is a hollow ring joined to
+// his, unless they're the same place (the league-average righty's are the league's). `pitches` are { code, rise, arm }.
+// Drawn at one size and scaled to fit, so it needs no redrawing.
+export function pitcherChart(host, { pitches, label }) {
+  const W = 320, H = 250, m = { l: 40, r: 8, t: 10, b: 26 };
+  const x = v => m.l + ((v + 20) / 40) * (W - m.l - m.r);
+  const y = v => m.t + ((20 - v) / 36) * (H - m.t - m.b);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'move-chart his-chart', role: 'img', 'aria-label': label });
+  host.replaceChildren(svg);
+  const grid = el('g', { class: 'grid', 'aria-hidden': 'true' }, svg);
+  for (let v = -18; v <= 18; v += 6) {
+    el('line', { x1: x(v), x2: x(v), y1: m.t, y2: H - m.b, class: v === 0 ? 'zero' : '' }, grid);
+    el('text', { x: x(v), y: H - m.b + 12, class: 'tick', 'text-anchor': 'middle' }, grid).textContent = `${Math.abs(v)}`;
+  }
+  for (let v = -12; v <= 18; v += 6) {
+    el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: v === 0 ? 'zero' : '' }, grid);
+    el('text', { x: m.l - 5, y: y(v) + 3.5, class: 'tick', 'text-anchor': 'end' }, grid).textContent = `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}`;
+  }
+  el('text', { x: W - m.r, y: H - 3, class: 'axis', 'text-anchor': 'end' }, grid).textContent = 'Arm side →';
+  el('text', { x: m.l, y: H - 3, class: 'axis', 'text-anchor': 'start' }, grid).textContent = '← Glove side';
+  el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'start', transform: `translate(9 ${y(0) - 6}) rotate(-90)` }, grid).textContent = 'Holds up →';
+  el('text', { x: 0, y: 0, class: 'axis', 'text-anchor': 'end', transform: `translate(9 ${y(0) + 6}) rotate(-90)` }, grid).textContent = '← Drops';
+  const marks = el('g', { 'aria-hidden': 'true' }, svg), names = [];
+  // The rings and their lines first, so every dot is over every ring.
+  for (const p of pitches) {
+    const lg = PITCHES.find(q => q.code === p.code)?.n;
+    if (!lg || Math.hypot(lg.arm - p.arm, lg.rise - p.rise) < 0.5) continue;
+    const g = el('g', { class: `fam-${PITCHES.find(q => q.code === p.code).fam} his-league` }, marks);
+    el('line', { x1: x(lg.arm), y1: y(lg.rise), x2: x(p.arm), y2: y(p.rise) }, g);
+    el('circle', { cx: x(lg.arm), cy: y(lg.rise), r: 5.5 }, g);
+  }
+  const taken = [];
+  for (const p of pitches) {
+    const q = PITCHES.find(e => e.code === p.code), cx = x(p.arm), cy = y(p.rise);
+    const g = el('g', { class: `fam-${q?.fam || 'odd'} his-own` }, marks);
+    el('circle', { cx, cy, r: 6.5 }, g);
+    const t = el('text', { x: cx, y: cy, class: 'name' }, g);
+    t.textContent = q?.short || p.code;
+    taken.push({ x: cx - 8, y: cy - 8, w: 16, h: 16 });
+    names.push({ t, cx, cy, w: (q?.short || p.code).length * 6.6 });
+  }
+  // Each name beside its dot, on the first side that's free and inside the chart.
+  const hits = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  for (const { t, cx, cy, w } of names) {
+    const h = 12, sides = [[cx + 10, cy - h / 2], [cx - 10 - w, cy - h / 2], [cx - w / 2, cy - 10 - h], [cx - w / 2, cy + 10]];
+    const boxes = sides.map(([bx, by]) => ({ x: bx, y: by, w, h })).filter(b => b.x >= m.l && b.x + b.w <= W - m.r && b.y >= 0 && b.y + b.h <= H - m.b);
+    const box = boxes.find(b => !taken.some(o => hits(o, b))) || boxes[0] || { x: sides[0][0], y: sides[0][1], w, h };
+    taken.push(box);
+    t.setAttribute('x', box.x);
+    t.setAttribute('y', box.y + h - 2);
+  }
+}
