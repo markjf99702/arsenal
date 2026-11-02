@@ -1427,7 +1427,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
   const reach = () => ph.evaluate(() => {
     const short = [];
-    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy, #ab-watch')) {
+    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button')) {
       if (!el.offsetParent) continue;
       el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
@@ -2060,6 +2060,50 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   // The link without the mark plays as it always did.
   l = await open(high);
   assert.deepEqual([l.call, l.count], ['ball', '2 balls, 1 strike'], 'the link without the challenge');
+}
+
+// Be the hitter, Name that pitch: one of the pitcher's pitches at real speed from behind the plate, only the ball, with
+// no speed on the board or anything else to say what it is; once it's in, a button for each of his pitches. Named,
+// it says what it was and how fast, keeps a streak for the visit, and throws it again with its path, its speed on the
+// board. Another pitcher brings his own pitches.
+{
+  const hit = () => page.evaluate(() => {
+    const { state, stage } = window.arsenal.hit;
+    return {
+      phase: state.phase, bare: stage.opts.bare, board: document.getElementById('hit-board').textContent, asked: !document.getElementById('hit-ask').hidden,
+      answers: [...document.querySelectorAll('#hit-answers button')].map(b => b.dataset.code), said: document.getElementById('hit-said').textContent,
+      focus: document.activeElement.id || document.activeElement.dataset.code, readout: document.getElementById('hit-readout').checkVisibility(),
+      code: state.rec?.code, mph: state.rec?.mph.toFixed(1), flying: stage.flights[0] === state.rec?.path,
+    };
+  });
+  await page.goto('about:blank');
+  await page.goto(base);
+  await page.evaluate(() => document.getElementById('hit').scrollIntoView());
+  let h = await hit();
+  assert.deepEqual([h.phase, h.answers, h.asked, h.readout], ['ready', ['FF', 'ST', 'CH', 'SI', 'FS', 'SL'], false, false], 'Name that pitch before a throw, against Skenes');
+  await page.locator('#hit-throw').focus();
+  await page.keyboard.press('Enter');
+  h = await hit();
+  assert.deepEqual([h.phase, h.bare, h.board, h.asked, h.flying], ['flying', true, '', false, true], 'while the pitch to name flies');
+  await page.waitForFunction(() => window.arsenal.hit.state.phase === 'asking', null, { timeout: 15000 });
+  h = await hit();
+  assert.deepEqual([h.board, h.asked, h.focus], ['', true, 'FF'], 'once it\'s in, before it\'s named');
+  const NAMES = { FF: 'four-seamer', ST: 'sweeper', CH: 'changeup', SI: 'sinker', FS: 'splitter', SL: 'slider' };
+  // Named right, then wrong: the streak and the visit's count.
+  await page.locator(`#hit-answers [data-code="${h.code}"]`).click();
+  let r = await hit();
+  assert.deepEqual([r.phase, r.bare, r.said, r.focus, r.board.replace(/\s/g, '')], ['shown', false, `Right: it was his ${h.mph} mph ${NAMES[h.code]}. 1 in a row · 1 of 1 this visit.`, 'hit-throw', `${h.mph}mph${NAMES[h.code].replace(/\s/g, '')}`], 'named right');
+  await page.locator('#hit-throw').click();
+  await page.waitForFunction(() => window.arsenal.hit.state.phase === 'asking', null, { timeout: 15000 });
+  h = await hit();
+  const wrong = h.answers.find(c => c !== h.code);
+  await page.locator(`#hit-answers [data-code="${wrong}"]`).click();
+  r = await hit();
+  assert.equal(r.said, `Not ${/^[aeiou]/.test(NAMES[wrong]) ? 'an' : 'a'} ${NAMES[wrong]}: it was his ${h.mph} mph ${NAMES[h.code]}. 0 in a row · 1 of 2 this visit.`, 'named wrong');
+  // Another pitcher: his pitches, and the visit's count goes on.
+  await page.locator('#hit-pitcher').selectOption('rogers');
+  h = await hit();
+  assert.deepEqual([h.phase, h.answers, h.said], ['ready', ['SI', 'SL'], ''], 'Name that pitch against Rogers');
 }
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.

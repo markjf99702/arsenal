@@ -112,6 +112,7 @@ export class Stage {
       const dt = this.held ? 0 : Math.min(0.05, (now - last) / 1000);
       last = now;
       this.clock += dt;
+      this.tickAt = now;
       this.draw();
       if (!arrived && this.gameTime() >= this.flights[0].T) { arrived = true; this.onArrive(); }
       const longest = Math.max(...this.flights.map(f => f.T));
@@ -123,6 +124,12 @@ export class Stage {
   }
 
   gameTime() { return Math.max(0, (this.clock - WINDUP) * this.opts.speed); }
+  // The game time at `stamp` (an event's timeStamp, on performance.now's clock), between one frame and the next: a tap
+  // is timed to the moment it came, not to the frame after it.
+  timeAt(stamp) {
+    const since = this.tickAt == null ? 0 : Math.max(0, Math.min(0.05, (stamp - this.tickAt) / 1000));
+    return Math.max(0, (this.clock + (this.held ? 0 : since) - WINDUP) * this.opts.speed);
+  }
 
   camera() {
     const W = this.canvas.width, H = this.canvas.height;
@@ -168,6 +175,8 @@ export class Stage {
 
     const t = this.gameTime();
     const lw = lineWidth(W, cam.dpr);
+    // `bare`: the ball alone, as a hitter sees it, with no path, dots or ring to say what it's doing.
+    if (this.opts.bare) { this.drawBalls(ctx, cam, t, lw); this.drawMarks(ctx, cam); return; }
     this.drawPrev(ctx, cam, lw);
     const colorsFor = i => (i === 0 ? this.opts.color || '#ffd166' : this.opts.pairColor || '#ffffff');
     // On the light palette's pale sky the yellow, the pale blue and the white would all but vanish, so each path, its
@@ -231,7 +240,12 @@ export class Stage {
       ctx.globalAlpha = 1;
     }
 
-    // The balls themselves, farthest first, spinning at the true rate for the game clock.
+    this.drawBalls(ctx, cam, t, lw);
+    this.drawMarks(ctx, cam);
+  }
+
+  // The balls themselves, farthest first, spinning at the true rate for the game clock.
+  drawBalls(ctx, cam, t, lw) {
     const balls = this.flights.map((f, i) => {
       const tt = Math.min(t, f.T);
       const p = cam.project(f.pos(tt));
@@ -248,7 +262,6 @@ export class Stage {
       }
       drawBall(ctx, p.x, p.y, r, spun(M0, axisView, angle));
     }
-    this.drawMarks(ctx, cam);
   }
 
   // In an at-bat, the pitch before the one shown, its whole path and its decision ring, faint under the new one's

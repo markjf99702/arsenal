@@ -182,6 +182,55 @@
     </div>
   </section>
 
+  <section class="bat hit" id="hit" aria-labelledby="hit-title">
+    <header class="bat-head">
+      <h2 id="hit-title">Be the hitter</h2>
+      <p class="intro">A big-league pitch gets to the plate in about 0.4 seconds, and a hitter has to know what it is before then. Watch one come in from behind the plate and name it.</p>
+    </header>
+    <div class="bat-grid">
+      <div class="bat-stage">
+        <div class="frame">
+          <canvas id="hit-flight" aria-label="A pitch coming in, from behind the plate"></canvas>
+          <div class="readout" id="hit-readout" hidden>
+            <div class="count" id="hit-count"></div>
+            <div class="time" id="hit-ro"></div>
+          </div>
+          <div class="corner">
+            <div class="board" id="hit-board"></div>
+          </div>
+          <p class="sr" id="hit-live" aria-live="polite"></p>
+        </div>
+        <div class="controls">
+          <label class="pairpick">Facing <select id="hit-pitcher"></select></label>
+          <div class="seg" role="group" aria-label="Batter" id="hit-batter">
+            <button type="button" data-v="R" aria-pressed="true">Bat righty</button>
+            <button type="button" data-v="L" aria-pressed="false">Bat lefty</button>
+          </div>
+          <div class="seg" role="group" aria-label="Speed" id="hit-speed">
+            <button type="button" data-v="1" aria-pressed="true">Real speed</button>
+            <button type="button" data-v="0.25" aria-pressed="false">Slow</button>
+          </div>
+        </div>
+        <p class="caption" id="hit-line"></p>
+      </div>
+
+      <div class="bat-call">
+        <div class="callbox" id="hit-name">
+          <h3 id="hit-name-title">Name that pitch</h3>
+          <p class="small">One of his pitches, at its own speed, the way he throws it to a batter on your side: only the ball, with nothing to say what it is. Then say what it was.</p>
+          <div class="call-row">
+            <button class="throw" id="hit-throw" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>Throw me one</button>
+          </div>
+          <div class="ask" id="hit-ask" hidden>
+            <p class="choice" id="hit-ask-title">What was it?</p>
+            <div class="ab-chips" id="hit-answers" role="group" aria-labelledby="hit-ask-title"></div>
+          </div>
+          <p class="said" id="hit-said"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="all" aria-labelledby="all-title">
     <h2 id="all-title">The whole arsenal</h2>
     <p class="intro">Every type of pitch thrown in the 2026 regular season, <span id="total"></span> in all. Tap one to throw it.</p>

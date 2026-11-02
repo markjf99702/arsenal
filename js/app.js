@@ -7,6 +7,7 @@ import { drawGrip } from './grip.js';
 import { movementChart, lineupTable, famName, shareText } from './charts.js';
 import { DECIDE, throwPitch } from './flight.js';
 import { setupAtBat } from './atbat-ui.js';
+import { setupHit } from './hit-ui.js';
 import { trimmed } from './atbat.js';
 
 const $ = id => document.getElementById(id);
@@ -410,6 +411,8 @@ function follow(link) {
 // Pitch to a hitter. A link like #ab.v3.skenes.R.k3x9a.FF6.SL23 replays one at-bat, #inning.v3.skenes.R.k3x9a.FF6... a
 // whole inning, and one starting #ab. or #inning. that can't be read opens a new one that says so (load).
 const atBat = setupAtBat({ dark: isDark() });
+// Be the hitter: name a pitch from behind the plate.
+const hit = setupHit({ dark: isDark() });
 addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
   if (atBat.load(h)) { $('at-bat').scrollIntoView(); return; }
@@ -420,6 +423,7 @@ addEventListener('hashchange', () => {
 function applyTheme() {
   stage.set({ dark: isDark() });
   atBat.setDark(isDark());
+  hit.setDark(isDark());
   spin.colors = { ink: css('--ink'), muted: css('--muted'), accent: css('--accent'), ring: css('--line-strong') };
 }
 darkQuery.addEventListener('change', applyTheme);
@@ -432,7 +436,7 @@ else pick(PITCHES[0], { push: false });
 if (atBat.load(location.hash.slice(1))) $('at-bat').scrollIntoView();
 
 // Hooks for the screenshot and test scripts.
-window.arsenal = { state, stage, atBat, pick: code => pick(BY_CODE[code]), set: o => { Object.assign(state, o); throwNow(); } };
+window.arsenal = { state, stage, atBat, hit, pick: code => pick(BY_CODE[code]), set: o => { Object.assign(state, o); throwNow(); } };
 
 // The one-file copy (data-single) has no service worker to register.
 if ('serviceWorker' in navigator && isSecureContext && !('single' in document.documentElement.dataset)) {

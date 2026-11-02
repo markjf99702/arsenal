@@ -147,7 +147,7 @@ p { margin: 0; }
 /* The grass green shows on each picture until it's drawn. It's the canvas's own, not the frame's: a frame that starts
    part-way through a pixel showed its green as a line along the bottom of the picture. */
 .frame { position: relative; border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
-#flight, #ab-flight { background: #3f8540; }
+#flight, #ab-flight, #hit-flight { background: #3f8540; }
 #flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
 @media (max-width: 640px) { #flight { aspect-ratio: 4 / 3.6; } }
 /* A phone held sideways is a short screen: there the picture is no taller than it, with a little room above and below,
@@ -413,7 +413,7 @@ p { margin: 0; }
 @media (max-width: 350px) { .stats b { font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-/* ---------------------------------------------------------------- pitch to a hitter */
+/* ---------------------------------------------------------------- pitch to a hitter, and be the hitter */
 .bat { max-width: 1200px; margin: 40px auto 0; display: grid; gap: 12px; scroll-margin-top: 12px; }
 /* Focus comes here with the lede's link, as the place the next Tab starts from, not something to press. */
 .bat:focus { outline: none; }
@@ -433,8 +433,8 @@ p { margin: 0; }
   .bat-stage > .frame { margin-inline: auto; max-width: calc((100vh - 24px) * 16 / 11); max-width: calc((100svh - 24px) * 16 / 11); }
   #ab-callbox, #ab-end, #ab-chart, .bat-grid :is(button, select, input, .seg) { scroll-margin-top: 12px; }
 }
-#ab-flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
-@media (max-width: 640px) { #ab-flight { aspect-ratio: 16 / 10.5; } }
+#ab-flight, #hit-flight { display: block; width: 100%; aspect-ratio: 16 / 11; touch-action: manipulation; }
+@media (max-width: 640px) { #ab-flight, #hit-flight { aspect-ratio: 16 / 10.5; } }
 /* Narrower than that the call box is under the picture, so on a screen taller than it's wide the picture stays at the
    top while you call the pitch, throw it and watch it (and on a phone it's shorter, so the call fits under it). The
    pitcher, batter and speed row and the caption scroll away under it. A ring of the page's colour round the picture
@@ -459,20 +459,20 @@ p { margin: 0; }
 .count .on { font-size: 16px; font-weight: 600; }
 /* What happened, in a tag filled with its mark's colour, a shade darker so the white words on it read at 4.5 to 1 or
    more. The same in either palette, since it sits on the picture. */
-#ab-ro .tag { padding: 1px 3px; border-radius: 4px; font-weight: 700; text-shadow: none; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-#ab-ro .k-strike { background: #c23b33; }
-#ab-ro .k-ball { background: #23804b; }
-#ab-ro .k-play { background: #2f66b8; }
+:is(#ab-ro, #hit-ro) .tag { padding: 1px 3px; border-radius: 4px; font-weight: 700; text-shadow: none; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+:is(#ab-ro, #hit-ro) .k-strike { background: #c23b33; }
+:is(#ab-ro, #hit-ro) .k-ball { background: #23804b; }
+:is(#ab-ro, #hit-ro) .k-play { background: #2f66b8; }
 /* The words over the at-bat's picture: the count, then what happened over the pitch, on two lines. They stop short of
    where a pitch high and off the plate on that side crosses (--ro-max, from js/atbat-ui.js), wrapping to fit, so they
    never cover its mark. One that misses wilder, or hits the batter, can still cross under them, so they sit on a dark
    veil that both read through. */
 .bat-stage > .frame { container: ab-frame / inline-size; }
 .bat-stage .readout { left: 6px; top: 6px; box-sizing: border-box; max-width: calc(var(--ro-max, 100%) - 6px); padding: 4px 8px 6px 6px; border-radius: 10px; background: rgba(15, 20, 30, .5); }
-.bat-stage #ab-ro { margin-top: 2px; line-height: 1.3; }
-.bat-stage #ab-ro:empty { display: none; }
-#ab-ro .sep { display: none; }
-#ab-ro > span:last-child { display: block; }
+.bat-stage :is(#ab-ro, #hit-ro) { margin-top: 2px; line-height: 1.3; }
+.bat-stage :is(#ab-ro, #hit-ro):empty { display: none; }
+:is(#ab-ro, #hit-ro) .sep { display: none; }
+:is(#ab-ro, #hit-ro) > span:last-child { display: block; }
 /* The pitch's speed, big in the picture's top-right corner as on a stadium's radar board, the explorer's size, with its
    name under it, and under that the key to the picture. They stop short of where a pitch high and off the plate on that
    side crosses (--rb-max, from js/atbat-ui.js), as the count does on the left, wrapping the name to fit; the board is on
@@ -509,7 +509,7 @@ p { margin: 0; }
   .count .on { grid-row: span 2; font-size: 14px; }
   .count .dots { font-size: 13px; gap: 3px; }
   .count .dots i { width: 9px; height: 9px; border-width: 1.5px; }
-  .bat-stage #ab-ro { font-size: 14px; line-height: 1.25; margin-top: 4px; }
+  .bat-stage :is(#ab-ro, #hit-ro) { font-size: 14px; line-height: 1.25; margin-top: 4px; }
   .bat-stage .corner { right: 5px; top: 5px; max-width: calc(var(--rb-max, 100%) - 5px); gap: 4px; }
   .bat-stage .board { padding: 1px 5px 5px; border-radius: 9px; }
   .bat-stage .cue { font-size: 14px; padding: 5px 10px; }
@@ -519,7 +519,7 @@ p { margin: 0; }
 /* On the narrowest phones the readout has 80 to 90px across before the high spot off the plate: the count is smaller,
    and so are the words under it. */
 @container ab-frame (max-width: 330px) {
-  .count .ct { font-size: 24px; } .bat-stage #ab-ro { font-size: 13px; }
+  .count .ct { font-size: 24px; } .bat-stage :is(#ab-ro, #hit-ro) { font-size: 13px; }
   .board .speed b { font-size: 24px; } .board .speed span, .board .nm { font-size: 13px; }
 }
 @container ab-frame (max-width: 310px) {
@@ -528,7 +528,7 @@ p { margin: 0; }
   .count .on { font-size: 13px; }
   .count .dots { font-size: 12px; }
   .count .dots i { width: 8px; height: 8px; }
-  .bat-stage #ab-ro { font-size: 12px; }
+  .bat-stage :is(#ab-ro, #hit-ro) { font-size: 12px; }
 }
 
 .bat-call { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); display: grid; gap: 14px; min-width: 0; }
@@ -620,6 +620,11 @@ p { margin: 0; }
 /* Focus comes here when the at-bat ends from the pitch controls, which go. */
 .end-result:focus { outline: none; }
 .end-result:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+/* Be the hitter: no count over the picture while you name pitches, what it was and the streak under Throw. */
+.bat-stage .readout[hidden] { display: none; }
+.hit .ask { display: grid; gap: 8px; }
+.hit .said { font-weight: 600; }
+.hit .said:empty { display: none; }
 .hundred { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
 .hundred .plain { justify-self: start; }
 .legend-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--ink-2); }
