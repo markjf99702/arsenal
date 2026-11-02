@@ -1,7 +1,7 @@
 // The big canvas: throws the pitch and draws it from the chosen camera.
 import {
-  throwPitch, apex, catcherCamera, sideCamera, topCamera, palette, lineWidth,
-  drawCatcherField, drawZone, drawSideField, drawTopField, drawPath, ballMatrix, DECIDE,
+  throwPitch, apex, catcherCamera, sideCamera, topCamera, tvCamera, palette, lineWidth,
+  drawCatcherField, drawZone, drawSideField, drawTopField, drawTvField, drawPath, ballMatrix, DECIDE,
 } from './flight.js';
 import { drawBall, spun } from './ball.js';
 import { drawBatter, drawMarks, drawTarget, drawMiss, drawSwing, atBatCamera, growth } from './tracker.js';
@@ -138,6 +138,7 @@ export class Stage {
     let cam;
     if (this.opts.view === 'side') cam = sideCamera(W, H, { top, dpr: this.dpr || 1 });
     else if (this.opts.view === 'top') cam = topCamera(W, H);
+    else if (this.opts.view === 'tv') cam = tvCamera(W, H, { top, dpr: this.dpr || 1, see: this.flights.map(f => f.release) });
     else {
       // Tilt up for a high lob so it stays in frame. The at-bat's view is fitted to the canvas, so its marks fit too.
       const lift = Math.max(0, Math.min(10, (top - 8) * 1.6));
@@ -157,6 +158,7 @@ export class Stage {
       drawCatcherField(x, cam, colors);
       if (this.opts.batter) drawBatter(x, cam, this.opts.batter, this.opts.dark);
     } else if (cam.kind === 'side') drawSideField(x, cam, colors);
+    else if (cam.kind === 'tv') drawTvField(x, cam, colors);
     else drawTopField(x, cam, colors, this.opts.hand, this.overlays);
     this.bg = c; this.bgKey = key;
     return c;
@@ -170,7 +172,7 @@ export class Stage {
     const colors = palette(this.opts.dark);
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(this.background(cam, colors), 0, 0);
-    if (cam.kind === 'catcher') drawZone(ctx, cam, colors);
+    if (cam.kind === 'catcher' || cam.kind === 'tv') drawZone(ctx, cam, colors);
     this.drawTarget(ctx, cam);
     if (!this.flights.length) { this.drawMarks(ctx, cam); return; }
 

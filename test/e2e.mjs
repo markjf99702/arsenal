@@ -308,7 +308,7 @@ await arrived();
 
 // Every camera draws without trouble, at real speed.
 await page.locator('#speed [data-v="1"]').click();
-for (const v of ['side', 'top', 'catcher']) {
+for (const v of ['side', 'top', 'tv', 'catcher']) {
   await page.locator(`#view [data-v="${v}"]`).click();
   await page.locator('#throw').click();
   await arrived();
@@ -316,6 +316,7 @@ for (const v of ['side', 'top', 'catcher']) {
   const said = await page.locator('#caption').textContent();
   assert.ok(said.includes('The dots along each path are the ball every 1/30 of a second: the farther apart, the faster.'), `${v}: ${said}`);
   assert.match(said, /The dashed ring marks the ball 0\.175 seconds from the plate, (about )?when (the|a) hitter has to decide/, `${v}: ${said}`);
+  if (v === 'tv') assert.match(said, /^From the centre-field camera, as on television: .*Its long lens squashes the distance, so the break looks late\./, said);
 }
 // The hand is the pitcher's, and says so where it's picked; the chart says what arm side and glove side are.
 assert.equal(await page.locator('#hand').evaluate(el => el.previousElementSibling?.textContent), 'Pitcher');

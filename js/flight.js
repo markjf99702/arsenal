@@ -117,6 +117,36 @@ export function catcherCamera(W, H, { lift = 0, zoom = 1 } = {}) {
   };
 }
 
+// The broadcast's centre-field camera: far behind the pitcher, a little toward left-centre field and up in the stands,
+// with a long lens on the plate. Its view is fitted to the picture so the plate and a few feet either side of it, the top
+// of the zone, a usual release from either hand, the top of the flight (`top`, feet) and any other points it's given
+// (`see`: the releases of the pitches thrown, {x, y, z}, a submariner's down by his knees) are all in it, with room left at the top
+// for the speed and the time over the picture: the lens is as long as that allows. Seen from so far away, the 55 feet from
+// the hand to the plate are squashed, so the ball seems to hang and the break comes late.
+export const TV_EYE = [-12, 430, 26];
+export function tvCamera(W, H, { top = 7.5, dpr = 1, see = [] } = {}) {
+  const eye = TV_EYE, at = [0, 0.7, 2.6];
+  const fwd = norm([at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]]);
+  const right = norm(cross(fwd, [0, 0, 1])), up = cross(right, fwd);
+  const toCam = P => { const d = [P[0] - eye[0], P[1] - eye[1], P[2] - eye[2]]; return [dot(d, right), dot(d, up), dot(d, fwd)]; };
+  // What must be seen, in the lens's own units (across and up over distance).
+  const must = [[-3, 0, 0], [3, 0, 0], [-0.8, PLATE_Y, ZONE.top + 0.4], [0.8, PLATE_Y, ZONE.top + 0.4],
+    [-2.6, 53, 6.6], [2.6, 53, 6.6], [0, 30, top + 0.5], ...see.flatMap(({ x, y, z }) => [[x, y, z + 0.5], [x, y, z - 0.5]])].map(toCam).map(([X, Y, Z]) => [X / Z, Y / Z]);
+  const u0 = Math.min(...must.map(m => m[0])), u1 = Math.max(...must.map(m => m[0]));
+  const v0 = Math.min(...must.map(m => m[1])), v1 = Math.max(...must.map(m => m[1]));
+  // Room: a little at each side and the foot, more at the top, where the words are.
+  const padX = W * 0.06, padTop = Math.max(H * 0.2, 70 * dpr), padFoot = H * 0.08;
+  const F = Math.min((W - 2 * padX) / (u1 - u0), (H - padTop - padFoot) / (v1 - v0));
+  const cx = W / 2 - (F * (u0 + u1)) / 2, cy = padTop + (H - padTop - padFoot) / 2 + (F * (v0 + v1)) / 2;
+  const fromCam = ([X, Y, Z]) => [cx + (F * X) / Z, cy - (F * Y) / Z];
+  return {
+    kind: 'tv', W, H, F, eye, toCam, fromCam,
+    project(P) { const c = toCam(P); return { x: cx + (F * c[0]) / c[2], y: cy - (F * c[1]) / c[2], depth: c[2], k: F / c[2] }; },
+    view: v => [dot(v, right), dot(v, up), -dot(v, fwd)],
+    ballR: depth => Math.max(1.2, (F * BALL_R) / depth),
+  };
+}
+
 // From the third-base side: the pitcher on the left, the plate on the right.
 // Heights are stretched so the drop shows; `stretch` says by how much. A lob that climbs above the usual 7.5 feet
 // (the eephus) is kept under the speed and time the page shows in the top-left corner, about 76px tall.
@@ -280,6 +310,44 @@ export function drawZone(ctx, cam, c) {
   }
   ctx.stroke();
   ctx.restore();
+}
+
+// The centre-field camera's scenery: the stands and the backstop behind the plate, the dirt round the plate with its
+// chalk and the plate, the infield grass, and the mound and rubber in front.
+export function drawTvField(ctx, cam, c) {
+  const { W, H } = cam;
+  ctx.fillStyle = c.grassNear; ctx.fillRect(0, 0, W, H);
+  // The stands climb away behind the backstop, which stands 55 feet behind the plate.
+  ctx.fillStyle = c.stands;
+  if (poly(ctx, cam, [[-200, -58, 0], [200, -58, 0], [200, -160, 90], [-200, -160, 90]])) ctx.fill();
+  ctx.fillStyle = c.wall;
+  if (poly(ctx, cam, [[-200, -55, 0], [200, -55, 0], [200, -55, 9], [-200, -55, 9]])) ctx.fill();
+  ctx.fillStyle = c.dirtDark;
+  if (poly(ctx, cam, [[-200, -55, 0], [200, -55, 0], [200, -40, 0], [-200, -40, 0]])) ctx.fill();
+  // The dirt round the plate, and the infield grass and dirt out to the mound.
+  ctx.fillStyle = c.grassFar;
+  if (poly(ctx, cam, [[0, 9, 0], [57.6, 63.6, 0], [0, 118, 0], [-57.6, 63.6, 0]])) ctx.fill();
+  ctx.fillStyle = c.dirt;
+  if (poly(ctx, cam, circle(0, 0.7, 13, 64))) ctx.fill();
+  ctx.fillStyle = c.chalk;
+  chalkLine(ctx, cam, [0.7, 0.7, 0], [90, 90, 0]);
+  chalkLine(ctx, cam, [-0.7, 0.7, 0], [-90, 90, 0]);
+  for (const sx of [1, -1]) {
+    const x0 = sx * 1.208, x1 = sx * 5.208, ya = -2.29, yb = 3.71;
+    chalkLine(ctx, cam, [x0, ya, 0], [x0, yb, 0], 0.22);
+    chalkLine(ctx, cam, [x1, ya, 0], [x1, yb, 0], 0.22);
+    chalkLine(ctx, cam, [x0, yb, 0], [x1, yb, 0], 0.22);
+    chalkLine(ctx, cam, [x0, ya, 0], [x1, ya, 0], 0.22);
+  }
+  ctx.fillStyle = c.plate;
+  if (poly(ctx, cam, [[-0.708, PLATE_Y, 0.02], [0.708, PLATE_Y, 0.02], [0.708, 0.708, 0.02], [0, 0, 0.02], [-0.708, 0.708, 0.02]])) ctx.fill();
+  // The mound, nearest the camera: 10 inches high, sloping toward the plate, with the rubber on top.
+  ctx.fillStyle = c.dirt;
+  if (poly(ctx, cam, circle(0, 59, 9, 40, 0))) ctx.fill();
+  ctx.fillStyle = c.dirtDark;
+  if (poly(ctx, cam, circle(0, 60.75, 3, 30, 0.83))) ctx.fill();
+  ctx.fillStyle = c.chalk;
+  if (poly(ctx, cam, [[-1, RUBBER_Y, 0.85], [1, RUBBER_Y, 0.85], [1, RUBBER_Y + 0.5, 0.85], [-1, RUBBER_Y + 0.5, 0.85]])) ctx.fill();
 }
 
 export function drawSideField(ctx, cam, c) {

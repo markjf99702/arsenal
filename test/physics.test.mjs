@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
-import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
+import { throwPitch, sideCamera, catcherCamera, topCamera, tvCamera, TV_EYE, apex, palette, drawZone, drawSideField, drawTopField, drawTvField, PLATE_Y, G } from '../js/flight.js';
 import { Stage, PREV } from '../js/stage.js';
 import { tilt, spinTilt, spinOf, seamsMove } from '../js/spin.js';
 import { cross, norm } from '../js/math3.js';
@@ -59,6 +59,33 @@ test('flight times are what a hitter gets', () => {
   assert.ok(ff > 0.37 && ff < 0.42, `four-seam ${ff}`);
   assert.ok(cu > 0.44 && cu < 0.5, `curve ${cu}`);
   assert.ok(ep > 0.8 && ep < 0.95, `eephus ${ep}`);
+});
+
+// The centre-field camera is far behind the pitcher and to one side, with a long lens, and every pitch, either hand, a
+// submariner's too, stays in its picture from the hand to the plate, under the speed and time over its top, on a phone,
+// a computer and a tablet.
+test('the TV camera has a long lens, and every pitch stays in its picture', async () => {
+  assert.ok(TV_EYE[1] > 400 && TV_EYE[0] !== 0 && TV_EYE[2] > 10, `the camera at ${TV_EYE}`);
+  const { PITCHERS, pitchFor } = await import('../js/atbat.js');
+  const rogers = PITCHERS.find(p => p.key === 'rogers'), low = pitchFor(rogers, rogers.pitches[0], [0, 2.5]);
+  for (const [w, h, dpr] of [[358, 320, 3], [650, 447, 1], [650, 447, 2], [1024, 520, 2]]) {
+    const W = w * dpr, H = h * dpr;
+    const lens = 2 * Math.atan(W / 2 / tvCamera(W, H, { dpr }).F) * (180 / Math.PI);
+    assert.ok(lens < 5, `${w}x${h}: the lens takes in ${lens.toFixed(1)}° across`);
+    for (const p of [...PITCHES, low]) {
+      for (const hand of ['R', 'L']) {
+        const f = throwPitch(p, { hand, rng: () => 0.5 });
+        const cam = tvCamera(W, H, { top: Math.max(7.5, apex(f) + 0.8), dpr, see: [f.release] });
+        for (let i = 0; i <= 40; i++) {
+          const { x, y } = cam.project(f.pos((f.T * i) / 40));
+          assert.ok(x >= 0 && x <= W && y >= 60 * dpr && y <= H, `${w}x${h}: ${p.code} ${hand} at (${(x / dpr).toFixed(0)}, ${(y / dpr).toFixed(0)}), ${i}/40 of the way`);
+        }
+      }
+    }
+  }
+  // And its scenery draws.
+  const ctx = new Proxy({}, { get: (o, k) => (k in o ? o[k] : typeof k === 'string' && /^(create)/.test(k) ? () => ({ addColorStop() {} }) : () => {}), set: (o, k, v) => { o[k] = v; return true; } });
+  drawTvField(ctx, tvCamera(650, 447), palette(false));
 });
 
 test('from the side, only a lob above the usual 7.5 feet gives up height to the readout', () => {

@@ -353,6 +353,7 @@ function caption() {
     catcher: `From behind the plate, about where the umpire’s eyes are. The dashed ghost is the same throw with no spin: the gap at the plate is what the spin did. The dashed ring marks the ball ${DECIDE} seconds from the plate, about when a hitter has to decide whether to swing. ${dots}`,
     side: `From the third-base side, pitcher on the left. Heights are stretched ${stretch()}× so the drop is easier to see. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
     top: `From above, pitcher on the left. Distances sideways are stretched ${stretch()}× so the break is easier to see. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
+    tv: `From the centre-field camera, as on television: far behind the pitcher and a little to one side, with a long lens on the plate. Its long lens squashes the distance, so the break looks late. The dashed ghost is the same throw with no spin. ${ring} ${dots}`,
   }[state.view];
   // With reduced motion every throw starts where it finishes (js/stage.js), so Throw it again and the speeds change only
   // its scatter: it says why the ball doesn't fly.
