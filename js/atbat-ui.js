@@ -5,7 +5,7 @@ import { resultWord, why, note, calledLine, ENDING, NAME, timing, thoughtMiss } 
 import { markKind, readoutRoom, boardRoom, MISSED } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
-import { COUNTS, HITTERS } from './league.js';
+import { COUNTS, HITTERS, LEAGUE } from './league.js';
 import { DECIDE } from './flight.js';
 
 const $ = id => document.getElementById(id);
@@ -34,7 +34,7 @@ const batterWords = (side, hitter) => {
 const SCOREBOOK = { K: 'K', KL: 'K', BB: 'BB', HBP: 'HBP', out: 'Out', '1B': '1B', '2B': '2B', '3B': '3B', HR: 'HR' };
 
 export function setupAtBat({ dark = false } = {}) {
-  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null, watching: null };
+  const S = { pitcher: PITCHERS[0], batter: 'R', hitter: 'average', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0, open: null, watching: null, visit: [] };
   const stage = new Stage($('ab-flight'), { onArrive: () => (S.watching ? watched() : land()) });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
@@ -160,6 +160,8 @@ export function setupAtBat({ dark = false } = {}) {
   // under Throw too, for everyone to see.
   function fresh({ keepCalls = false, picked = false, changed = false } = {}) {
     const cut = changed && S.ab?.pitches.length > 0;
+    // An at-bat that ended on a pitch thrown here goes into this visit's tally (drawTally) as the next one starts.
+    if (S.ab?.result && S.ab.here) S.visit.push(S.ab.result);
     S.ab = startAtBat({ pitcher: S.pitcher, batter: S.batter, hitter: S.hitter, seed: S.seed });
     S.asked = 0;
     if (!keepCalls) S.calls = [];
@@ -200,6 +202,7 @@ export function setupAtBat({ dark = false } = {}) {
     if (S.open != null) openRow(null);
     const call = { code: S.code, spot: S.spot };
     const rec = throwCall(S.ab, call);
+    S.ab.here = true;
     S.calls.push(call);
     stamp();
     stopChart();
@@ -401,6 +404,7 @@ export function setupAtBat({ dark = false } = {}) {
       // Coloured like the last pitch's mark and its number in the log: a strikeout red, a walk green, a ball in play blue.
       $('ab-result').className = `end-result res-${markKind(last.result)}`;
       $('ab-note').textContent = note(ab);
+      drawTally();
       $('ab-copied').textContent = '';
       $('ab-link').hidden = true;
     }
@@ -439,6 +443,19 @@ export function setupAtBat({ dark = false } = {}) {
     drawLog(S.pending ? S.ab.pitches.slice(0, -1) : S.ab.pitches);
     stage.set({ marks: markList(S.pending ? S.ab.pitches.slice(0, -1) : S.ab.pitches) });
     drawPicture();
+  }
+
+  // Under Next hitter, how this visit has gone: every at-bat that ended on a pitch thrown here, this one too, with the
+  // pitcher you were, against whoever was up. Kept only while the page is open: Arsenal saves nothing. Beside it, how
+  // often big-league batters struck out in 2026 (js/league.js), to measure it by.
+  const LEAGUE_K = (100 * LEAGUE.so) / LEAGUE.pa;
+  function drawTally() {
+    const all = [...S.visit, ...(S.ab.result && S.ab.here ? [S.ab.result] : [])], n = all.length;
+    const of = (...keys) => all.filter(r => keys.includes(r)).length;
+    const k = of('K', 'KL'), hbp = of('HBP');
+    const parts = [plural(n, 'batter'), `${k}\u00a0K`, `${of('BB')}\u00a0BB`, `${of('1B', '2B', '3B', 'HR')}\u00a0H`, ...(hbp ? [`${hbp}\u00a0HBP`] : [])];
+    const league = `big-league pitchers struck out ${LEAGUE_K.toFixed(1)}% of batters in 2026`;
+    $('ab-tally').textContent = !n ? '' : `This visit: ${parts.join('\u00a0· ')}. ${n === 1 ? `${league[0].toUpperCase()}${league.slice(1)}` : `You struck out ${Math.round((100 * k) / n)}% of them; ${league}`}.`;
   }
 
   // While a pitch is in the air, Throw and the buttons that would give it away wait (see the listeners above), and while

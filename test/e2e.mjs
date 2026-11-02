@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { VERSION } from '../js/atbat.js';
+import { LEAGUE } from '../js/league.js';
 
 const require = createRequire(import.meta.url);
 let pw;
@@ -1916,6 +1917,31 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.waitForTimeout(2500);
   assert.deepEqual(await page.evaluate(() => { const { state, stage } = window.arsenal.atBat; return { watching: state.watching, busy: state.busy, marks: stage.opts.marks.length, n: state.ab.pitches.length, lit: document.querySelectorAll('#ab-log [aria-current]').length }; }),
     { watching: null, busy: false, marks: 0, n: 0, lit: 0 }, 'Next hitter while it was being watched again');
+}
+
+// Under Next hitter, a line on how this visit has gone: every at-bat that ended on a pitch thrown here, with the share
+// struck out beside the league's from the data (js/league.js). An at-bat replayed from a link to its end isn't one.
+{
+  const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+  const play = async () => {
+    while (!(await page.evaluate(() => window.arsenal.atBat.state.ab.result))) { await page.evaluate(() => window.arsenal.atBat.throw('FF', '00')); await idle(); }
+    return page.evaluate(() => window.arsenal.atBat.state.ab.result);
+  };
+  const league = `big-league pitchers struck out ${((100 * LEAGUE.so) / LEAGUE.pa).toFixed(1)}% of batters in 2026`;
+  const line = rs => {
+    const of = (...k) => rs.filter(r => k.includes(r)).length, hbp = of('HBP'), k = of('K', 'KL');
+    const parts = [`${rs.length} batter${rs.length === 1 ? '' : 's'}`, `${k} K`, `${of('BB')} BB`, `${of('1B', '2B', '3B', 'HR')} H`, ...(hbp ? [`${hbp} HBP`] : [])];
+    return `This visit: ${parts.join(' · ')}. ${rs.length === 1 ? league[0].toUpperCase() + league.slice(1) : `You struck out ${Math.round((100 * k) / rs.length)}% of them; ${league}`}.`;
+  };
+  await page.goto('about:blank');
+  await page.goto(base + STRIKEOUT);
+  await idle();
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('ab-tally').textContent, document.getElementById('ab-tally').checkVisibility()]), ['', false], 'a tally for an at-bat replayed from a link');
+  await page.locator('#ab-next').click();
+  const rs = [await play()];
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('ab-tally').textContent, document.getElementById('ab-tally').previousElementSibling.querySelector('#ab-next') !== null]), [line(rs), true], 'the tally after one batter');
+  for (let i = 0; i < 2; i++) { await page.locator('#ab-next').click(); rs.push(await play()); }
+  assert.equal(await page.locator('#ab-tally').textContent(), line(rs), 'the tally after three batters');
 }
 
 // A link to a pitch keeps the pitch thrown with it and a left-hander, and opens on them.

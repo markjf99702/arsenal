@@ -600,6 +600,7 @@ p { margin: 0; }
 /* Nothing in it, not even a link that won't fit, makes it wider than the call box. */
 .end > * { min-width: 0; }
 #ab-copied { overflow-wrap: anywhere; }
+#ab-tally:empty { display: none; }
 .link-field {
   width: 100%; min-width: 0; font: 400 16px/1.3 var(--body); color: var(--ink); background: var(--card);
   border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px;
