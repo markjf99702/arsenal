@@ -1216,6 +1216,41 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await phoneCtx.close();
 }
 
+// Phones, short: an iPhone 14 with Safari's bars tucked away (390x750).
+for (const [width, height] of [[390, 750]]) {
+  const narrowCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  const ph = await narrowCtx.newPage();
+  watch(ph);
+  const at = `at ${width}x${height}`;
+  await ph.goto(base + '#ab.nola.R.1');
+  await ph.evaluate(() => document.fonts.ready);
+  // The call fits under the picture that stays at the top of the screen, from the first pitch to Throw, for every
+  // pitcher, even Skenes's six pitches, on an iPhone 14 once Safari has tucked its bars away. The grid is still named
+  // "Where" to a screen reader, with what its frame means.
+  if (width === 390) {
+    const short = await ph.evaluate(async () => {
+      const out = [];
+      for (const key of [...document.getElementById('ab-pitcher').options].map(o => o.value)) {
+        const list = document.getElementById('ab-pitcher');
+        list.value = key;
+        list.dispatchEvent(new Event('change'));
+        // A pitch brought into view stops under the picture (its scroll margin), as a thumb would scroll it.
+        const first = document.querySelector('#ab-pitches .ab-chip');
+        first.scrollIntoView({ block: 'start' });
+        await new Promise(r => requestAnimationFrame(r));
+        const picture = document.getElementById('ab-flight').parentElement.getBoundingClientRect().bottom + 12, top = first.getBoundingClientRect().top;
+        const bottom = document.getElementById('ab-throw').getBoundingClientRect().bottom;
+        if (top < picture - 0.5 || bottom > innerHeight) out.push(`${key}: the first pitch at ${Math.round(top)}px under a picture to ${Math.round(picture)}px, Throw down to ${Math.round(bottom)}px of ${innerHeight}`);
+      }
+      return out;
+    });
+    assert.deepEqual(short, [], `${at}, the call doesn't fit under the picture`);
+    assert.equal(await ph.getByRole('radiogroup', { name: 'Where' }).getAttribute('aria-describedby'), 'ab-side ab-key', `${at}, the grid's name and description`);
+    await ph.locator('#ab-pitcher').selectOption('nola');
+  }
+  await narrowCtx.close();
+}
+
 // A phone held sideways is a short screen. Neither picture is taller than it, and the at-bat's is beside the call box,
 // so it's on screen while a pitch thrown with the button low on the screen flies. Strike three's end card, which takes
 // the pitch controls' place, comes into view.

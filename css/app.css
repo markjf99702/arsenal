@@ -578,6 +578,18 @@ p { margin: 0; }
   .ab-chips .ab-chip { white-space: normal; text-align: left; border-radius: 16px; padding: 6px 12px; }
   .ab-chips .ab-chip small { display: block; margin: 1px 0 0; padding-left: 15px; }
 }
+/* On a phone the picture stays at the top of the screen while you call the pitch, and the call fits under it: from the
+   first pitch to Throw on an iPhone 14 once Safari has tucked its bars away (750px tall). The pitches are two lines
+   set close, the grid is headed by the batter's side alone (its heading is still its name to a screen reader), the gaps
+   are a little tighter, and what the frame on the grid means goes under Throw (still read with the grid). */
+@media (max-width: 640px) {
+  .callbox { gap: 8px; }
+  .ab-chips .ab-chip { line-height: 1.2; min-height: 48px; }
+  #ab-where-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .spots-wrap { gap: 4px; }
+  .choice { line-height: 1.25; }
+  .callbox > #ab-key { order: 1; }
+}
 /* Held sideways, the grid's spots are as big as on a computer, and a little smaller where the call box is narrowest, so
    the grid fits in it. */
 @media (orientation: landscape) and (max-height: 540px) and (min-width: 600px) and (max-width: 666px) {
