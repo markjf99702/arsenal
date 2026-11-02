@@ -6,7 +6,7 @@ import { PITCHES, BY_CODE } from '../js/pitches.js';
 import { throwPitch, sideCamera, catcherCamera, topCamera, palette, drawZone, drawSideField, drawTopField, PLATE_Y, G } from '../js/flight.js';
 import { Stage } from '../js/stage.js';
 import { tilt } from '../js/spin.js';
-import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW } from '../js/tracker.js';
+import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK } from '../js/tracker.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
 
@@ -177,6 +177,31 @@ test('the newest mark grows in as it lands, settling to its size, and the others
     // Each where it crossed, the newest too.
     discs.forEach((d, i) => { const p = cam.project([marks[i].x, 17 / 12, marks[i].z]); assert.ok(Math.hypot(d.x - p.x, d.y - p.y) < 1e-9, `mark ${i + 1} moved`); });
   }
+});
+
+test('a mark mostly covered by a later one keeps a ring of its colour showing round it', () => {
+  const cam = atBatCamera(716, 470, { dpr: 2 }), r = markRadius(cam);
+  const at = m => cam.project([m.x, 17 / 12, m.z]);
+  // Three pitches up and in, the second and third within a mark's width of the first, the third on the second; and one
+  // well clear of them, low and away.
+  const marks = [
+    { x: -0.5, z: 3, n: 1, kind: 'strike' }, { x: -0.48, z: 3.02, n: 2, kind: 'ball' }, { x: -0.49, z: 2.99, n: 3, kind: 'play' },
+    { x: 0.6, z: 1.8, n: 4, kind: 'ball' },
+  ];
+  const { ctx, drawn } = recorder();
+  drawMarks(ctx, cam, marks);
+  const rings = drawn.filter(d => d.op === 'stroke' && d.r > r * 1.2 && d.color !== '#fff');
+  const near = (d, m) => Math.hypot(d.x - at(m).x, d.y - at(m).y) < 1e-9;
+  assert.deepEqual(rings.map(d => [marks.findIndex(m => near(d, m)) + 1, d.color]), [[1, MARK.strike], [2, MARK.ball]], 'the rings round covered marks');
+  assert.ok(rings[0].r - rings[1].r > rings[1].width, `the first one's ring, ${rings[0].r.toFixed(1)}px out, is hidden under the second's`);
+  // Every mark, the newest too, is where its pitch crossed, and none of them is bigger for it.
+  const discs = drawn.filter(d => d.op === 'fill');
+  assert.equal(discs.length, 4);
+  discs.forEach((d, i) => assert.ok(near(d, marks[i]) && d.r === r, `mark ${i + 1} moved or changed size`));
+  // Marks that only touch, more than a mark's width apart, are left alone.
+  const apart = recorder();
+  drawMarks(apart.ctx, cam, [marks[0], { ...marks[1], x: -0.5 + (1.05 * r) / cam.project([0, 17 / 12, 3]).k }]);
+  assert.equal(apart.drawn.filter(d => d.op === 'stroke' && d.r > r * 1.2).length, 0, 'a ring round a mark that shows');
 });
 
 test('a knuckleball never goes the same way twice', () => {

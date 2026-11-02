@@ -65,17 +65,31 @@ export function readoutRoom(W, H, dpr, [x, z]) {
 
 // Each pitch where it crossed. One that crossed below the bottom edge (it bounced) sits on the edge with a notch
 // under its number, pointing down: lower than this. `grow` is how many times its size the newest is drawn (growth).
+// A later pitch that crossed within a mark's width of an earlier one covers most of it, so the earlier one keeps a thin
+// ring of its colour round the outside, one ring further out for each that covers it, and can still be found. Every
+// mark stays where its pitch crossed.
 export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {
   const r0 = markRadius(cam);
   const floor = cam.H - r0 - 2;
+  const at = marks.map(m => {
+    const p = cam.project([m.x, PLATE_Y, m.z]);
+    return { x: p.x, y: Math.min(p.y, floor), low: p.y > floor };
+  });
+  const ring = Math.max(1.5 * (cam.dpr || 1), r0 * 0.2);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   marks.forEach((m, i) => {
-    const p = cam.project([m.x, PLATE_Y, m.z]);
-    const low = p.y > floor, y = Math.min(p.y, floor);
+    const p = at[i], { low, y } = p;
     const last = i === marks.length - 1, r = last ? r0 * grow : r0;
     ctx.globalAlpha = last ? 1 : 0.88;
+    const covered = at.slice(i + 1).filter(q => Math.hypot(q.x - p.x, q.y - y) < r0).length;
+    if (covered) {
+      // Outside the white edge of the mark on top, with a white line between each ring and the next.
+      ctx.beginPath(); ctx.arc(p.x, y, r0 * 1.12 + ring * (1.6 * covered - 0.5), 0, Math.PI * 2);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = ring * 1.8; ctx.stroke();
+      ctx.strokeStyle = MARK[m.kind]; ctx.lineWidth = ring; ctx.stroke();
+    }
     ctx.fillStyle = MARK[m.kind];
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = Math.max(1.5, r * (last ? 0.26 : 0.16));
