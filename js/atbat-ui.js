@@ -1,8 +1,8 @@
 // "Pitch to a hitter": call each pitch and a spot, watch it from behind the plate, and read why it went how it did.
 import { Stage } from './stage.js';
-import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotName, linkFor, parseLink } from './atbat.js';
+import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
-import { markKind } from './tracker.js';
+import { markKind, readoutRoom } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
 import { COUNTS } from './league.js';
@@ -19,8 +19,14 @@ export function setupAtBat({ dark = false } = {}) {
   const S = { pitcher: PITCHERS[0], batter: 'R', seed: newSeed(), ab: null, calls: [], code: null, spot: spotById('1m1'), busy: false, speed: 1, asked: 0 };
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
-  const frame = $('ab-flight').parentElement;
-  new ResizeObserver(() => $('at-bat').style.setProperty('--ab-frame', `${Math.ceil(frame.getBoundingClientRect().height)}px`)).observe(frame);
+  // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
+  // away to a lefty, which are in the same place, and wrap to fit (--ro-max, css/app.css).
+  const frame = $('ab-flight').parentElement, corner = spotXZ(spotById('2m2'), 'R');
+  new ResizeObserver(() => {
+    $('at-bat').style.setProperty('--ab-frame', `${Math.ceil(frame.getBoundingClientRect().height)}px`);
+    const { W, H, dpr } = stage.size();
+    frame.style.setProperty('--ro-max', `${Math.floor(readoutRoom(W, H, dpr, corner) * 10) / 10}px`);
+  }).observe(frame);
   // Into view, and out from behind the picture: the browser counts what's behind it as in view. Beside the picture (on a
   // computer, or a phone held sideways) something whose top is off the top of the screen is brought down whole too.
   const behind = el => {

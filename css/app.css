@@ -422,7 +422,7 @@ p { margin: 0; }
   #ab-callbox, #ab-end, #ab-chart, .bat-grid :is(button, select, input, .seg) { scroll-margin-top: calc(var(--ab-frame, 0px) + 12px); }
 }
 .count { display: flex; align-items: center; gap: 12px; }
-.count .ct { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.count .ct { font-size: 34px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .count .dots { display: inline-flex; align-items: center; gap: 4px; font-size: 15px; }
 .count .dots b { margin-right: 2px; }
 .count .dots i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85); }
@@ -432,25 +432,42 @@ p { margin: 0; }
 .count .on { font-size: 16px; font-weight: 600; }
 /* What happened, in a tag filled with its mark's colour, a shade darker so the white words on it read at 4.5 to 1 or
    more. The same in either palette, since it sits on the picture. */
-#ab-ro .tag { display: inline-block; padding: 0 5px; border-radius: 4px; font-weight: 700; text-shadow: none; }
+#ab-ro .tag { padding: 1px 3px; border-radius: 4px; font-weight: 700; text-shadow: none; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 #ab-ro .k-strike { background: #c23b33; }
 #ab-ro .k-ball { background: #23804b; }
 #ab-ro .k-play { background: #2f66b8; }
-/* On a phone the picture is short, so the readout keeps to its top-left corner, clear of the zone and the pitcher's
-   hand: the balls and strikes stacked beside the count, and what happened over the pitch, on two lines. The picture is
-   as small on a phone held sideways, beside the call box. */
-@media (max-width: 520px), (orientation: landscape) and (max-height: 540px) and (min-width: 600px) and (max-width: 979px) {
-  .bat-stage .readout { left: 10px; top: 8px; }
+/* The words over the at-bat's picture: the count, then what happened over the pitch, on two lines. They stop short of
+   where a pitch high and off the plate on that side crosses (--ro-max, from js/atbat-ui.js), wrapping to fit, so they
+   never cover its mark. One that misses wilder, or hits the batter, can still cross under them, so they sit on a dark
+   veil that both read through. */
+.bat-stage > .frame { container: ab-frame / inline-size; }
+.bat-stage .readout { left: 6px; top: 6px; box-sizing: border-box; max-width: calc(var(--ro-max, 100%) - 6px); padding: 4px 8px 6px 6px; border-radius: 10px; background: rgba(15, 20, 30, .5); }
+.bat-stage #ab-ro { margin-top: 2px; line-height: 1.3; }
+.bat-stage #ab-ro:empty { display: none; }
+#ab-ro .sep { display: none; }
+#ab-ro span:last-child { display: block; }
+/* Where the picture is narrower, on a phone, a phone held sideways, a tablet or a small window, the readout keeps to its
+   top-left corner, clear of the zone and the pitcher's hand: the balls and strikes stacked beside the count. */
+@container ab-frame (max-width: 599px) {
+  .bat-stage .readout { left: 5px; top: 5px; max-width: calc(var(--ro-max, 100%) - 5px); padding: 3px 4px 5px 5px; border-radius: 9px; }
   .count { display: grid; grid-template-columns: auto auto; gap: 2px 8px; justify-content: start; }
   .count .ct { grid-row: span 2; font-size: 28px; line-height: 1; }
   .count .on { grid-row: span 2; font-size: 14px; }
   .count .dots { font-size: 13px; gap: 3px; }
   .count .dots i { width: 9px; height: 9px; border-width: 1.5px; }
-  #ab-ro { font-size: 14px; line-height: 1.25; margin-top: 4px; }
-  #ab-ro .sep { display: none; }
-  #ab-ro span:last-child { display: block; }
+  .bat-stage #ab-ro { font-size: 14px; line-height: 1.25; margin-top: 4px; }
 }
-@media (max-width: 360px) { .count .ct { font-size: 24px; } #ab-ro { font-size: 13px; } }
+/* On the narrowest phones the readout has 80 to 90px across before the high spot off the plate: the count is smaller,
+   and so are the words under it. */
+@container ab-frame (max-width: 330px) { .count .ct { font-size: 24px; } .bat-stage #ab-ro { font-size: 13px; } }
+@container ab-frame (max-width: 310px) {
+  .count { column-gap: 6px; }
+  .count .ct { font-size: 22px; }
+  .count .on { font-size: 13px; }
+  .count .dots { font-size: 12px; }
+  .count .dots i { width: 8px; height: 8px; }
+  .bat-stage #ab-ro { font-size: 12px; }
+}
 
 .bat-call { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); display: grid; gap: 14px; min-width: 0; }
 .bat-call h3 { font-size: 18px; text-transform: uppercase; letter-spacing: .04em; }

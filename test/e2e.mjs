@@ -1247,6 +1247,49 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
   await sideCtx.close();
 }
 
+// The count and what happened, over the at-bat's picture's top-left corner, never cover a pitch thrown to a spot off
+// the plate: there the high ones, inside to a righty and away to a lefty, cross. On the narrowest phones, a phone, one
+// held sideways and a tablet held sideways, with the longest lines there are: Aaron Nola's knuckle curve, while it
+// flies, once it's in, and the strikeout swinging it ends in. Every spot's mark off the plate, at its full size, is
+// clear of the readout's box.
+for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [1024, 768]]) {
+  const roCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  const ro = await roCtx.newPage();
+  watch(ro);
+  const covered = () => ro.evaluate(async () => {
+    const { SPOTS, spotXZ } = await import(new URL('js/atbat.js', location.href));
+    const { markRadius } = await import(new URL('js/tracker.js', location.href));
+    const { stage, state } = window.arsenal.atBat, cam = stage.camera(), dpr = cam.dpr, r = markRadius(cam) / dpr;
+    const c = document.getElementById('ab-flight').getBoundingClientRect(), b = document.querySelector('.bat-stage .readout').getBoundingClientRect();
+    const box = { left: b.left - c.left, right: b.right - c.left, top: b.top - c.top, bottom: b.bottom - c.top };
+    const under = SPOTS.filter(s => !s.zone).filter(s => {
+      const [sx, sz] = spotXZ(s, state.batter), p = cam.project([sx, 17 / 12, sz]), x = p.x / dpr, y = p.y / dpr;
+      return x + r > box.left && x - r < box.right && y + r > box.top && y - r < box.bottom;
+    });
+    return { said: document.getElementById('ab-ro').textContent, under: under.map(s => s.id), box: Object.values(box).map(Math.round) };
+  });
+  for (const [batter, spot] of [['R', 0], ['L', 4]]) {
+    const at = `at ${width}x${height} to a ${batter === 'R' ? 'right' : 'left'}-handed batter`;
+    await ro.goto('about:blank');
+    await ro.goto(`${base}#ab.nola.${batter}.9.KC${spot}.KC${spot}`);
+    await ro.waitForFunction(() => window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+    const flying = await covered();
+    assert.equal(flying.said, 'Pitch 2\u00a0· 78.4\u00a0mph knuckle curve', `${at}, while the pitch flies`);
+    assert.deepEqual(flying.under, [], `${at}, while the pitch flies the readout ${JSON.stringify(flying.box)} covers spots`);
+    await ro.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+    const landed = await covered();
+    assert.equal(landed.said, 'Swinging strike\u00a0· 78.4\u00a0mph knuckle curve', `${at}, once the pitch is in`);
+    assert.deepEqual(landed.under, [], `${at}, once the pitch is in the readout ${JSON.stringify(landed.box)} covers spots`);
+    await ro.goto('about:blank');
+    await ro.goto(`${base}#ab.nola.${batter}.1p${`.KC${spot}`.repeat(5)}`);
+    await ro.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
+    const ended = await covered();
+    assert.equal(ended.said, 'Strikeout swinging\u00a0· 5 pitches', `${at}, at the end`);
+    assert.deepEqual(ended.under, [], `${at}, at the end the readout ${JSON.stringify(ended.box)} covers spots`);
+  }
+  await roCtx.close();
+}
+
 // The address follows the at-bat once a pitch is thrown, so a reload, or a phone's Share, has the at-bat being played.
 {
   const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });

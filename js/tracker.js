@@ -55,6 +55,14 @@ export function atBatCamera(W, H, { dpr = 1, lift = 0 } = {}) {
 export const GROW = 0.18;
 export const growth = age => (age >= 0 && age < GROW ? 1 + 0.5 * (1 - age / GROW) ** 2 : 1);
 
+// How far across the at-bat's picture the words over its top-left corner can reach, in CSS pixels from its left edge:
+// to the edge of a mark on `spot` ([x, z] in feet, the high spot off the plate on that side), so the count and what
+// happened never cover a pitch thrown there.
+export function readoutRoom(W, H, dpr, [x, z]) {
+  const cam = atBatCamera(W, H, { dpr });
+  return (cam.project([x, PLATE_Y, z]).x - markRadius(cam)) / dpr;
+}
+
 // Each pitch where it crossed. One that crossed below the bottom edge (it bounced) sits on the edge with a notch
 // under its number, pointing down: lower than this. `grow` is how many times its size the newest is drawn (growth).
 export function drawMarks(ctx, cam, marks, { grow = 1 } = {}) {

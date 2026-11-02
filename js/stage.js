@@ -40,11 +40,15 @@ export class Stage {
     this.overlays = { speed: box(frame?.querySelector('.readout .speed'), true), time: box(frame?.querySelector('.readout .time')), legend: box(frame?.querySelector('.legend')) };
   }
 
+  // The canvas's size in device pixels, at up to twice its size in CSS pixels, and that ratio.
+  size() {
+    const r = this.canvas.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    return { W: Math.max(1, Math.round(r.width * dpr)), H: Math.max(1, Math.round(r.height * dpr)), dpr };
+  }
+
   resize() {
     this.measure();
-    const r = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    const { W, H, dpr } = this.size();
     if (W === this.canvas.width && H === this.canvas.height) return;
     this.canvas.width = W; this.canvas.height = H;
     this.dpr = dpr;
