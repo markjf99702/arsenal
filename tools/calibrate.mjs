@@ -34,6 +34,9 @@ const logit = p => Math.log(p / (1 - p));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const clone = o => JSON.parse(JSON.stringify(o));
 let P = clone(START);
+// Each real pitcher's command and contact factor, from nothing when the knobs have none yet.
+P.pitcherCommand ||= {};
+P.pitcherContact ||= {};
 
 // Where the knobs live in PARAMS, and how far a random step may move each (as a factor).
 const KNOBS = [
@@ -172,17 +175,24 @@ for (let round = 1; round <= rounds; round++) {
 P = kept.P;
 console.log(`keeping round ${kept.round}, error ${kept.err.toFixed(3)}`);
 
-// Each real pitcher's pitches: their stuff, until hitters miss each as often as they missed his in real life; and his
-// stuff with two strikes (pitcherPutaway), until he strikes out as many as he did.
+// Each real pitcher's pitches: their stuff, until hitters miss each as often as they missed his in real life; his stuff
+// with two strikes (pitcherPutaway), until he strikes out as many as he did; his command (pitcherCommand), until he walks
+// as many; and his hits on balls in play (pitcherContact), until his wOBA on contact is his own. And the knuckleball's wildness
+// (commandBy.KN), until as many of Waldron's cross in the zone as did.
 function fitPitchers(steps) {
   for (let i = 0; i < steps; i++) {
-    for (const [key, { rows, k }] of Object.entries(measurePitchers(P, 1500, [11 + 2 * i, 12 + 2 * i]))) {
+    for (const [key, { rows, k, bb, wobacon }] of Object.entries(measurePitchers(P, 1500, [11 + 2 * i, 12 + 2 * i]))) {
       const own = P.pitcherStuff[key] ||= {};
       for (const r of rows) {
         if (r.swings < 40 || r.real == null) continue;
         own[r.code] = clamp((own[r.code] ?? 1) * Math.exp(0.7 * (logit(r.real) - logit(Math.min(0.95, Math.max(0.02, r.sim))))), 0.3, 4);
       }
-      P.pitcherPutaway[key] = clamp((P.pitcherPutaway[key] ?? 1) * Math.exp(0.5 * (logit(k.real) - logit(clamp(k.sim, 0.02, 0.9)))), 0.5, 2.5);
+      P.pitcherPutaway[key] = clamp((P.pitcherPutaway[key] ?? 1) * Math.exp(0.5 * (logit(k.real) - logit(clamp(k.sim, 0.02, 0.9)))), 0.5, 4);
+      // Walks go about as the spread's square and a half: a fifth wider, half again as many.
+      P.pitcherCommand[key] = clamp((P.pitcherCommand[key] ?? 1) * Math.exp(0.3 * (logit(bb.real) - logit(clamp(bb.sim, 0.01, 0.5)))), 0.4, 2.5);
+      P.pitcherContact[key] = clamp((P.pitcherContact[key] ?? 1) * (wobacon.real / Math.max(0.05, wobacon.sim)) ** 0.9, 0.3, 2.5);
+      const kn = rows.find(r => r.code === 'KN');
+      if (kn?.pitches > 300) P.commandBy.KN = clamp(P.commandBy.KN * Math.exp(0.4 * (logit(clamp(kn.zone, 0.05, 0.95)) - logit(kn.zoneReal))), 0.8, 3);
     }
   }
 }

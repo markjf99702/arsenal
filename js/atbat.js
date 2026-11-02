@@ -32,7 +32,7 @@ export const spotById = id => SPOTS.find(s => s.id === id);
 // same calls may play out differently. Raise it with anything that changes how an at-bat plays: the model, its knobs
 // (js/atbat-params.js), or the league numbers and arsenals (js/league.js). Links pinned in test/atbat.test.mjs fail
 // until it goes up.
-export const VERSION = 2;
+export const VERSION = 3;
 
 // An at-bat as a link: ab.v<version>.<pitcher>.<R|L>.<seed in base 36>, then each call as its pitch and its spot's place
 // in SPOTS, like ab.v1.skenes.L.k3x9a.FF6.ST23. The seed brings back the same hitter and the same luck, so the calls
@@ -148,6 +148,9 @@ export function startAtBat({ pitcher = AVERAGE, batter = 'R', seed = 1, params =
 const countKey = ab => `${ab.balls}-${ab.strikes}`;
 // Of Statcast's whiffs in 2026, the share that were foul tips.
 const TIPS = LEAGUE.tips / LEAGUE.whiffs;
+// Hits per out on balls in play in 2026: an out falls for a single this much of a pitcher's contact factor over 1, so his
+// hits per ball in play go up by that factor.
+const TARGET_HITS = LEAGUE.hits / (LEAGUE.bip - LEAGUE.hits);
 const sigmoid = v => 1 / (1 + Math.exp(-v));
 const entryOf = (pitcher, code) => pitcher.pitches.find(p => p.code === code);
 
@@ -224,9 +227,10 @@ export function throwCall(ab, call) {
   const before = { balls: ab.balls, strikes: ab.strikes };
   const prev = ab.pitches.at(-1) || null;
 
-  // Command: it misses the spot a little, more for some pitches.
+  // Command: it misses the spot a little, more for some pitches (the knuckleball most, as wild as Waldron's was: as many
+  // of his in the zone), and more or less for each real pitcher (pitcherCommand), so he walks as many as he did.
   const aim = spotXZ(call.spot, ab.batter);
-  const spread = P.command * (P.commandBy[call.code] ?? 1);
+  const spread = P.command * (P.commandBy[call.code] ?? 1) * (P.pitcherCommand[ab.pitcher.key] ?? 1);
   const target = [aim[0] + R.normal() * spread, aim[1] + R.normal() * spread];
   // Speed: no two of a pitcher's pitches come in at quite the same speed. Each is drawn from his spread for that pitch
   // in 2026 (sd, the league's for the league-average righty), times speedSpread, and never more than 2.5 of it away.
@@ -316,6 +320,12 @@ export function throwCall(ab, call) {
         if (s > O.hr) play = 'HR';
         else if (s > O.xbh) play = R.chance(O.triple) ? '3B' : '2B';
         else play = R.chance(O.single[0] + O.single[1] * Math.max(0, s)) ? '1B' : 'out';
+        // A real pitcher gives up more or fewer hits on balls in play than the league (pitcherContact, a factor on them),
+        // wherever they crossed, so his damage on contact comes to his own: fewer, and a hit is caught now and then;
+        // more, and a ball that would have been caught falls for a single.
+        const f = P.pitcherContact[ab.pitcher.key] ?? 1;
+        if (f < 1 && play !== 'out' && !R.chance(f)) play = 'out';
+        else if (f > 1 && play === 'out' && R.chance((f - 1) * TARGET_HITS)) play = '1B';
         out.play = play;
         out.contact = s;
       }

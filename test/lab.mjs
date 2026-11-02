@@ -36,7 +36,9 @@ export function zoneGroup(x, z) {
 }
 // A swing that missed, as Statcast counts its whiffs: a foul tip is one.
 export const MISSED = p => p.result === 'whiff' || p.result === 'tip';
+// What Statcast's wOBA counts a ball in play as (wobaOf), and the end of a plate appearance (wobaEnd).
 const W = LEAGUE.woba, wobaOf = play => ({ '1B': W['1B'], '2B': W['2B'], '3B': W['3B'], HR: W.HR }[play] || 0);
+const wobaEnd = r => ({ BB: W.BB, HBP: W.HBP, '1B': W['1B'], '2B': W['2B'], '3B': W['3B'], HR: W.HR }[r] || 0);
 export const GROUPS = {};
 for (const [zn, v] of Object.entries(ZONES)) {
   const g = GROUPS[zn === '5' ? 'middle' : Number(zn) > 9 ? 'out' : ['1', '3', '7', '9'].includes(zn) ? 'corner' : 'edge'] ||= { pitches: 0, swings: 0, whiffs: 0, bip: 0, w: 0 };
@@ -126,23 +128,40 @@ export function measure(params, pas = 6000, seed = 1) {
   };
 }
 
-// Each real pitcher's simulated miss rate per pitch, beside his real one (rows), and his strikeouts per plate appearance
-// (k). `seed` is one, or a list to pool.
+// Each real pitcher's simulated miss rate per pitch, beside his real one (rows, with how often each crossed in the zone:
+// zone and zoneReal), and per plate appearance his strikeouts (k), walks (bb) and wOBA (woba), and his wOBA on contact
+// (wobacon, over balls in play). `seed` is one, or a list to pool.
+// His real ones, from js/league.js: wOBA with Statcast's weights over his plate appearances, as the lab counts it.
+export function realLine(p) {
+  const hits = W['1B'] * p.singles + W['2B'] * p.doubles + W['3B'] * p.triples + W.HR * p.hrs;
+  return { k: p.so / p.pa, bb: p.bb / p.pa, woba: (W.BB * p.bb + W.HBP * p.hbp + hits) / p.pa, wobacon: hits / p.bip, pa: p.pa };
+}
 export function measurePitchers(params, pas = 1500, seed = 1) {
   const out = {};
   for (const pitcher of PITCHERS.filter(p => p.key !== 'average')) {
     const t = {};
-    let n = 0, k = 0;
+    let n = 0, k = 0, bb = 0, w = 0, bip = 0, wc = 0;
     for (const ab of atBats(pitcher, params, pas, seed)) {
       n++; if (ab.result === 'K' || ab.result === 'KL') k++;
+      if (ab.result === 'BB') bb++;
+      w += wobaEnd(ab.result);
       for (const p of ab.pitches) {
-        const c = t[p.code] ||= { swings: 0, whiffs: 0 };
+        const c = t[p.code] ||= { swings: 0, whiffs: 0, pitches: 0, zone: 0 };
+        c.pitches++; if (p.inZone) c.zone++;
         if (p.swing) { c.swings++; if (MISSED(p)) c.whiffs++; }
+        if (p.result === 'inplay') { bip++; wc += wobaOf(p.play); }
       }
     }
+    const real = realLine(pitcher);
     out[pitcher.key] = {
-      rows: pitcher.pitches.map(e => ({ code: e.code, share: e.share, real: e.whiff, sim: t[e.code] ? t[e.code].whiffs / Math.max(1, t[e.code].swings) : null, swings: t[e.code]?.swings || 0 })),
-      k: { sim: k / n, real: pitcher.so / pitcher.pa, pa: pitcher.pa },
+      rows: pitcher.pitches.map(e => ({
+        code: e.code, share: e.share, real: e.whiff, sim: t[e.code] ? t[e.code].whiffs / Math.max(1, t[e.code].swings) : null, swings: t[e.code]?.swings || 0,
+        zone: t[e.code] ? t[e.code].zone / t[e.code].pitches : null, zoneReal: e.zone, pitches: t[e.code]?.pitches || 0,
+      })),
+      k: { sim: k / n, real: real.k, pa: pitcher.pa },
+      bb: { sim: bb / n, real: real.bb, pa: pitcher.pa },
+      woba: { sim: w / n, real: real.woba, pa: pitcher.pa },
+      wobacon: { sim: wc / bip, real: real.wobacon, bip },
     };
   }
   return out;
@@ -175,8 +194,8 @@ const middle = (j, ab) => ({ code: autoCall(ab).code, spot: S('00') });
 const every = (code, spot) => () => ({ code, spot: S(spot) });
 const turns = (a, sa, b, sb) => j => (j % 2 ? { code: b, spot: S(sb) } : { code: a, spot: S(sa) });
 export const PLANS = {
-  // Down the middle every pitch, with his own mix: every pitcher, but the knuckleballer (below).
-  middle: PITCHERS.filter(p => p.key !== 'waldron').map(p => [p.key, 'down the middle every pitch', middle]),
+  // Down the middle every pitch, with his own mix: every pitcher.
+  middle: PITCHERS.map(p => [p.key, 'down the middle every pitch', middle]),
   // One pitch to one spot every time: Misiorowski's curve down and away, the league-average righty's curve at the knees,
   // Miller's slider down and away.
   one: [['misiorowski', 'his curve down and away every pitch', every('CU', 'm11')], ['average', 'his curve down in the zone every pitch', every('CU', 'm10')],
@@ -185,10 +204,11 @@ export const PLANS = {
   two: [['average', 'curve and slider at the knees in turn', turns('CU', 'm10', 'SL', 'm10')], ['skenes', 'splitter and slider down and away in turn', turns('FS', 'm11', 'SL', 'm11')],
     ['gausman', 'four-seamer up and splitter down in turn', turns('FF', '10', 'FS', 'm10')], ['sale', 'four-seamer up and slider down and away in turn', turns('FF', '10', 'SL', 'm11')]],
 };
+// The pitchers for whom down the middle every pitch does about as well as their own calls (checks, below).
+export const MIDDLING = new Set(['miller', 'rogers']);
 // Mason Miller's four-seamer up in the zone and his slider down and away, in turn: no surer a strikeout than his real
 // 47.4%, on any seed.
 export const MILLER = ['miller', 'four-seamer up and slider down and away in turn', turns('FF', '10', 'SL', 'm11')];
-const Wt = LEAGUE.woba, wobaEnd = r => ({ BB: Wt.BB, HBP: Wt.HBP, '1B': Wt['1B'], '2B': Wt['2B'], '3B': Wt['3B'], HR: Wt.HR }[r] || 0);
 export function plan(params, key, call, pas = 1000, seeds = SEEDS) {
   const pitcher = pitcherByKey(key), per = [];
   for (const seed of seeds) {
@@ -244,16 +264,26 @@ export function checks(params, { lab, pitchers, plans } = run(params)) {
     near('zones', `${g} missed per swing`, v.whiff, GROUPS[g].whiff, 0.03, pct);
     if (v.bip > 300) near('zones', `${g} wOBA on contact`, v.wobacon, GROUPS[g].wobacon, 0.05);
   }
-  for (const [key, { rows, k }] of Object.entries(pitchers)) {
+  for (const [key, { rows, k, bb, woba }] of Object.entries(pitchers)) {
     for (const r of rows) if (r.swings >= 60) near('pitchers', `${key}'s ${r.code} missed per swing`, r.sim, r.real, 0.09, v => `${Math.round(v * 100)}%`);
     near('pitchers', `${key}'s strikeouts`, k.sim, k.real, 0.04, pct);
+    // His walks within 2.5 points and his wOBA within .040; more room for one who faced under 300 batters, whose real
+    // numbers say less: by the square root of 300 over how many he faced (Waldron's 194, a quarter more).
+    const room = Math.max(1, Math.sqrt(300 / bb.pa));
+    near('pitchers', `${key}'s walks`, bb.sim, bb.real, 0.025 * room, pct);
+    near('pitchers', `${key}'s wOBA`, woba.sim, woba.real, 0.04 * room);
+    // The knuckleball as wild as Waldron's: as many in the zone, within 4 points.
+    for (const r of rows) if (r.code === 'KN') near('pitchers', `${key}'s knuckleball in the zone`, r.zone, r.zoneReal, 0.04, pct);
   }
-  // Each plan is clearly worse for him than his own calls: at least .030 more wOBA, pooled. (Matt Waldron's knuckleball
-  // isn't held to it: the hitter can't read its wobble however often he's seen it, so down the middle every pitch it
-  // costs him nothing, and to one spot every time it does better than his own calls.)
+  // Each plan is clearly worse for him than his own calls: at least .030 more wOBA, pooled. Two pitchers' stuff, with
+  // their own walks and damage, plays down the middle nearly as well as with their own calls: Mason Miller's, which is
+  // missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch there every time walks nobody. They
+  // are held only to doing no better there than with their own calls, give or take .015. (Matt Waldron's knuckleball,
+  // whose wobble the hitter can't read however often he's seen it, isn't held to the knuckleball to one spot every time:
+  // that does better than his own calls.)
   for (const p of [...plans.middle, ...plans.one, ...plans.two]) {
-    const base = plans.own[p.key].w;
-    out.push({ group: 'plans', what: `${p.key}: ${p.what}`, ok: p.w >= base + 0.03, said: `${p.key}, ${p.what}: wOBA ${p.w.toFixed(3)} against his own calls' ${base.toFixed(3)} (.030 more, at least)` });
+    const base = plans.own[p.key].w, by = p.what.startsWith('down the middle') && MIDDLING.has(p.key) ? -0.015 : 0.03;
+    out.push({ group: 'plans', what: `${p.key}: ${p.what}`, ok: p.w >= base + by, said: `${p.key}, ${p.what}: wOBA ${p.w.toFixed(3)} against his own calls' ${base.toFixed(3)} (${by > 0 ? `.030 more, at least` : 'no more than .015 less'})` });
   }
   out.push({ group: 'plans', what: `miller: ${MILLER[1]}`, ok: plans.miller.per.every(x => x.k < 0.5), said: `miller, ${MILLER[1]}: strikes out ${plans.miller.per.map(x => pct(x.k)).join(', ')} on seeds ${SEEDS.join(', ')} (under 50% on each)` });
   // Changing speeds still works: a changeup after a four-seamer fools him more than one after a changeup.
