@@ -36,6 +36,7 @@
         <div class="readout">
           <div class="speed"><b id="ro-mph">–</b> <span>mph</span></div>
           <div class="time" id="ro-time"></div>
+          <div class="like" id="ro-like"></div>
         </div>
         <p class="sr" id="landed" aria-live="polite"></p>
         <div class="legend" id="legend"></div>
@@ -62,6 +63,16 @@
         <label class="check"><input type="checkbox" id="ghost" checked> No-spin ghost</label>
         <label class="pairpick">Thrown by <select id="by"></select></label>
         <label class="pairpick">Throw with <select id="pair"></select></label>
+        <span class="handpick"><span aria-hidden="true">Mound</span>
+          <span class="seg" role="group" aria-label="Mound, from the rubber to the plate" id="mound">
+            <button type="button" data-v="46" aria-pressed="false">46 ft</button>
+            <button type="button" data-v="50" aria-pressed="false">50 ft</button>
+            <button type="button" data-v="54" aria-pressed="false">54 ft</button>
+            <button type="button" data-v="60.5" aria-pressed="true">60 ft 6 in</button>
+          </span>
+        </span>
+        <span class="pacepick"><label for="pace">Thrown at</label> <input type="range" id="pace" min="40" max="100" step="1"> <output id="pace-mph" for="pace"></output>
+          <button type="button" class="plain" id="pace-back" hidden></button></span>
       </div>
       <p class="caption" id="caption"></p>
     </section>

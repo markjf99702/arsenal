@@ -1584,7 +1584,7 @@ for (const [width, height] of [[390, 750], [375, 667], [360, 640], [320, 640]]) 
   // same at the end of an at-bat, with Next hitter, Copy link and the hundred throws' button.
   const reach = () => ph.evaluate(() => {
     const short = [];
-    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-his summary, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button, #hit-game button')) {
+    for (const el of document.querySelectorAll('#throw, #view button, #speed button, #hand button, #mound button, .picker .chip, #ab-throw, #ab-suggest, #ab-batter button, #ab-speed button, #ab-his summary, #ab-run, #ab-next, #ab-copy, #ab-watch, #hit-throw, #hit-batter button, #hit-speed button, #hit-game button')) {
       if (!el.offsetParent) continue;
       el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect(), x = r.left + r.width / 2, mid = r.top + r.height / 2;
@@ -2591,6 +2591,50 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.goto(base + '#curveball.sale');
   s = await showing();
   assert.deepEqual([s.by, s.pressed, s.mph], ['', 'R', '80.3'], '#curveball.sale');
+}
+
+// Your own mound: from 46 feet at 60 mph, the four-seamer is let go of 46 feet from the plate, scaled down, the time over
+// the picture says it gets there as soon as an 80 mph pitch from 60 ft 6 in, the caption says it's an estimate, and the
+// card keeps the big leagues' numbers. Another pitch keeps its share of its own speed; the link keeps the mound and the
+// speed; Back to the pitch's own speed, and 60 ft 6 in, put it back. Pitch to a hitter stays big-league.
+{
+  const showing = () => page.evaluate(() => {
+    const f = window.arsenal.stage.flights[0];
+    return {
+      hash: location.hash, mph: document.getElementById('ro-mph').textContent, pace: document.getElementById('pace-mph').textContent,
+      like: document.getElementById('ro-like').textContent, rubber: Math.round((f.release.y + f.p.n.extension) * 10) / 10,
+      estimate: /this is an estimate/.test(document.getElementById('caption').textContent), back: document.getElementById('pace-back').hidden ? '' : document.getElementById('pace-back').textContent,
+      card: [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Speed').querySelector('b').textContent,
+    };
+  });
+  await page.goto('about:blank');
+  await page.goto(base + '#four-seam');
+  await page.locator('#mound [data-v="46"]').click();
+  await page.evaluate(() => { const r = document.getElementById('pace'); r.value = '60'; r.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.locator('#speed [data-v="1"]').click();
+  await arrived();
+  let s = await showing();
+  assert.deepEqual(s, { hash: '#four-seam.46ft.60mph', mph: '60.0', pace: '60.0 mph', like: 'Same time to the plate as an 80 mph pitch from 60 ft 6 in', rubber: 46, estimate: true, back: 'Back to 94.8', card: '94.8 mph' }, 'a four-seamer at 60 mph from 46 feet');
+  // The changeup keeps the four-seamer's share of its own speed: 86.0 × 60 / 94.8.
+  await page.evaluate(() => window.arsenal.pick('CH'));
+  s = await showing();
+  assert.deepEqual([s.hash, s.pace], ['#changeup.46ft.54mph', '54.0 mph'], 'the changeup after it');
+  // Opened from its link, it's the same.
+  await page.goto('about:blank');
+  await page.goto(base + '#four-seam.46ft.60mph');
+  await arrived();
+  s = await showing();
+  assert.deepEqual([s.mph, s.rubber, s.like], ['60.0', 46, 'Same time to the plate as an 80 mph pitch from 60 ft 6 in'], 'opened from #four-seam.46ft.60mph');
+  await page.locator('#pace-back').click();
+  await page.locator('#mound [data-v="60.5"]').click();
+  await arrived();
+  s = await showing();
+  assert.deepEqual([s.hash, s.mph, s.rubber, s.like, s.estimate, s.back], ['#four-seam', '94.8', 60.5, '', false, ''], 'back to the big leagues');
+  // Pitch to a hitter is thrown from 60 ft 6 in whatever the explorer's mound.
+  await page.locator('#mound [data-v="50"]').click();
+  const bat = await page.evaluate(() => window.arsenal.atBat.stage.opts.mound);
+  assert.equal(bat, 60.5, 'Pitch to a hitter\'s mound');
+  await page.locator('#mound [data-v="60.5"]').click();
 }
 
 // A link straight to a pitch opens on it, in capitals too, or with a bracket or quote from a message on the end.

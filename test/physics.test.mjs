@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { PITCHES, BY_CODE } from '../js/pitches.js';
-import { throwPitch, sideCamera, catcherCamera, topCamera, tvCamera, TV_EYE, apex, palette, drawZone, drawSideField, drawTopField, drawTvField, PLATE_Y, G } from '../js/flight.js';
+import { throwPitch, fromMound, sameTimeAs, RUBBER_Y, sideCamera, catcherCamera, topCamera, tvCamera, TV_EYE, apex, palette, drawZone, drawSideField, drawTopField, drawTvField, PLATE_Y, G } from '../js/flight.js';
 import { Stage, PREV } from '../js/stage.js';
 import { tilt, spinTilt, spinOf, seamsMove } from '../js/spin.js';
 import { cross, norm } from '../js/math3.js';
@@ -86,6 +86,38 @@ test('the TV camera has a long lens, and every pitch stays in its picture', asyn
   // And its scenery draws.
   const ctx = new Proxy({}, { get: (o, k) => (k in o ? o[k] : typeof k === 'string' && /^(create)/.test(k) ? () => ({ addColorStop() {} }) : () => {}), set: (o, k, v) => { o[k] = v; return true; } });
   drawTvField(ctx, tvCamera(650, 447), palette(false));
+});
+
+// Your own mound: from 46, 50 or 54 feet, the pitcher is scaled to the distance, his release and extension with it, and
+// what spin moves the ball with the square of it, at any speed; it still lands where it's aimed, in the time its speed
+// and distance give, and the same time to the plate as a speed from 60 ft 6 in that sameTimeAs works out. A 12-year-old's
+// 60 mph from 46 feet gets there as soon as about 80 mph from 60 ft 6 in.
+test('a pitch from your own mound, at your own speed', () => {
+  const DRAG = 0.915, MPH = 5280 / 3600;
+  for (const p of steady) {
+    for (const [mound, mph] of [[46, 60], [50, 66], [54, 75], [RUBBER_Y, 70]]) {
+      const k = mound / RUBBER_Y, q = fromMound(p, mound, mph), f = throwPitch(q, { rng: () => 0.5 });
+      const rel = f.release, D = rel.y - PLATE_Y;
+      assert.ok(Math.abs(rel.y - (mound - p.n.extension * k)) < 1e-9 && Math.abs(rel.z - p.n.height * k) < 1e-9, `${p.code} from ${mound} ft: let go of at ${rel.y.toFixed(2)} ft, ${rel.z.toFixed(2)} up`);
+      assert.ok(Math.abs(f.T - (2 * D) / (mph * MPH * (1 + DRAG))) < 1e-9, `${p.code} from ${mound} ft at ${mph}: ${f.T}`);
+      assert.ok(Math.hypot(f.end[0] - p.target[0], f.end[2] - p.target[1]) < 0.01, `${p.code} from ${mound} ft misses its aim`);
+      const gap = [(f.ghostEnd[0] - f.end[0]) * 12, (f.end[2] - f.ghostEnd[2]) * 12];
+      assert.ok(Math.abs(Math.abs(gap[0]) - Math.abs(p.n.arm) * k * k) < 0.05 && Math.abs(gap[1] - p.n.rise * k * k) < 0.05, `${p.code} from ${mound} ft moves ${gap.map(v => v.toFixed(1))}, not the square of ${k.toFixed(2)} times its own`);
+      const same = sameTimeAs(f, p.n), big = throwPitch(fromMound(p, RUBBER_Y, same), { rng: () => 0.5 });
+      assert.ok(Math.abs(big.T - f.T) < 1e-6, `${p.code}: ${same.toFixed(1)} mph from 60 ft 6 in takes ${big.T}, not ${f.T}`);
+    }
+    assert.equal(fromMound(p), p, 'the big leagues\' own pitch, unchanged');
+  }
+  const kid = sameTimeAs(throwPitch(fromMound(BY_CODE.FF, 46, 60), { rng: () => 0.5 }), BY_CODE.FF.n);
+  assert.ok(kid > 78 && kid < 82, `60 mph from 46 feet is like ${kid.toFixed(1)} mph from 60 ft 6 in`);
+  // The scenery moves with it: from the side, the rubber is drawn 46 feet from the plate.
+  const cam = sideCamera(650, 447);
+  cam.mound = 46;
+  const c = palette(false), rects = [];
+  const ctx = new Proxy({ fillRect(...a) { rects.push([this.fillStyle, ...a]); } }, { get: (o, k) => (k in o ? o[k] : typeof k === 'string' && k.startsWith('create') ? () => ({ addColorStop() {} }) : () => {}), set: (o, k, v) => { o[k] = v; return true; } });
+  drawSideField(ctx, cam, c);
+  const rubber = rects.find(([fill, , , , h]) => fill === c.chalk && h === 3);
+  assert.ok(rubber && Math.abs(rubber[1] - cam.project([0, 46, 0.85]).x) < 0.5, `the rubber is drawn at ${rubber?.[1]}, not 46 feet out at ${cam.project([0, 46, 0.85]).x}`);
 });
 
 test('from the side, only a lob above the usual 7.5 feet gives up height to the readout', () => {

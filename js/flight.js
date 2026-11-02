@@ -8,7 +8,7 @@ import { LEAGUE } from './league.js';
 export const G = 32.174;
 export const MPH = 5280 / 3600;
 export const PLATE_Y = 17 / 12;
-const RUBBER_Y = 60.5;
+export const RUBBER_Y = 60.5; // the big-league distance, 60 ft 6 in; a pitch with `mound` set is thrown from that many feet
 const BALL_R = 1.45 / 12;
 const DRAG = 0.915; // speed at the plate over speed out of the hand (air takes ~8%)
 export const DECIDE = 0.175; // seconds before the plate: where a hitter has to commit
@@ -34,11 +34,12 @@ export function axisOf(push, active, hand = 'R') {
   return norm(add(scale(cross(fwd, push), active), scale(fwd, Math.sqrt(Math.max(0, 1 - active * active)) * (hand === 'R' ? 1 : -1))));
 }
 
-// A thrown pitch: position over time, the no-spin path for comparison, and how the ball turns.
+// A thrown pitch: position over time, the no-spin path for comparison, and how the ball turns. From the rubber at
+// `p.mound` feet from the back of the plate, or 60 ft 6 in (see fromMound).
 export function throwPitch(p, { hand = 'R', jitter = [0, 0], release = null, rng = Math.random } = {}) {
   const n = p.n;
   const sgn = hand === 'R' ? 1 : -1;
-  const rel = release || { x: (p.side ?? -1.85) * sgn, y: RUBBER_Y - n.extension, z: n.height };
+  const rel = release || { x: (p.side ?? -1.85) * sgn, y: (p.mound ?? RUBBER_Y) - n.extension, z: n.height };
   const v0 = n.mph * MPH, vf = v0 * DRAG;
   const D = rel.y - PLATE_Y;
   const T = (2 * D) / (v0 + vf);
@@ -84,6 +85,24 @@ export function throwPitch(p, { hand = 'R', jitter = [0, 0], release = null, rng
     decide: pos(Math.max(0, T - DECIDE)),
     speedAtPlate: vf / MPH,
   };
+}
+
+// A pitch thrown from a mound `mound` feet from the plate at `mph`, an estimate: the pitcher is scaled to the distance,
+// so his release and extension shrink with it, and his spin goes with his speed, so the spin's push grows with the
+// square of the speed and the pitch's flight time shrinks with it: what spin moves it comes out in proportion to the
+// square of the distance, whatever the speed. Gravity is the same on any field.
+export function fromMound(p, mound = RUBBER_Y, mph = p.n.mph) {
+  if (mound === RUBBER_Y && mph === p.n.mph) return p;
+  const k = mound / RUBBER_Y, n = p.n;
+  return {
+    ...p, mound, side: (p.side ?? -1.85) * k,
+    n: { ...n, mph, rpm: n.rpm && (n.rpm * mph) / n.mph, rise: n.rise * k * k, arm: n.arm * k * k, height: n.height * k, extension: n.extension * k },
+  };
+}
+// The speed from 60 ft 6 in, with the pitch's own big-league release (`n`), that reaches the plate as soon as flight `f`.
+export function sameTimeAs(f, n) {
+  const D = RUBBER_Y - n.extension - PLATE_Y;
+  return (2 * D) / (f.T * (1 + DRAG)) / MPH;
 }
 
 // The highest point of a flight (for fitting the eephus in frame).
@@ -272,10 +291,11 @@ export function drawCatcherField(ctx, cam, c) {
   if (poly(ctx, cam, [[0, 9, 0], [57.6, 63.6, 0], [0, 118, 0], [-57.6, 63.6, 0]])) ctx.fill();
   // Mound and home-plate circle.
   ctx.fillStyle = c.dirt;
-  if (poly(ctx, cam, circle(0, 59, 9, 40, 0.15))) ctx.fill();
+  const R = cam.mound ?? RUBBER_Y;
+  if (poly(ctx, cam, circle(0, R - 1.5, 9, 40, 0.15))) ctx.fill();
   if (poly(ctx, cam, circle(0, 0.7, 13, 64))) ctx.fill();
   ctx.fillStyle = c.chalk;
-  if (poly(ctx, cam, [[-1, RUBBER_Y, 0.85], [1, RUBBER_Y, 0.85], [1, RUBBER_Y + 0.5, 0.85], [-1, RUBBER_Y + 0.5, 0.85]])) ctx.fill();
+  if (poly(ctx, cam, [[-1, R, 0.85], [1, R, 0.85], [1, R + 0.5, 0.85], [-1, R + 0.5, 0.85]])) ctx.fill();
   // Chalk: foul lines and batter's boxes.
   chalkLine(ctx, cam, [0.7, 0.7, 0], [300, 300, 0]);
   chalkLine(ctx, cam, [-0.7, 0.7, 0], [-300, 300, 0]);
@@ -342,12 +362,13 @@ export function drawTvField(ctx, cam, c) {
   ctx.fillStyle = c.plate;
   if (poly(ctx, cam, [[-0.708, PLATE_Y, 0.02], [0.708, PLATE_Y, 0.02], [0.708, 0.708, 0.02], [0, 0, 0.02], [-0.708, 0.708, 0.02]])) ctx.fill();
   // The mound, nearest the camera: 10 inches high, sloping toward the plate, with the rubber on top.
+  const R = cam.mound ?? RUBBER_Y;
   ctx.fillStyle = c.dirt;
-  if (poly(ctx, cam, circle(0, 59, 9, 40, 0))) ctx.fill();
+  if (poly(ctx, cam, circle(0, R - 1.5, 9, 40, 0))) ctx.fill();
   ctx.fillStyle = c.dirtDark;
-  if (poly(ctx, cam, circle(0, 60.75, 3, 30, 0.83))) ctx.fill();
+  if (poly(ctx, cam, circle(0, R + 0.25, 3, 30, 0.83))) ctx.fill();
   ctx.fillStyle = c.chalk;
-  if (poly(ctx, cam, [[-1, RUBBER_Y, 0.85], [1, RUBBER_Y, 0.85], [1, RUBBER_Y + 0.5, 0.85], [-1, RUBBER_Y + 0.5, 0.85]])) ctx.fill();
+  if (poly(ctx, cam, [[-1, R, 0.85], [1, R, 0.85], [1, R + 0.5, 0.85], [-1, R + 0.5, 0.85]])) ctx.fill();
 }
 
 export function drawSideField(ctx, cam, c) {
@@ -358,9 +379,10 @@ export function drawSideField(ctx, cam, c) {
   ctx.fillStyle = c.grassNear; ctx.fillRect(0, cam.ground, W, H - cam.ground);
   // Mound: 10 inches high, flat on top, sloping toward the plate.
   ctx.fillStyle = c.dirt;
-  const m = [[0, 69], [0, 64.5], [0.83, 62.5], [0.83, 60], [0, 53]].map(([z, y]) => cam.project([0, y, z]));
+  const R = cam.mound ?? RUBBER_Y;
+  const m = [[0, R + 8.5], [0, R + 4], [0.83, R + 2], [0.83, R - 0.5], [0, R - 7.5]].map(([z, y]) => cam.project([0, y, z]));
   ctx.beginPath(); m.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); ctx.fill();
-  const rb = cam.project([0, RUBBER_Y, 0.85]), rb2 = cam.project([0, RUBBER_Y + 0.5, 0.85]);
+  const rb = cam.project([0, R, 0.85]), rb2 = cam.project([0, R + 0.5, 0.85]);
   ctx.fillStyle = c.chalk; ctx.fillRect(rb.x, rb.y - 3, Math.max(3, rb2.x - rb.x), 3);
   // Dirt around the plate, the plate, and the zone as a bar.
   const d0 = cam.project([0, 13.7, 0]), d1 = cam.project([0, -12.3, 0]);
@@ -393,13 +415,13 @@ export function drawTopField(ctx, cam, c, hand = 'R', clear = {}) {
   ctx.fillStyle = c.grassFar;
   for (let y = 0; y < 70; y += 20) { const a = P(0, y), b = P(0, y + 10); ctx.fillRect(Math.min(a.x, b.x), 0, Math.abs(b.x - a.x), H); }
   // Mound (stretched like everything sideways), rubber, batter's boxes, plate.
-  const m = P(0, 59);
+  const R = cam.mound ?? RUBBER_Y, m = P(0, R - 1.5);
   ctx.fillStyle = c.dirt;
   ctx.beginPath(); ctx.ellipse(m.x, m.y, 9 * cam.kx, 9 * cam.ky, 0, 0, Math.PI * 2); ctx.fill();
   const d0 = P(0, 8), d1 = P(0, -3);
   ctx.fillRect(d0.x, 0, W - d0.x, H);
   ctx.fillStyle = c.chalk;
-  const r0 = P(-1, RUBBER_Y), r1 = P(1, RUBBER_Y + 0.5);
+  const r0 = P(-1, R), r1 = P(1, R + 0.5);
   ctx.fillRect(Math.min(r0.x, r1.x), Math.min(r0.y, r1.y), Math.abs(r1.x - r0.x), Math.abs(r1.y - r0.y));
   ctx.strokeStyle = c.chalk; ctx.lineWidth = lineWidth(W, dpr, 500);
   for (const sx of [1, -1]) {
@@ -413,7 +435,7 @@ export function drawTopField(ctx, cam, c, hand = 'R', clear = {}) {
   // Straight line from rubber to plate, for reference.
   ctx.save();
   ctx.setLineDash([4 * dpr, 6 * dpr]); ctx.strokeStyle = c.chalk; ctx.globalAlpha = 0.45; ctx.lineWidth = dpr;
-  const a = P(0, RUBBER_Y), b = P(0, 0);
+  const a = P(0, R), b = P(0, 0);
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   ctx.restore();
   // Which side is which. Up the screen is first base. The top label sits along the top edge, clear of every path,

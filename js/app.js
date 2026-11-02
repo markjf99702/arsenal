@@ -5,7 +5,7 @@ import { Stage } from './stage.js';
 import { SpinPanel, SLOW, tilt, spinTilt, seamsMove } from './spin.js';
 import { drawGrip } from './grip.js';
 import { movementChart, lineupTable, famName, shareText } from './charts.js';
-import { DECIDE, throwPitch } from './flight.js';
+import { DECIDE, throwPitch, fromMound, sameTimeAs, RUBBER_Y } from './flight.js';
 import { setupAtBat } from './atbat-ui.js';
 import { setupHit } from './hit-ui.js';
 import { trimmed, PITCHERS as ARMS, pitchFor } from './atbat.js';
@@ -25,6 +25,8 @@ const state = {
   pitch: PITCHES[0],
   pair: null,
   by: null, // the real pitcher it's thrown by (his key), or null for the league average
+  mound: RUBBER_Y, // feet from the rubber to the plate: 46, 50, 54 or the big leagues' 60 ft 6 in
+  pace: 1, // the speed it's thrown at, over its own
   hand: 'R',
   view: 'catcher',
   speed: 0.25,
@@ -43,9 +45,16 @@ function his(p, key = state.by) {
   if (!entry) return p;
   return { ...pitchFor(arm, entry, [0, 0]), target: p.target, league: p, arm, entry };
 }
-// What's thrown: the pitch picked and the one with it, his if he's picked.
-const thrown = () => his(state.pitch);
-const pairThrown = () => state.pair && his(BY_CODE[state.pair]);
+// Your own mound: a pitch from `state.mound` feet at its own speed times `state.pace`, to the nearest mph and kept
+// between 40 and 100, an estimate (fromMound, js/flight.js).
+const PACE = [40, 100];
+const paced = p => (state.pace === 1 ? p.n.mph : Math.round(Math.min(PACE[1], Math.max(PACE[0], p.n.mph * state.pace))));
+const yours = p => (state.mound === RUBBER_Y && state.pace === 1 ? p : fromMound(p, state.mound, paced(p)));
+const own = () => state.mound !== RUBBER_Y || state.pace !== 1;
+// What the card shows, and what's thrown: the pitch picked and the one with it, his if he's picked, from your mound.
+const card = () => his(state.pitch);
+const thrown = () => yours(card());
+const pairThrown = () => state.pair && yours(his(BY_CODE[state.pair]));
 
 // ---------------------------------------------------------------- theme
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -75,7 +84,7 @@ const stage = new Stage($('flight'), { onState: () => {} });
 const spin = new SpinPanel($('spin'));
 
 function throwNow() {
-  stage.set({ color: MAIN, pairColor: PAIR, ghost: state.ghost, hand: state.hand, view: state.view, speed: state.speed, dark: isDark() });
+  stage.set({ color: MAIN, pairColor: PAIR, ghost: state.ghost, hand: state.hand, view: state.view, speed: state.speed, dark: isDark(), mound: state.mound });
   stage.throw(thrown(), pairThrown() || null);
   // The legend has this throw's times in it now, so the field's labels are placed clear of it as it will be.
   legendTimes();
@@ -113,6 +122,12 @@ function write(id, text, html = false) {
   shown[id] = text;
   if (html) $(id).innerHTML = text; else $(id).textContent = text;
 }
+// From your own mound, the speed from 60 ft 6 in that gets there as soon: "Same time to the plate as an 80 mph pitch from
+// 60 ft 6 in", with the pitch's name first when two are thrown.
+function sameTime(f, two) {
+  const mph = Math.round(sameTimeAs(f, card().n));
+  return `${two ? `${f.p.short}: s` : 'S'}ame time to the plate as ${mph >= 80 && mph < 90 ? 'an' : 'a'} ${mph} mph pitch from 60 ft 6 in`;
+}
 function readoutLoop() {
   cancelAnimationFrame(roRaf);
   write('landed', '');
@@ -126,6 +141,7 @@ function readoutLoop() {
       } else if (s.length > 1) {
         write('ro-time', `<span class="both">${s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} s`).join(' · ')}</span>`, true);
       } else write('ro-time', `${main.f.T.toFixed(2)} s to the plate`);
+      write('ro-like', main.arrived && state.mound !== RUBBER_Y ? sameTime(main.f, s.length > 1) : '');
       const timed = main.arrived && s.length > 1;
       if ($('legend').classList.contains('timed') !== timed) $('legend').classList.toggle('timed', timed);
       const deciding = s.some(x => t >= x.f.T - DECIDE && t < x.f.T) && state.speed < 1;
@@ -173,7 +189,7 @@ const moves = n => `<span aria-hidden="true">${n.rise >= 0 ? '↑' : '↓'} ${in
 const sideways = n => `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`;
 
 function renderCard() {
-  const p = thrown(), n = p.n, lg = p.league?.n;
+  const p = card(), n = p.n, lg = p.league?.n;
   document.title = `${p.name} · Arsenal`;
   $('card').className = `card fam-${p.fam}`;
   $('c-fam').innerHTML = `<span class="key" aria-hidden="true"></span>${FAM_SINGULAR[p.fam]} <span class="code">${p.code}</span>`;
@@ -299,6 +315,22 @@ $('spinview').addEventListener('click', e => {
   spin.set({ view: b.dataset.v });
   for (const x of $('spinview').querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
 });
+// Your own mound: how far, and how hard. The speed is the pitch's own until it's moved, and then keeps its share of the
+// pitch's own as other pitches are picked, so a changeup stays slower than the fastball.
+const yoursNow = () => { paceShown(); speedReadout(); caption(); throwNow(); address(); };
+seg('mound', 'mound', Number, yoursNow);
+$('pace').addEventListener('input', e => { state.pace = Number(e.target.value) / card().n.mph; yoursNow(); });
+$('pace-back').addEventListener('click', () => { state.pace = 1; yoursNow(); $('pace').focus(); });
+function paceShown() {
+  const mph = paced(card());
+  $('pace').min = PACE[0]; $('pace').max = PACE[1];
+  $('pace').value = mph;
+  $('pace-mph').textContent = `${mph.toFixed(1)} mph`;
+  $('pace').setAttribute('aria-valuetext', `${mph.toFixed(1)} mph`);
+  $('pace-back').hidden = state.pace === 1;
+  $('pace-back').textContent = `Back to ${card().n.mph.toFixed(1)}`;
+  for (const b of $('mound').querySelectorAll('button')) b.setAttribute('aria-pressed', String(Number(b.dataset.v) === state.mound));
+}
 $('ghost').addEventListener('change', e => { state.ghost = e.target.checked; stage.set({ ghost: state.ghost }); legend(); caption(); });
 $('throw').addEventListener('click', throwNow);
 $('pair').addEventListener('change', e => { state.pair = e.target.value || null; legend(); speedReadout(); throwNow(); address(); });
@@ -358,9 +390,16 @@ function caption() {
   // With reduced motion every throw starts where it finishes (js/stage.js), so Throw it again and the speeds change only
   // its scatter: it says why the ball doesn't fly.
   const still = stage.reduced ? 'Your device asks for less motion, so each throw is shown where it finishes.' : '';
-  const arm = thrown().arm;
+  const arm = card().arm;
   const by = arm ? `Thrown as ${arm.name} threw it in ${SEASON}: his speed, spin, movement and release, aimed where the league’s goes.` : '';
-  $('caption').textContent = [cap, by, pairing(), still].filter(Boolean).join(' ');
+  $('caption').textContent = [cap, by, estimate(), pairing(), still].filter(Boolean).join(' ');
+}
+// Your own mound, or another speed: what's an estimate, and how.
+function estimate() {
+  if (!own()) return '';
+  const mph = paced(card()).toFixed(1);
+  if (state.mound === RUBBER_Y) return `Thrown at ${mph} mph, this is an estimate: the spin goes up and down with the speed, so the movement from spin stays the pitch’s own, and gravity, the same at any speed, pulls a slower one down further.`;
+  return `Thrown from ${state.mound} ft at ${mph} mph, this is an estimate: the pitcher’s release is scaled down with the distance and his spin goes with his speed, so the movement from spin shrinks with the square of the distance, and gravity pulls the same on any field.`;
 }
 // Two pitches thrown together: what throwing them together shows. "When the hitter has to decide, the four-seam and the
 // changeup are 8 inches apart; at the plate, 1 ft 7 in. The changeup gets there 0.04 s later. The ghost is the
@@ -402,6 +441,7 @@ $('total').textContent = `${TOTAL.toLocaleString('en-US')} pitches`;
 function pick(p, { scroll = false, push = true } = {}) {
   state.pitch = p;
   byOptions();
+  paceShown();
   for (const b of picker.querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.code === p.code));
   const chip = picker.querySelector(`[data-code="${p.code}"]`);
   // Keep the chosen chip in view in the sideways-scrolling picker on phones, without moving the page.
@@ -444,8 +484,10 @@ function holdUntilSeen() {
 // #sweeper+sinker.lefty. The address is replaced rather than added to, so Back still leaves the page. (A framed one-file
 // copy may not be allowed to change its address; that's fine.) The tab's title is the pitch's again too, after an
 // at-bat's.
-// Thrown by a real pitcher, his key takes the hand's place, his own: #slider.sale is Chris Sale's slider.
-const here = () => `${state.pitch.slug}${state.pair ? `+${BY_CODE[state.pair].slug}` : ''}${state.by ? `.${state.by}` : state.hand === 'L' ? '.lefty' : ''}`;
+// Thrown by a real pitcher, his key takes the hand's place, his own: #slider.sale is Chris Sale's slider. Your own mound
+// and speed follow, #four-seam.46ft.60mph, when they're not the big leagues'.
+const mphWord = () => (state.pace === 1 ? '' : `.${paced(card())}mph`);
+const here = () => `${state.pitch.slug}${state.pair ? `+${BY_CODE[state.pair].slug}` : ''}${state.by ? `.${state.by}` : state.hand === 'L' ? '.lefty' : ''}${state.mound === RUBBER_Y ? '' : `.${state.mound}ft`}${mphWord()}`;
 function address() {
   if (location.hash.slice(1) !== here()) { try { history.replaceState(null, '', `#${here()}`); } catch {} }
   document.title = `${state.pitch.name} · Arsenal`;
@@ -461,9 +503,11 @@ function readLink(h) {
   const [first, second] = pitches.split('+');
   const pitch = BY_SLUG[first], pair = BY_SLUG[second];
   if (!pitch) return null;
-  // A pitcher who didn't throw it is left out, as a part it doesn't know is.
+  // A pitcher who didn't throw it is left out, as a part it doesn't know is, and so is a mound or speed off the list.
   const arm = throwers(pitch).find(a => more.includes(a.key)) || null;
-  return { pitch, pair: pair && pair !== pitch ? pair.code : null, hand: arm ? arm.hand : more.includes('lefty') ? 'L' : 'R', by: arm?.key || null };
+  const mound = Number(more.map(m => /^(46|50|54)ft$/.exec(m)?.[1]).find(Boolean)) || RUBBER_Y;
+  const mph = Number(more.map(m => /^(\d{2,3})mph$/.exec(m)?.[1]).find(v => v >= PACE[0] && v <= PACE[1])) || null;
+  return { pitch, pair: pair && pair !== pitch ? pair.code : null, hand: arm ? arm.hand : more.includes('lefty') ? 'L' : 'R', by: arm?.key || null, mound, mph };
 }
 // A link to a place on the page, like the lede's "pitch to a hitter", goes there itself, the way picking a pitch goes
 // up to it (smoothly, unless the device asks for less motion), and the address follows the same way. Followed as a
@@ -485,6 +529,8 @@ function follow(link) {
   setHand(link.hand);
   state.by = link.by;
   state.pair = link.pair;
+  state.mound = link.mound;
+  state.pace = link.mph ? link.mph / his(link.pitch, link.by).n.mph : 1;
   pick(link.pitch, { push: false });
 }
 
@@ -497,7 +543,7 @@ addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
   if (atBat.load(h)) { $('at-bat').scrollIntoView(); return; }
   const link = readLink(h);
-  if (link && (link.pitch !== state.pitch || link.pair !== state.pair || link.hand !== state.hand || link.by !== state.by)) follow(link);
+  if (link && (link.pitch !== state.pitch || link.pair !== state.pair || link.hand !== state.hand || link.by !== state.by || link.mound !== state.mound || (link.mph ?? null) !== (state.pace === 1 ? null : paced(card())))) follow(link);
 });
 
 function applyTheme() {

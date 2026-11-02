@@ -17,7 +17,7 @@ export class Stage {
     this.ctx = canvas.getContext('2d');
     this.onState = onState;
     this.onArrive = onArrive;
-    this.opts = { view: 'catcher', speed: 0.25, ghost: true, hand: 'R', pair: null, dark: false };
+    this.opts = { view: 'catcher', speed: 0.25, ghost: true, hand: 'R', pair: null, dark: false, mound: 60.5 };
     this.flights = [];
     this.clock = 0; // real seconds since the throw
     this.raf = 0;
@@ -64,7 +64,7 @@ export class Stage {
     Object.assign(this.opts, opts);
     if (opts.marks) this.markAt = grow && !this.reduced ? this.clock : null;
     this.measure();
-    if (before.view !== this.opts.view || before.dark !== this.opts.dark) this.bg = null;
+    if (before.view !== this.opts.view || before.dark !== this.opts.dark || before.mound !== this.opts.mound) this.bg = null;
     this.draw();
   }
 
@@ -145,11 +145,12 @@ export class Stage {
       cam = this.opts.atBat ? atBatCamera(W, H, { dpr: this.dpr || 1, lift }) : catcherCamera(W, H, { lift });
     }
     cam.dpr = this.dpr || 1;
+    cam.mound = this.opts.mound;
     return cam;
   }
 
   background(cam, colors) {
-    const key = `${cam.kind}|${cam.W}|${cam.H}|${cam.dpr}|${this.opts.dark}|${cam.F || cam.stretch}|${this.opts.hand}|${this.opts.batter}|${cam.kind === 'top' ? JSON.stringify(this.overlays) : ''}`;
+    const key = `${cam.kind}|${cam.W}|${cam.H}|${cam.dpr}|${this.opts.dark}|${cam.mound}|${cam.F || cam.stretch}|${this.opts.hand}|${this.opts.batter}|${cam.kind === 'top' ? JSON.stringify(this.overlays) : ''}`;
     if (this.bg && this.bgKey === key) return this.bg;
     const c = document.createElement('canvas');
     c.width = cam.W; c.height = cam.H;
