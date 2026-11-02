@@ -63,6 +63,44 @@ export const PARAMS = {
   "3-1": -0.0034,
   "3-2": 0.3711
  },
+ "typeSwing": {
+  "FF": {
+   "zone": 0,
+   "chase": 0
+  },
+  "SI": {
+   "zone": 0,
+   "chase": 0
+  },
+  "FC": {
+   "zone": 0,
+   "chase": 0
+  },
+  "SL": {
+   "zone": 0,
+   "chase": 0
+  },
+  "ST": {
+   "zone": 0,
+   "chase": 0
+  },
+  "CU": {
+   "zone": 0,
+   "chase": 0
+  },
+  "KC": {
+   "zone": 0,
+   "chase": 0
+  },
+  "CH": {
+   "zone": 0,
+   "chase": 0
+  },
+  "FS": {
+   "zone": 0,
+   "chase": 0
+  }
+ },
  "contact": {
   "max": 1.2234,
   "miss": 0.4946,

@@ -220,10 +220,14 @@ export function throwCall(ab, call) {
   const missBy = Math.hypot(miss[0], miss[1]);
   const early = r.timing; // seconds; > 0 means he's early (the ball is slower than he's set for)
 
-  // Swing or take, judged on where he thinks it's going.
+  // Swing or take, judged on where he thinks it's going, and on how the pitch looks: in 2026 hitters chased changeups and
+  // splitters off the plate more than other pitches, and took more curves in the zone. Each kind of pitch moves his edge
+  // (typeSwing, feet), one way for a pitch he thinks is a strike and another for one he thinks is a ball.
   const judged = [r.at[0] + R.normal() * P.judge, r.at[1] + R.normal() * P.judge];
   const bias = P.swingBias[`${before.balls}-${before.strikes}`] ?? 0;
-  const pSwing = P.swingLo + (P.swingHi - P.swingLo) * sigmoid((margin(judged[0], judged[1]) + bias) / P.swingWidth);
+  const seen = margin(judged[0], judged[1]), look = P.typeSwing[call.code];
+  const lean = look ? look.zone * sigmoid(seen / P.swingWidth) + look.chase * (1 - sigmoid(seen / P.swingWidth)) : 0;
+  const pSwing = P.swingLo + (P.swingHi - P.swingLo) * sigmoid((seen + bias + lean) / P.swingWidth);
   const swing = R.chance(pSwing);
 
   const out = {

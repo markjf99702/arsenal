@@ -72,6 +72,19 @@ function nudge(m) {
     wsum += P.typeZone[t] * v.pitches; w += v.pitches;
   }
   for (const t of Object.keys(P.typeZone)) P.typeZone[t] /= wsum / w; // keep the average where the counts put it
+  // How each kind of pitch looks to him: his swings at it in the zone and his chases, until each is 2026's for that kind.
+  // Each averages out to nothing over the pitches it's for, so the counts' swings stay the counts' knobs.
+  const mean = { zone: [0, 0], chase: [0, 0] };
+  for (const [t, v] of Object.entries(m.types)) {
+    const look = P.typeSwing[t];
+    if (!TYPES[t] || !look || v.pitches < 300) continue;
+    const out = v.pitches - v.zonePitches;
+    look.zone = clamp(look.zone + 0.7 * P.swingWidth * (logit(TYPES[t].zoneSwing) - logit(clamp(v.zoneSwing, 0.02, 0.98))), -0.5, 0.5);
+    look.chase = clamp(look.chase + 0.7 * P.swingWidth * (logit(TYPES[t].chaseSwing) - logit(clamp(v.chaseSwing, 0.02, 0.98))), -0.5, 0.5);
+    mean.zone[0] += look.zone * v.zonePitches; mean.zone[1] += v.zonePitches;
+    mean.chase[0] += look.chase * out; mean.chase[1] += out;
+  }
+  for (const look of Object.values(P.typeSwing)) { look.zone -= mean.zone[0] / mean.zone[1]; look.chase -= mean.chase[0] / mean.chase[1]; }
   // Umpire: called strikes on pitches taken in the zone, and out of it.
   // Too many strikes called off the plate means the umpire's edge is too soft: narrow it.
   P.ump.shift = clamp(P.ump.shift - 0.4 * P.ump.width * (logit(TARGET.calledZone) - logit(m.calledZone)), -0.3, 0.3);

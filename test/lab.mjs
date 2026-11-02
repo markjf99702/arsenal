@@ -37,11 +37,11 @@ export function measure(params, pas = 6000, seed = 1) {
       c.pitches++;
       const ck = `${p.before.balls}-${p.before.strikes}`;
       const cc = counts[ck] ||= { pitches: 0, swings: 0, zone: 0, whiffs: 0, fouls: 0, contact: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0 };
-      const tc = types[p.code] ||= { pitches: 0, swings: 0, whiffs: 0, zone: 0 };
+      const tc = types[p.code] ||= { pitches: 0, swings: 0, whiffs: 0, zone: 0, zoneSwings: 0 };
       cc.pitches++; tc.pitches++;
       if (p.inZone) { c.zone++; cc.zone++; tc.zone++; }
       if (p.swing) {
-        c.swing++; cc.swings++; tc.swings++;
+        c.swing++; cc.swings++; tc.swings++; if (p.inZone) tc.zoneSwings++;
         const missed = p.result === 'whiff';
         if (missed) { c.whiff++; tc.whiffs++; cc.whiffs++; } else { cc.contact++; if (p.result === 'foul' || p.result === 'tip') cc.fouls++; }
         if (p.inZone) { c.zoneSwing++; if (missed) c.zoneWhiff++; } else { c.chaseSwing++; if (missed) c.chaseWhiff++; }
@@ -69,7 +69,10 @@ export function measure(params, pas = 6000, seed = 1) {
       pitches: v.pitches, swing: v.swings / v.pitches, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings, foul: v.fouls / v.contact,
       calledZone: v.zoneCalled / v.zoneTake, calledOut: v.chaseCalled / v.chaseTake, zoneTake: v.zoneTake, chaseTake: v.chaseTake,
     }])),
-    types: Object.fromEntries(Object.entries(types).map(([k, v]) => [k, { pitches: v.pitches, swings: v.swings, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings }])),
+    types: Object.fromEntries(Object.entries(types).map(([k, v]) => [k, {
+      pitches: v.pitches, swings: v.swings, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings,
+      zonePitches: v.zone, zoneSwing: v.zoneSwings / v.zone, chaseSwing: (v.swings - v.zoneSwings) / (v.pitches - v.zone),
+    }])),
     contactScores,
   };
 }

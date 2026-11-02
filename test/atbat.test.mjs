@@ -396,6 +396,16 @@ test('the umpire’s zone can shift with the count', () => {
   assert.ok(Math.abs(tight['3-0'].calledZone - base['3-0'].calledZone) < 0.02, `3-0: ${base['3-0'].calledZone.toFixed(3)}, then ${tight['3-0'].calledZone.toFixed(3)}`);
 });
 
+// How each kind of pitch looks to him moves his swings at it (js/atbat-params.js, typeSwing): a changeup that looks more
+// like a strike off the plate is chased more, and the other pitches no more than before.
+test('each kind of pitch can be chased and taken in its own way', () => {
+  const swings = params => measure(params, 2500, 9).types;
+  const base = swings(PARAMS), chased = swings({ ...PARAMS, typeSwing: { ...PARAMS.typeSwing, CH: { zone: 0, chase: 0.15 } } });
+  assert.ok(chased.CH.chaseSwing > base.CH.chaseSwing + 0.05, `changeups chased ${base.CH.chaseSwing.toFixed(3)}, then ${chased.CH.chaseSwing.toFixed(3)}`);
+  assert.ok(Math.abs(chased.CH.zoneSwing - base.CH.zoneSwing) < 0.03, `changeups swung at in the zone ${base.CH.zoneSwing.toFixed(3)}, then ${chased.CH.zoneSwing.toFixed(3)}`);
+  assert.ok(Math.abs(chased.SI.chaseSwing - base.SI.chaseSwing) < 0.02, `sinkers chased ${base.SI.chaseSwing.toFixed(3)}, then ${chased.SI.chaseSwing.toFixed(3)}`);
+});
+
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {
     let swings = 0, whiffs = 0;
