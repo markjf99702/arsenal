@@ -2544,6 +2544,54 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   assert.deepEqual(await showing(), { hash: '#slider+nothing.lefty', pitch: 'SL', pair: null, hand: 'L', list: '', pressed: 'L', lefty: true }, 'after changing the address to #slider+nothing.lefty');
 }
 
+// Thrown by a real pitcher: his 2026 speed, spin, movement and release, the card with the league's beside his, his
+// pitches as rings on the movement chart joined to the league's dots, and a link of its own, #slider.sale. His own hand
+// is pressed; the other hand, or a pitch he didn't throw, is the league average's again.
+{
+  const showing = () => page.evaluate(() => {
+    const f = window.arsenal.stage.flights[0], cell = name => [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === name)?.querySelector('dd').innerText.replace(/\s+/g, ' ');
+    return {
+      hash: location.hash, by: document.getElementById('by').value, pressed: document.querySelector('#hand [aria-pressed="true"]').dataset.v,
+      who: [...document.getElementById('by').options].map(o => o.textContent), mph: document.getElementById('ro-mph').textContent,
+      speed: cell('Speed'), release: cell('Release height'), rings: document.querySelectorAll('.move-chart .his-rings circle').length,
+      line: document.getElementById('c-line').textContent, height: Math.round(f.release.z * 100) / 100, rpm: Math.round(f.rps * 60),
+      pairs: [...document.getElementById('pair').options].map(o => o.value).filter(Boolean),
+    };
+  });
+  await page.goto('about:blank');
+  await page.goto(base + '#slider.sale');
+  let s = await showing();
+  assert.deepEqual(s.who, ['the league average', 'Paul Skenes', 'Jacob Misiorowski', 'Kevin Gausman', 'Cristopher Sánchez (lefty)', 'Chris Sale (lefty)', 'Mason Miller', 'Tyler Rogers'], 'who throws a slider');
+  assert.deepEqual({ hash: s.hash, by: s.by, pressed: s.pressed, mph: s.mph, speed: s.speed, release: s.release, rings: s.rings, line: s.line, height: s.height, rpm: s.rpm, pairs: s.pairs },
+    { hash: '#slider.sale', by: 'sale', pressed: 'L', mph: '79.8', speed: '79.8 mph league 86.3', release: '4 ft 10 in league 5 ft 10 in', rings: 4, line: 'Chris Sale’s, from his 2026 numbers, beside the league’s.', height: 4.81, rpm: 2529, pairs: ['FF', 'CH', 'SI'] }, 'opened from #slider.sale');
+  // His own hand leaves him be; with another of his pitches, the address keeps both.
+  await page.locator('#hand [data-v="L"]').click();
+  await page.locator('#pair').selectOption('FF');
+  assert.deepEqual([(await showing()).by, (await showing()).hash, (await showing()).mph], ['sale', '#slider+four-seam.sale', '79.8 · 96.1'], 'his slider with his four-seamer');
+  // Tyler Rogers, from the list: a right-hander's slider let go of 1.3 ft off the ground, on its way up at first.
+  await page.locator('#by').selectOption('rogers');
+  s = await showing();
+  const climbs = await page.evaluate(() => { const f = window.arsenal.stage.flights[0]; return f.pos(0.05)[2] > f.pos(0)[2]; });
+  assert.deepEqual([s.hash, s.pressed, s.height, s.mph, s.rings, climbs], ['#slider.rogers', 'R', 1.3, '73.5', 2, true], 'Tyler Rogers\'s slider');
+  // The other hand is the league average's.
+  await page.locator('#hand [data-v="L"]').click();
+  s = await showing();
+  assert.deepEqual([s.hash, s.by, s.mph, s.rings], ['#slider.lefty', '', '86.3', 0], 'a left-hander after Rogers');
+  // A pitch he didn't throw is the league's: from Sale's slider to the curve.
+  await page.locator('#by').selectOption('sale');
+  await page.evaluate(() => window.arsenal.pick('CU'));
+  s = await showing();
+  assert.deepEqual([s.hash, s.by, s.pressed, s.who], ['#curveball.lefty', '', 'L', ['the league average', 'Jacob Misiorowski']], 'Sale\'s curve');
+  // No one of them threw a slurve: there's only the league's.
+  await page.evaluate(() => window.arsenal.pick('SV'));
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('by').disabled, document.getElementById('by').options.length]), [true, 1], 'the slurve\'s list');
+  // A link with a pitcher who didn't throw it is the league's.
+  await page.goto('about:blank');
+  await page.goto(base + '#curveball.sale');
+  s = await showing();
+  assert.deepEqual([s.by, s.pressed, s.mph], ['', 'R', '80.3'], '#curveball.sale');
+}
+
 // A link straight to a pitch opens on it, in capitals too, or with a bracket or quote from a message on the end.
 for (const [hash, name] of [['#Sweeper', /^Sweeper/i], ['#sweeper)', /^Sweeper/i], ['#CHANGEUP%E2%80%9D', /^Changeup/i]]) {
   await page.goto('about:blank');

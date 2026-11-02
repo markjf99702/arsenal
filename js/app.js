@@ -8,7 +8,7 @@ import { movementChart, lineupTable, famName, shareText } from './charts.js';
 import { DECIDE, throwPitch } from './flight.js';
 import { setupAtBat } from './atbat-ui.js';
 import { setupHit } from './hit-ui.js';
-import { trimmed } from './atbat.js';
+import { trimmed, PITCHERS as ARMS, pitchFor } from './atbat.js';
 
 const $ = id => document.getElementById(id);
 // Inches and mph keep their one decimal place ("↑ 1.0 in", "89.0 mph"), as the speed does; rpm (fmt(v, 0)) has none and
@@ -24,11 +24,28 @@ const NOT_YET = new Set(['SL', 'ST', 'CU', 'KC', 'SV', 'FS', 'FO', 'KN', 'EP']);
 const state = {
   pitch: PITCHES[0],
   pair: null,
+  by: null, // the real pitcher it's thrown by (his key), or null for the league average
   hand: 'R',
   view: 'catcher',
   speed: 0.25,
   ghost: true,
 };
+
+// ---------------------------------------------------------------- thrown by
+// The real pitchers in Pitch to a hitter (js/league.js), and who of them throws a pitch.
+const REAL = ARMS.filter(a => a.key !== 'average');
+const armByKey = key => REAL.find(a => a.key === key) || null;
+const throwers = p => REAL.filter(a => a.pitches.some(e => e.code === p.code));
+// A pitch as he threw it in 2026: his speed, spin, movement and release (pitchFor, js/atbat.js), aimed where the
+// league's goes. The league's own when he didn't throw it, or there's no one. `league` is the league's, `entry` his line.
+function his(p, key = state.by) {
+  const arm = armByKey(key), entry = arm?.pitches.find(e => e.code === p.code);
+  if (!entry) return p;
+  return { ...pitchFor(arm, entry, [0, 0]), target: p.target, league: p, arm, entry };
+}
+// What's thrown: the pitch picked and the one with it, his if he's picked.
+const thrown = () => his(state.pitch);
+const pairThrown = () => state.pair && his(BY_CODE[state.pair]);
 
 // ---------------------------------------------------------------- theme
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -59,7 +76,7 @@ const spin = new SpinPanel($('spin'));
 
 function throwNow() {
   stage.set({ color: MAIN, pairColor: PAIR, ghost: state.ghost, hand: state.hand, view: state.view, speed: state.speed, dark: isDark() });
-  stage.throw(state.pitch, state.pair ? BY_CODE[state.pair] : null);
+  stage.throw(thrown(), pairThrown() || null);
   // The legend has this throw's times in it now, so the field's labels are placed clear of it as it will be.
   legendTimes();
   stage.set({});
@@ -71,8 +88,8 @@ function throwNow() {
 // how far apart they are at their decision points, where the hitter has to decide, and at the plate (as he sees them:
 // across and up and down, in inches), and how much later the second gets there, in seconds.
 function apart() {
-  const main = throwPitch(state.pitch, { hand: state.hand, rng: () => 0.5 });
-  const pair = throwPitch(BY_CODE[state.pair], { hand: state.hand, rng: () => 0.5, release: main.release });
+  const main = throwPitch(thrown(), { hand: state.hand, rng: () => 0.5 });
+  const pair = throwPitch(pairThrown(), { hand: state.hand, rng: () => 0.5, release: main.release });
   const gap = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]) * 12;
   return { decide: Math.round(gap(main.decide, pair.decide)), plate: Math.round(gap(main.end, pair.end)), later: Math.round((pair.T - main.T) * 100) / 100 };
 }
@@ -149,25 +166,37 @@ function direction(n) {
   return `${up} and ${side}`;
 }
 
+// Which way spin moves it, for the eye and the ear: "↑ 15.6 in" and "15.6 inches up". The arrow is for the eye: a
+// screen reader hears "15.6 inches up", not "upwards arrow 15.6 in". A no-break space keeps "in" with its number in the
+// narrow box ("glove side 3.9 in", not "in" on a line alone).
+const moves = n => `<span aria-hidden="true">${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}</span><span class="sr">${fmt(Math.abs(n.rise))} inches ${n.rise >= 0 ? 'up' : 'down'}</span>`;
+const sideways = n => `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`;
+
 function renderCard() {
-  const p = state.pitch, n = p.n;
+  const p = thrown(), n = p.n, lg = p.league?.n;
   document.title = `${p.name} · Arsenal`;
   $('card').className = `card fam-${p.fam}`;
   $('c-fam').innerHTML = `<span class="key" aria-hidden="true"></span>${FAM_SINGULAR[p.fam]} <span class="code">${p.code}</span>`;
   $('c-name').innerHTML = `${p.name}${p.aka ? ` <small>or ${p.aka}</small>` : ''}`;
-  $('c-line').textContent = p.line;
+  $('c-line').textContent = p.arm ? `${p.arm.name}’s, from his ${SEASON} numbers, beside the league’s.` : p.line;
   const share = shareText(n.share);
-  $('c-stats').innerHTML = [
+  $('c-stats').innerHTML = (p.arm ? [
+    // Thrown by a real pitcher: his numbers, each with the league's under it.
+    stat('Speed', `${n.mph.toFixed(1)} mph`, `league ${lg.mph.toFixed(1)}`),
+    stat('Spin', `${fmt(n.rpm, 0)} rpm`, `league ${fmt(lg.rpm, 0)}`),
+    stat('Spin moves it', moves(n), `${sideways(n)}<br><span aria-hidden="true">league ${lg.rise >= 0 ? '↑' : '↓'} ${fmt(Math.abs(lg.rise))}, ${lg.arm >= 0 ? 'arm' : 'glove'} ${fmt(Math.abs(lg.arm))}</span><span class="sr">; league ${fmt(Math.abs(lg.rise))} inches ${lg.rise >= 0 ? 'up' : 'down'}, ${sideways(lg)}</span>`),
+    stat('Release height', feetInches(n.height * 12), `league ${feetInches(lg.height * 12)}`),
+    stat('Thrown', `${shareText(p.entry.share * 100)}%`, 'of his pitches'),
+    stat('Misses', `${Math.round(p.entry.whiff * 100)}`, `per 100 swings; league ${Math.round(lg.whiff)}`),
+  ] : [
     // The range is over pitchers' average speeds (tools/statcast.mjs), not single pitches.
     stat('Speed', `${n.mph.toFixed(1)} mph`, n.low ? `most pitchers ${Math.round(n.low)}–${Math.round(n.high)}` : ''),
     stat('Spin', `${fmt(n.rpm, 0)} rpm`, p.code === 'KN' ? 'barely turning' : `${Math.round(n.rpm / 60)} turns a second`),
-    // The arrow is for the eye: a screen reader hears "15.6 inches up", not "upwards arrow 15.6 in".
-    // A no-break space keeps "in" with its number in the narrow box ("glove side 3.9 in", not "in" on a line alone).
-    stat('Spin moves it', `<span aria-hidden="true">${n.rise >= 0 ? '↑' : '↓'} ${inches(n.rise)}</span><span class="sr">${fmt(Math.abs(n.rise))} inches ${n.rise >= 0 ? 'up' : 'down'}</span>`, `${n.arm >= 0 ? 'arm side' : 'glove side'} ${fmt(Math.abs(n.arm))} in`),
+    stat('Spin moves it', moves(n), sideways(n)),
     stat('Drops', feetInches(n.drop), 'counting gravity'),
     stat('Thrown', `${share}%`, `${n.pitches.toLocaleString('en-US')} pitches`),
     stat('Misses', n.whiff == null ? '–' : `${Math.round(n.whiff)}`, 'per 100 swings'),
-  ].join('');
+  ]).join('');
   $('c-grip').textContent = p.grip;
   $('c-young').hidden = !NOT_YET.has(p.code);
   $('c-young').innerHTML = NOT_YET.has(p.code) ? '<a href="https://www.mlb.com/pitch-smart">Pitch Smart</a>, from MLB and USA Baseball, says to stick to fastballs and changeups through age 12 and to add breaking pitches once both are consistent.' : '';
@@ -200,6 +229,9 @@ function renderCard() {
   $('next').textContent = `${next.short} →`; $('next').onclick = () => pick(next, { scroll: true });
   drawGripNow();
   spin.set({ pitch: p, hand: state.hand });
+  chart.pitcher(p.arm || null);
+  $('move-his').hidden = !p.arm;
+  $('move-his').textContent = p.arm ? `Rings: ${p.arm.name}’s pitches, each joined to the league’s dot for its kind.` : '';
 }
 
 const gripCanvas = $('grip');
@@ -237,7 +269,30 @@ function seg(id, key, cast = v => v, after = () => {}) {
 }
 seg('view', 'view', v => v, () => { stage.set({ view: state.view }); caption(); if (stage.summary()?.every(x => x.arrived)) return; });
 seg('speed', 'speed', Number, throwNow);
-seg('hand', 'hand', v => v, () => { renderCard(); throwNow(); address(); });
+// The other hand is the league average's: a real pitcher throws with his own, so picking his own leaves him be.
+seg('hand', 'hand', v => v, () => {
+  if (state.by && armByKey(state.by).hand === state.hand) return;
+  state.by = null; byOptions(); pairOptions(); speedReadout(); renderCard(); legend(); throwNow(); address();
+});
+$('by').addEventListener('change', e => {
+  state.by = e.target.value || null;
+  if (state.by) setHand(armByKey(state.by).hand);
+  pairOptions(); speedReadout(); renderCard(); legend(); throwNow(); address();
+});
+function setHand(hand) {
+  state.hand = hand;
+  for (const b of $('hand').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === hand));
+}
+// Who can throw the pitch picked: the league average, or one of the real pitchers who threw it in 2026. A pitch none of
+// them threw has only the league's.
+function byOptions() {
+  const who = throwers(state.pitch);
+  if (!who.some(a => a.key === state.by)) state.by = null;
+  $('by').innerHTML = `<option value="">${who.length ? 'the league average' : 'the league average only'}</option>`
+    + who.map(a => `<option value="${a.key}">${a.name}${a.hand === 'L' ? ' (lefty)' : ''}</option>`).join('');
+  $('by').disabled = !who.length;
+  $('by').value = state.by || '';
+}
 $('spinview').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -249,16 +304,23 @@ $('throw').addEventListener('click', throwNow);
 $('pair').addEventListener('change', e => { state.pair = e.target.value || null; legend(); speedReadout(); throwNow(); address(); });
 // The speed over the picture: both pitches' when two are thrown together, "94.8 · 86.0 mph".
 function speedReadout() {
-  $('ro-mph').textContent = [state.pitch, state.pair && BY_CODE[state.pair]].filter(Boolean).map(p => p.n.mph.toFixed(1)).join(' · ');
+  $('ro-mph').textContent = [thrown(), pairThrown()].filter(Boolean).map(p => p.n.mph.toFixed(1)).join(' · ');
 }
 
+// What can be thrown with it: any other pitch, the usual partner first; thrown by a real pitcher, his other pitches.
 function pairOptions() {
-  const p = state.pitch;
-  const usual = BY_CODE[p.pair];
-  const others = PITCHES.filter(q => q !== p && q !== usual);
-  $('pair').innerHTML = `<option value="">nothing else</option>`
-    + (usual ? `<option value="${usual.code}">${usual.name} (usual partner)</option>` : '')
-    + others.map(q => `<option value="${q.code}">${q.name}</option>`).join('');
+  const p = state.pitch, arm = armByKey(state.by);
+  if (arm) {
+    const mine = arm.pitches.map(e => BY_CODE[e.code]).filter(q => q && q !== p);
+    if (!mine.some(q => q.code === state.pair)) state.pair = null;
+    $('pair').innerHTML = `<option value="">nothing else</option>` + mine.map(q => `<option value="${q.code}">${q.name}</option>`).join('');
+  } else {
+    const usual = BY_CODE[p.pair];
+    const others = PITCHES.filter(q => q !== p && q !== usual);
+    $('pair').innerHTML = `<option value="">nothing else</option>`
+      + (usual ? `<option value="${usual.code}">${usual.name} (usual partner)</option>` : '')
+      + others.map(q => `<option value="${q.code}">${q.name}</option>`).join('');
+  }
   if (state.pair === p.code) state.pair = null;
   $('pair').value = state.pair || '';
 }
@@ -295,7 +357,9 @@ function caption() {
   // With reduced motion every throw starts where it finishes (js/stage.js), so Throw it again and the speeds change only
   // its scatter: it says why the ball doesn't fly.
   const still = stage.reduced ? 'Your device asks for less motion, so each throw is shown where it finishes.' : '';
-  $('caption').textContent = [cap, pairing(), still].filter(Boolean).join(' ');
+  const arm = thrown().arm;
+  const by = arm ? `Thrown as ${arm.name} threw it in ${SEASON}: his speed, spin, movement and release, aimed where the league’s goes.` : '';
+  $('caption').textContent = [cap, by, pairing(), still].filter(Boolean).join(' ');
 }
 // Two pitches thrown together: what throwing them together shows. "When the hitter has to decide, the four-seam and the
 // changeup are 8 inches apart; at the plate, 1 ft 7 in. The changeup gets there 0.04 s later. The ghost is the
@@ -336,6 +400,7 @@ $('total').textContent = `${TOTAL.toLocaleString('en-US')} pitches`;
 // ---------------------------------------------------------------- picking
 function pick(p, { scroll = false, push = true } = {}) {
   state.pitch = p;
+  byOptions();
   for (const b of picker.querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.code === p.code));
   const chip = picker.querySelector(`[data-code="${p.code}"]`);
   // Keep the chosen chip in view in the sideways-scrolling picker on phones, without moving the page.
@@ -378,7 +443,8 @@ function holdUntilSeen() {
 // #sweeper+sinker.lefty. The address is replaced rather than added to, so Back still leaves the page. (A framed one-file
 // copy may not be allowed to change its address; that's fine.) The tab's title is the pitch's again too, after an
 // at-bat's.
-const here = () => `${state.pitch.slug}${state.pair ? `+${BY_CODE[state.pair].slug}` : ''}${state.hand === 'L' ? '.lefty' : ''}`;
+// Thrown by a real pitcher, his key takes the hand's place, his own: #slider.sale is Chris Sale's slider.
+const here = () => `${state.pitch.slug}${state.pair ? `+${BY_CODE[state.pair].slug}` : ''}${state.by ? `.${state.by}` : state.hand === 'L' ? '.lefty' : ''}`;
 function address() {
   if (location.hash.slice(1) !== here()) { try { history.replaceState(null, '', `#${here()}`); } catch {} }
   document.title = `${state.pitch.name} · Arsenal`;
@@ -394,7 +460,9 @@ function readLink(h) {
   const [first, second] = pitches.split('+');
   const pitch = BY_SLUG[first], pair = BY_SLUG[second];
   if (!pitch) return null;
-  return { pitch, pair: pair && pair !== pitch ? pair.code : null, hand: more.includes('lefty') ? 'L' : 'R' };
+  // A pitcher who didn't throw it is left out, as a part it doesn't know is.
+  const arm = throwers(pitch).find(a => more.includes(a.key)) || null;
+  return { pitch, pair: pair && pair !== pitch ? pair.code : null, hand: arm ? arm.hand : more.includes('lefty') ? 'L' : 'R', by: arm?.key || null };
 }
 // A link to a place on the page, like the lede's "pitch to a hitter", goes there itself, the way picking a pitch goes
 // up to it (smoothly, unless the device asks for less motion), and the address follows the same way. Followed as a
@@ -413,8 +481,8 @@ document.addEventListener('click', e => {
   try { history.replaceState(null, '', a.getAttribute('href')); } catch {}
 });
 function follow(link) {
-  state.hand = link.hand;
-  for (const b of $('hand').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.hand));
+  setHand(link.hand);
+  state.by = link.by;
   state.pair = link.pair;
   pick(link.pitch, { push: false });
 }
@@ -428,7 +496,7 @@ addEventListener('hashchange', () => {
   const h = location.hash.slice(1);
   if (atBat.load(h)) { $('at-bat').scrollIntoView(); return; }
   const link = readLink(h);
-  if (link && (link.pitch !== state.pitch || link.pair !== state.pair || link.hand !== state.hand)) follow(link);
+  if (link && (link.pitch !== state.pitch || link.pair !== state.pair || link.hand !== state.hand || link.by !== state.by)) follow(link);
 });
 
 function applyTheme() {

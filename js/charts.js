@@ -22,19 +22,20 @@ const ORDER = ['e', 'w', 'n', 's', 'ne', 'se', 'nw', 'sw'];
 
 // Drawn at the size it's shown, so the text stays readable on a phone. Redrawn when that changes.
 export function movementChart(host, opts) {
-  let selected = null, width = 0, api = null;
+  let selected = null, arm = null, width = 0, api = null;
   const draw = () => {
     const w = Math.round(Math.min(680, Math.max(300, host.clientWidth)));
     if (w === width) return;
     width = w;
     api = drawMovement(host, w, opts);
     if (selected) api.select(selected);
+    api.pitcher(arm);
   };
   new ResizeObserver(draw).observe(host);
   draw();
   // Labels are placed by measuring them, so place them again once the fonts are in.
   document.fonts?.ready.then(() => { width = 0; draw(); });
-  return { select(code) { selected = code; api?.select(code); } };
+  return { select(code) { selected = code; api?.select(code); }, pitcher(a) { arm = a; api?.pitcher(a); } };
 }
 
 function drawMovement(host, W, { onPick, tooltip }) {
@@ -76,6 +77,8 @@ function drawMovement(host, W, { onPick, tooltip }) {
     if (!sp) continue;
     ovals[p.code] = el('ellipse', { class: `spread fam-${p.fam}`, cx: (x(sp.arm[0]) + x(sp.arm[1])) / 2, cy: (y(sp.rise[0]) + y(sp.rise[1])) / 2, rx: Math.abs(x(sp.arm[1]) - x(sp.arm[0])) / 2, ry: Math.abs(y(sp.rise[1]) - y(sp.rise[0])) / 2 }, spreads);
   }
+  // A real pitcher's pitches, when the explorer's are thrown by one: a ring for each, joined to the league's dot.
+  const his = el('g', { class: 'his-rings', 'aria-hidden': 'true' }, svg);
   const dots = el('g', {}, svg);
   const items = [...PITCHES].sort((a, b) => b.n.share - a.n.share);
   const nodes = {};
@@ -140,6 +143,16 @@ function drawMovement(host, W, { onPick, tooltip }) {
     select(code) {
       for (const [k, g] of Object.entries(nodes)) g.classList.toggle('on', k === code);
       for (const [k, o] of Object.entries(ovals)) o.classList.toggle('on', k === code);
+    },
+    pitcher(arm) {
+      his.replaceChildren();
+      for (const e of arm?.pitches || []) {
+        const q = PITCHES.find(p => p.code === e.code);
+        if (!q) continue;
+        const g = el('g', { class: `fam-${q.fam}`, 'data-code': e.code }, his);
+        el('line', { x1: x(q.n.arm), y1: y(q.n.rise), x2: x(e.arm), y2: y(e.rise) }, g);
+        el('circle', { cx: x(e.arm), cy: y(e.rise), r: 6.5 * Math.max(0.8, k) }, g);
+      }
     },
   };
 }

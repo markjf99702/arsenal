@@ -311,6 +311,9 @@ p { margin: 0; }
 /* The middle 80% of pitchers round a dot: the chosen pitch's, and the one under the pointer or with focus. */
 .move-chart .spread { fill: var(--fam); fill-opacity: .1; stroke: var(--fam); stroke-opacity: .55; stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0; transition: opacity .15s; pointer-events: none; }
 .move-chart .spread.on, .move-chart .spread.near { opacity: 1; }
+/* A real pitcher's pitches: rings joined to the league's dots. */
+.move-chart .his-rings circle { fill: var(--card); fill-opacity: .6; stroke: var(--fam); stroke-width: 2.5; }
+.move-chart .his-rings line { stroke: var(--fam); stroke-width: 1.6; opacity: .7; }
 .dot .hit { fill: transparent; }
 .dot .mark { fill: var(--fam); stroke: var(--card); stroke-width: 2; fill-opacity: .9; }
 .dot .sel { fill: none; stroke: var(--ink); stroke-width: 2; opacity: 0; }
