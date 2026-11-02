@@ -67,13 +67,21 @@ test('flight times are what a hitter gets', () => {
 test('the TV camera has a long lens, and every pitch stays in its picture', async () => {
   assert.ok(TV_EYE[1] > 400 && TV_EYE[0] !== 0 && TV_EYE[2] > 10, `the camera at ${TV_EYE}`);
   const { PITCHERS, pitchFor } = await import('../js/atbat.js');
-  const rogers = PITCHERS.find(p => p.key === 'rogers'), low = pitchFor(rogers, rogers.pitches[0], [0, 2.5]);
+  // Every pitch of the league's and of the nine real pitchers' (Tyler Rogers's from by his knees, Chris Sale's from far
+  // out to the side), and each of the league's from a 46-foot mound at 60 mph.
+  const real = PITCHERS.filter(a => a.key !== 'average').flatMap(a => a.pitches.map(e => [{ ...pitchFor(a, e, [0, 0]), target: BY_CODE[e.code].target }, [a.hand]]));
+  const thrown = [...PITCHES.map(p => [p, ['R', 'L']]), ...real, ...PITCHES.map(p => [fromMound(p, 46, 60), ['R']])];
   for (const [w, h, dpr] of [[358, 320, 3], [650, 447, 1], [650, 447, 2], [1024, 520, 2]]) {
     const W = w * dpr, H = h * dpr;
     const lens = 2 * Math.atan(W / 2 / tvCamera(W, H, { dpr }).F) * (180 / Math.PI);
     assert.ok(lens < 5, `${w}x${h}: the lens takes in ${lens.toFixed(1)}° across`);
-    for (const p of [...PITCHES, low]) {
-      for (const hand of ['R', 'L']) {
+    // An ordinary pitch is drawn big enough to read, not small under a stretch of empty stands: the plate is at least a
+    // ninth of the picture's width.
+    const ff = tvCamera(W, H, { dpr, see: [throwPitch(BY_CODE.FF, { rng: () => 0.5 }).release] });
+    const plate = ff.project([0.708, PLATE_Y, 0]).x - ff.project([-0.708, PLATE_Y, 0]).x;
+    assert.ok(Math.abs(plate) >= W / 9, `${w}x${h}: the plate is ${(Math.abs(plate) / dpr).toFixed(0)}px wide in a picture ${w}px wide`);
+    for (const [p, hands] of thrown) {
+      for (const hand of hands) {
         const f = throwPitch(p, { hand, rng: () => 0.5 });
         const cam = tvCamera(W, H, { top: Math.max(7.5, apex(f) + 0.8), dpr, see: [f.release] });
         for (let i = 0; i <= 40; i++) {

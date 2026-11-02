@@ -138,7 +138,7 @@ export function catcherCamera(W, H, { lift = 0, zoom = 1 } = {}) {
 
 // The broadcast's centre-field camera: far behind the pitcher, a little toward left-centre field and up in the stands,
 // with a long lens on the plate. Its view is fitted to the picture so the plate and a few feet either side of it, the top
-// of the zone, a usual release from either hand, the top of the flight (`top`, feet) and any other points it's given
+// of the zone, a usual release from either hand, the top of a lob's flight (`top`, feet, past the usual 7.5) and any other points it's given
 // (`see`: the releases of the pitches thrown, {x, y, z}, a submariner's down by his knees) are all in it, with room left at the top
 // for the speed and the time over the picture: the lens is as long as that allows. Seen from so far away, the 55 feet from
 // the hand to the plate are squashed, so the ball seems to hang and the break comes late.
@@ -148,9 +148,11 @@ export function tvCamera(W, H, { top = 7.5, dpr = 1, see = [] } = {}) {
   const fwd = norm([at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]]);
   const right = norm(cross(fwd, [0, 0, 1])), up = cross(right, fwd);
   const toCam = P => { const d = [P[0] - eye[0], P[1] - eye[1], P[2] - eye[2]]; return [dot(d, right), dot(d, up), dot(d, fwd)]; };
-  // What must be seen, in the lens's own units (across and up over distance).
+  // What must be seen, in the lens's own units (across and up over distance). A usual release, with half a foot over it,
+  // is under 7.2 ft, so every pitch but a lob, an unusually wide release or a submariner's gets the same view; the top of
+  // the flight counts only for a lob, so an ordinary pitch isn't drawn small under a stretch of empty stands.
   const must = [[-3, 0, 0], [3, 0, 0], [-0.8, PLATE_Y, ZONE.top + 0.4], [0.8, PLATE_Y, ZONE.top + 0.4],
-    [-2.6, 53, 6.6], [2.6, 53, 6.6], [0, 30, top + 0.5], ...see.flatMap(({ x, y, z }) => [[x, y, z + 0.5], [x, y, z - 0.5]])].map(toCam).map(([X, Y, Z]) => [X / Z, Y / Z]);
+    [-2.6, 53, 7.2], [2.6, 53, 7.2], ...(top > 7.5 ? [[0, 30, top + 0.5]] : []), ...see.flatMap(({ x, y, z }) => [[x, y, z + 0.5], [x, y, z - 0.5]])].map(toCam).map(([X, Y, Z]) => [X / Z, Y / Z]);
   const u0 = Math.min(...must.map(m => m[0])), u1 = Math.max(...must.map(m => m[0]));
   const v0 = Math.min(...must.map(m => m[1])), v1 = Math.max(...must.map(m => m[1]));
   // Room: a little at each side and the foot, more at the top, where the words are.
