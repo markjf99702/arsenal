@@ -15,6 +15,10 @@
 // against them. side is feet from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of
 // his pitches; zone, the share of the pitch that crossed in the zone; bip, hits and hrs, its balls in play, and the hits
 // and home runs among them; mix, its share of his pitches to right-handed (R) and left-handed (L) batters.
+// HITTERS: the season's qualified hitters (all, with at least qualified plate appearances), and the quarters of them
+// the hitter types are tuned to: free swingers (who chased most out of the zone), patient (chased least), contact
+// (missed least per swing) and power (most isolated power, extra bases per at-bat), each pooled, with the range of what
+// picked them (from, to). zone is pitches seen in the zone, and zoneSwings and zoneWhiffs the swings and misses at them.
 export const LEAGUE = {"pitches":714483,"pa":183849,"so":40700,"bb":16337,"hits":39849,"singles":26110,"doubles":7493,"triples":671,"hrs":5575,"swings":340741,"whiffs":85444,"takes":373742,"bip":124611,"hbp":2119,"called":115698,"balls":255886,"tips":7514,"zone":{"pitches":339240,"swings":226357,"whiffs":36416,"called":105034},"platoon":{"RR":{"pitches":221988,"pa":57947,"so":13043,"bb":4486,"bip":39563,"singles":8377,"doubles":2258,"triples":132,"hrs":1735,"swings":106741,"whiffs":27501,"hbp":824,"zone":{"pitches":105973,"swings":70321,"whiffs":11305}},"RL":{"pitches":278149,"pa":70795,"so":15262,"bb":7046,"bip":47809,"singles":9854,"doubles":2962,"triples":322,"hrs":2287,"swings":131741,"whiffs":32205,"hbp":644,"zone":{"pitches":130876,"swings":88027,"whiffs":13922}},"LR":{"pitches":142135,"pa":36244,"so":7975,"bb":3315,"bip":24572,"singles":5093,"doubles":1613,"triples":114,"hrs":1108,"swings":68159,"whiffs":16971,"hbp":369,"zone":{"pitches":66653,"swings":44929,"whiffs":7295}},"LL":{"pitches":72211,"pa":18863,"so":4420,"bb":1490,"bip":12667,"singles":2786,"doubles":660,"triples":103,"hrs":445,"swings":34100,"whiffs":8767,"hbp":282,"zone":{"pitches":35738,"swings":23080,"whiffs":3894}}},"after":{"lor":-0.175,"apart":8877,"same":8330},"woba":{"BB":0.7,"HBP":0.7,"1B":0.9,"2B":1.25,"3B":1.6,"HR":2},"sz":{"top":3.215,"bottom":1.622,"days":32,"pitches":121091}};
 export const COUNTS = {
  "0-0": {
@@ -1426,3 +1430,104 @@ export const PITCHERS = [
   ]
  }
 ];
+export const HITTERS = {
+ "qualified": 502,
+ "all": {
+  "hitters": 135,
+  "pa": 83215,
+  "pitches": 323685,
+  "swings": 153424,
+  "whiffs": 36939,
+  "so": 17191,
+  "bb": 7914,
+  "bip": 57103,
+  "singles": 12142,
+  "doubles": 3538,
+  "triples": 340,
+  "hrs": 2841,
+  "abs": 73551,
+  "zone": 152435,
+  "zoneSwings": 101814,
+  "zoneWhiffs": 15695
+ },
+ "free": {
+  "hitters": 34,
+  "from": 0.344,
+  "to": 0.452,
+  "pa": 20722,
+  "pitches": 76640,
+  "swings": 41001,
+  "whiffs": 10336,
+  "so": 4338,
+  "bb": 1389,
+  "bip": 14783,
+  "singles": 3126,
+  "doubles": 894,
+  "triples": 83,
+  "hrs": 707,
+  "abs": 18940,
+  "zone": 34953,
+  "zoneSwings": 25084,
+  "zoneWhiffs": 3833
+ },
+ "patient": {
+  "hitters": 34,
+  "from": 0.149,
+  "to": 0.251,
+  "pa": 20801,
+  "pitches": 84141,
+  "swings": 35390,
+  "whiffs": 8286,
+  "so": 4478,
+  "bb": 2604,
+  "bip": 13469,
+  "singles": 2872,
+  "doubles": 855,
+  "triples": 93,
+  "hrs": 652,
+  "abs": 17782,
+  "zone": 40709,
+  "zoneSwings": 25639,
+  "zoneWhiffs": 3937
+ },
+ "contact": {
+  "hitters": 34,
+  "from": 0.071,
+  "to": 0.199,
+  "pa": 21178,
+  "pitches": 80551,
+  "swings": 36351,
+  "whiffs": 5722,
+  "so": 2872,
+  "bb": 1962,
+  "bip": 16064,
+  "singles": 3602,
+  "doubles": 903,
+  "triples": 100,
+  "hrs": 476,
+  "abs": 18693,
+  "zone": 38891,
+  "zoneSwings": 24610,
+  "zoneWhiffs": 2299
+ },
+ "power": {
+  "hitters": 34,
+  "from": 0.203,
+  "to": 0.291,
+  "pa": 21131,
+  "pitches": 84302,
+  "swings": 39050,
+  "whiffs": 11256,
+  "so": 5358,
+  "bb": 2351,
+  "bip": 13169,
+  "singles": 2609,
+  "doubles": 923,
+  "triples": 92,
+  "hrs": 1085,
+  "abs": 18385,
+  "zone": 38921,
+  "zoneSwings": 25808,
+  "zoneWhiffs": 4941
+ }
+};

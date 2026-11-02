@@ -1,11 +1,11 @@
 // Refreshes js/league.js, the numbers the at-bat model is calibrated to, from Baseball Savant:
 //   node tools/league.mjs [season] [--cache=DIR]
 // League totals, the same split by count, by pitch type, by where pitches crossed the plate and by the hands of pitcher
-// and batter, and the arsenals of the pitchers you can pitch as. Then, from Statcast's pitch-by-pitch rows: each of
-// those pitchers' speeds pitch to pitch, from all of his; and from every sixth day of the season (about a sixth of its
-// pitches, every day of the week in turn), the strike zone's average top and bottom, how much a pitcher's speed varies
-// pitch to pitch, how often hitters missed a pitch right after one of another speed or the same kind, and what
-// Statcast's wOBA counts each hit as.
+// and batter, the arsenals of the pitchers you can pitch as, and the quarters of the qualified hitters the hitter types
+// are tuned to. Then, from Statcast's pitch-by-pitch rows: each of those pitchers' speeds pitch to pitch, from all of
+// his; and from every sixth day of the season (about a sixth of its pitches, every day of the week in turn), the strike
+// zone's average top and bottom, how much a pitcher's speed varies pitch to pitch, how often hitters missed a pitch
+// right after one of another speed or the same kind, and what Statcast's wOBA counts each hit as.
 // --cache=DIR keeps every download in DIR and reads it back on the next run.
 import { writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
@@ -206,6 +206,36 @@ const pitchers = PITCHERS.map(([id, key, line, tag]) => {
   };
 });
 
+// The hitters you can pitch to, beside the average one: of the season's qualified hitters (enough plate appearances for
+// the batting title: 3.1 for each of his team's 162 games, Official Baseball Rules 9.22(a), which MLB rounds to 502),
+// the quarter who chased most out of the zone (free, the free swingers), the quarter who chased least (patient), the
+// quarter who missed least per swing (contact), and the quarter with the most power (isolated power, extra bases per
+// at-bat: power). Each pooled, with the range of what picked them (from, to).
+console.log('hitters');
+const QUALIFIED = Math.round(3.1 * 162);
+const batZone = Object.fromEntries((await search(season, [['hfZ', IN_ZONE]], 'name', 'batter')).map(r => [r.player_id, r]));
+const qualified = (await search(season, [], 'name', 'batter')).filter(r => num(r.pa) >= QUALIFIED).map(r => {
+  const z = batZone[r.player_id] || {};
+  return {
+    ...pick(r, ['pa', 'pitches', 'swings', 'whiffs', 'so', 'bb', 'bip', 'singles', 'doubles', 'triples', 'hrs', 'abs']),
+    zone: n(z), zoneSwings: num(z.swings) || 0, zoneWhiffs: num(z.whiffs) || 0,
+  };
+});
+const chaseOf = h => (h.swings - h.zoneSwings) / (h.pitches - h.zone), whiffOf = h => h.whiffs / h.swings;
+const isoOf = h => (h.doubles + 2 * h.triples + 3 * h.hrs) / h.abs;
+const quarter = Math.round(qualified.length / 4);
+function pool(list, by) {
+  const out = { hitters: list.length };
+  if (by) Object.assign(out, { from: round(Math.min(...list.map(by)), 3), to: round(Math.max(...list.map(by)), 3) });
+  for (const k of Object.keys(list[0])) out[k] = list.reduce((s, h) => s + h[k], 0);
+  return out;
+}
+const top = (by, most) => pool([...qualified].sort((a, b) => (most ? by(b) - by(a) : by(a) - by(b))).slice(0, quarter), by);
+const hitters = {
+  qualified: QUALIFIED, all: pool(qualified),
+  free: top(chaseOf, true), patient: top(chaseOf, false), contact: top(whiffOf, false), power: top(isoOf, true),
+};
+
 // Every sixth day of the season, pitch by pitch.
 console.log('pitch by pitch, every sixth day');
 const SWINGS = new Set(['swinging_strike', 'swinging_strike_blocked', 'foul_tip', 'foul', 'hit_into_play']);
@@ -271,11 +301,16 @@ const js = `// Made by tools/league.mjs from Baseball Savant's Statcast search o
 // against them. side is feet from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of
 // his pitches; zone, the share of the pitch that crossed in the zone; bip, hits and hrs, its balls in play, and the hits
 // and home runs among them; mix, its share of his pitches to right-handed (R) and left-handed (L) batters.
+// HITTERS: the season's qualified hitters (all, with at least qualified plate appearances), and the quarters of them
+// the hitter types are tuned to: free swingers (who chased most out of the zone), patient (chased least), contact
+// (missed least per swing) and power (most isolated power, extra bases per at-bat), each pooled, with the range of what
+// picked them (from, to). zone is pitches seen in the zone, and zoneSwings and zoneWhiffs the swings and misses at them.
 export const LEAGUE = ${JSON.stringify(league)};
 export const COUNTS = ${JSON.stringify(counts, null, 1)};
 export const TYPES = ${JSON.stringify(types, null, 1)};
 export const ZONES = ${JSON.stringify(zones, null, 1)};
 export const PITCHERS = ${JSON.stringify(pitchers, null, 1)};
+export const HITTERS = ${JSON.stringify(hitters, null, 1)};
 `;
 await writeFile(join(root, 'js/league.js'), js);
 console.log(`wrote js/league.js: ${league.pitches} pitches, ${league.pa} plate appearances`);
