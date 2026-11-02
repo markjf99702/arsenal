@@ -98,12 +98,17 @@ export class Stage {
     this.draw();
   }
 
+  // Held, the throw waits at the release, its clock stopped before the windup, until it's let go: while the page is
+  // still scrolling up to the picture (js/app.js).
+  hold() { this.held = true; }
+  release() { this.held = false; }
+
   play() {
     cancelAnimationFrame(this.raf);
     let last = performance.now();
     let arrived = false;
     const tick = now => {
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const dt = this.held ? 0 : Math.min(0.05, (now - last) / 1000);
       last = now;
       this.clock += dt;
       this.draw();

@@ -631,6 +631,32 @@ assert.equal(await page.locator('#tip').isHidden(), true, 'the tooltip stayed op
   assert.notEqual(await pose(), a, 'the ball didn’t start turning again');
   await page.evaluate(() => scrollTo(0, 0));
 }
+// Picked from far down the page at real speed, from the table, the chart or previous and next, the throw waits at the
+// release while the page glides up to the picture (half a second or more, longer than a fastball's windup and flight):
+// when most of the picture is back in view, the ball hasn't left his hand and the windup is still to come.
+{
+  await page.locator('#speed [data-v="1"]').click();
+  await arrived();
+  for (const from of ['.lineup tbody tr:nth-child(3) th button', '#move .dot:nth-of-type(4)', '#next']) {
+    await page.evaluate(from => document.querySelector(from).scrollIntoView({ block: 'center' }), from);
+    await page.waitForTimeout(400);
+    const seen = await page.evaluate(from => new Promise(resolve => {
+      const canvas = document.getElementById('flight'), t0 = performance.now();
+      document.querySelector(from).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const look = () => {
+        const r = canvas.getBoundingClientRect(), shown = (Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height;
+        if (shown >= 0.6 || performance.now() - t0 > 3000) resolve({ shown: shown >= 0.6, game: window.arsenal.stage.gameTime(), clock: Math.round(window.arsenal.stage.clock * 100) / 100 });
+        else requestAnimationFrame(look);
+      };
+      requestAnimationFrame(look);
+    }), from);
+    assert.ok(seen.shown && seen.game === 0 && seen.clock < 0.2, `picked from ${from}, the throw was ${seen.clock}s along (${seen.game}s of flight) as the picture came back into view`);
+    await arrived();
+  }
+  await page.locator('#speed [data-v="0.25"]').click();
+  await arrived();
+}
+
 // Picked with the keyboard further down the page, from the table or with previous and next, the page goes up to the
 // pitch and focus goes with it, to its name, rather than staying down the page out of sight.
 // (Each starts once the page has stopped scrolling: Chromium can drop a smooth scroll begun while the page is still

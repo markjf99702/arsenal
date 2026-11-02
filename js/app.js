@@ -340,11 +340,24 @@ function pick(p, { scroll = false, push = true } = {}) {
   // Picked further down the page (the chart, the table, or previous and next at the foot of the card), the page goes up
   // to the pitch, and so does focus: to its name, which a screen reader then reads, and the next Tab goes on into the card
   // rather than back down the table out of sight. A chip in the picker is already in view, and keeps focus.
+  const glide = scroll && !matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (scroll) {
-    $('pitch').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    $('pitch').scrollIntoView({ behavior: glide ? 'smooth' : 'auto', block: 'start' });
     $('c-name').focus({ preventScroll: true });
   }
+  // Gliding up, the page takes half a second or more to bring the picture back, longer than a fastball's windup and
+  // flight at real speed: the throw waits at the release until most of the picture is in view.
+  if (glide) holdUntilSeen(); else letGo();
   throwNow();
+}
+let letGo = () => {};
+function holdUntilSeen() {
+  letGo();
+  stage.hold();
+  const seen = new IntersectionObserver(es => { if (es.some(e => e.intersectionRatio >= 0.6)) letGo(); }, { threshold: 0.6 });
+  const wait = setTimeout(() => letGo(), 1200); // in case the page never gets there
+  letGo = () => { seen.disconnect(); clearTimeout(wait); stage.release(); letGo = () => {}; };
+  seen.observe($('flight'));
 }
 
 // ---------------------------------------------------------------- the address
