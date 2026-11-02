@@ -75,6 +75,13 @@ function outline(ctx, kind, x, y, r) {
   if (ctx.roundRect) ctx.roundRect(x - s, y - s, 2 * s, 2 * s, s * 0.32); else ctx.rect(x - s, y - s, 2 * s, 2 * s);
 }
 
+// And how far across it the radar board in its top-right corner can reach, in CSS pixels from its right edge: to the
+// edge of a mark on the same spot on the other side.
+export function boardRoom(W, H, dpr, [x, z]) {
+  const cam = atBatCamera(W, H, { dpr });
+  return (W - cam.project([-x, PLATE_Y, z]).x - markRadius(cam)) / dpr;
+}
+
 // Each pitch where it crossed. One that crossed below the bottom edge (it bounced) sits on the edge with a notch
 // under its number, pointing down: lower than this. `grow` is how many times its size the newest is drawn (growth).
 // A strike is filled with its red and a ball in play with its blue, each with a white number; a ball is a green ring

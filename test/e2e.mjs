@@ -1087,6 +1087,16 @@ const tagged = p => p.evaluate(() => {
   return { words: tag.textContent, kind: tag.className.replace('tag k-', ''), fill: cs.backgroundColor, ratio: Math.floor(((hi + 0.05) / (lo + 0.05)) * 10) / 10 };
 });
 
+// The radar board over the at-bat's picture's top-right corner: the speed, the pitch's name, how big the speed's figures
+// are, and whether each word of the name is on one line.
+const board = p => p.evaluate(() => {
+  const el = document.getElementById('ab-board'), nm = el.querySelector('.nm');
+  return {
+    speed: el.querySelector('.speed')?.textContent, name: nm?.textContent, size: parseFloat(getComputedStyle(el.querySelector('.speed b')).fontSize),
+    whole: [...nm.querySelectorAll('.nw')].every(w => w.getClientRects().length === 1),
+  };
+});
+
 // Each pitch's number in the log, by kind (strike, ball or play): the shape it's in (a disc, a ring or a square), and
 // how its number stands off what's behind it, its fill or, in a ring, the card.
 const badges = p => p.evaluate(() => {
@@ -1158,9 +1168,10 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await idle();
   assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Foul');
-  assert.equal(await ph.locator('#ab-ro').textContent(), 'Foul\u00a0· 94.6\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
-  // The pitch's name is kept whole where the line wraps: "four-seamer", not "four-" over "seamer".
-  assert.equal(await ph.evaluate(() => document.querySelector('#ab-ro .nw').getClientRects().length), 1, `${at}, the pitch's name in the readout is split over two lines`);
+  assert.equal(await ph.locator('#ab-ro').textContent(), 'Foul', `${at}, the readout doesn't say what the pitch did`);
+  // Its speed is on the radar board in the top-right corner, with its name kept whole under it: "four-seamer", not
+  // "four-" over "seamer".
+  assert.deepEqual(await board(ph), { speed: '94.6\u00a0mph', name: 'four-seamer', size: width < 360 ? 24 : 28, whole: true }, `${at}, the radar board`);
   const tag = await tagged(ph);
   assert.deepEqual(tag && { words: tag.words, kind: tag.kind, readable: tag.ratio >= 4.5 }, { words: 'Foul', kind: 'strike', readable: true }, `${at}, the readout's tag: ${JSON.stringify(tag)}`);
 
@@ -1184,18 +1195,18 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
     const { busy, ab } = window.arsenal.atBat.state, last = ab.pitches.at(-1);
     return {
       busy, count: document.querySelector('#ab-count .ct').textContent, log: document.querySelectorAll('#ab-log li').length,
-      ro: document.getElementById('ab-ro').textContent, asked: window.askNow(),
+      ro: document.getElementById('ab-ro').textContent, board: document.querySelector('#ab-board .speed')?.textContent, asked: window.askNow(),
       heard: { live: document.getElementById('ab-live').textContent, notice: document.getElementById('ab-notice').textContent },
       count2: { said: document.querySelector('#ab-count .sr').textContent, hidden: [...document.querySelectorAll('#ab-count .ct, #ab-count .dots')].every(e => e.getAttribute('aria-hidden') === 'true') },
-      want: { count: `${last.before.balls}-${last.before.strikes}`, log: ab.pitches.length - 1, ro: `Pitch ${last.n} · ${last.mph.toFixed(1)} mph` },
+      want: { count: `${last.before.balls}-${last.before.strikes}`, log: ab.pitches.length - 1, ro: `Pitch ${last.n}`, mph: last.mph.toFixed(1) },
     };
   });
   assert.ok(replay.busy, `${at}, the link's last pitch had landed before it could be checked`);
   assert.deepEqual(replay.heard, { live: '', notice: 'Replayed from the link: the league-average righty to a right-handed batter, 6 pitches.' }, `${at}, what a screen reader is told as a link opens`);
   assert.deepEqual(replay.count2, { said: '2 balls, 2 strikes', hidden: true }, `${at}, the count as a screen reader reads it`);
-  assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6 · 78.6 mph' }, 'the README strikeout plays differently now');
+  assert.deepEqual(replay.want, { count: '2-2', log: 5, ro: 'Pitch 6', mph: '78.6' }, 'the README strikeout plays differently now');
   assert.deepEqual({ count: replay.count, log: replay.log }, { count: '2-2', log: 5 }, `${at}, while the link's last pitch flies`);
-  assert.equal(replay.ro, 'Pitch 6\u00a0· 78.6\u00a0mph curveball', `${at}, while the link's last pitch flies`);
+  assert.deepEqual([replay.ro, replay.board], ['Pitch 6', '78.6\u00a0mph'], `${at}, while the link's last pitch flies`);
   assert.deepEqual(replay.asked, { waits: ['true', 'true'], hint: '', chart: 0 }, `${at}, asked while the link's last pitch flies`);
   await idle();
   assert.equal(await ph.locator('#ab-ro').textContent(), `${await ph.locator('#ab-result').textContent()}\u00a0· 6 pitches`);
@@ -1323,14 +1334,14 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   await ph.locator('#ab-next').tap();
   const back = await ph.evaluate(() => ({ picture: document.getElementById('ab-flight').getBoundingClientRect().bottom, controls: document.getElementById('ab-callbox').getBoundingClientRect().top }));
   assert.ok(back.controls >= back.picture && back.controls < height - 100, `${at}, after Next hitter the pitch controls start at ${Math.round(back.controls)}px, under a picture ending at ${Math.round(back.picture)}px`);
-  assert.equal(await ph.locator('#ab-ro').textContent(), '', `${at}, the readout still describes the last at-bat`);
+  assert.deepEqual(await ph.evaluate(() => ['ab-ro', 'ab-board'].map(id => document.getElementById(id).textContent)), ['', ''], `${at}, the readout or the radar board still describes the last at-bat`);
   assert.equal(await ph.locator('#ab-count .ct').textContent(), '0-0');
   assert.deepEqual(await dotStarts(ph), [], `${at}, a pitch's speed and share start a line with their dot`);
   // So does a new pitcher picked while a pitch is in the air.
   await ph.locator('#ab-throw').tap();
   await ph.locator('#ab-pitcher').selectOption('skenes');
   await ph.waitForTimeout(1200);
-  assert.deepEqual(await ph.evaluate(() => ({ busy: window.arsenal.atBat.state.busy, ro: document.getElementById('ab-ro').textContent, log: document.querySelectorAll('#ab-log li').length })), { busy: false, ro: '', log: 0 }, `${at}, after a new pitcher mid-pitch`);
+  assert.deepEqual(await ph.evaluate(() => ({ busy: window.arsenal.atBat.state.busy, ro: document.getElementById('ab-ro').textContent + document.getElementById('ab-board').textContent, log: document.querySelectorAll('#ab-log li').length })), { busy: false, ro: '', log: 0 }, `${at}, after a new pitcher mid-pitch`);
   // Skenes's six pitches take three rows, and the batter's side is one line over the grid, at his end of it.
   for (const batter of ['R', 'L']) {
     await ph.locator(`#ab-batter [data-v="${batter}"]`).tap();
@@ -1475,10 +1486,10 @@ for (const [width, height] of [[844, 390], [667, 375]]) {
 }
 
 // The count and what happened, over the at-bat's picture's top-left corner, never cover a pitch thrown to a spot off
-// the plate: there the high ones, inside to a righty and away to a lefty, cross. On the narrowest phones, a phone, one
-// held sideways and a tablet held sideways, with the longest lines there are: Aaron Nola's knuckle curve, while it
-// flies, once it's in, and the strikeout swinging it ends in. Every spot's mark off the plate, at its full size, is
-// clear of the readout's box.
+// the plate: there the high ones, inside to a righty and away to a lefty, cross. Nor does the radar board in its
+// top-right corner, where the high ones on the other side cross. On the narrowest phones, a phone, one held sideways
+// and a tablet held sideways, with the longest lines there are: Aaron Nola's knuckle curve, while it flies, once it's
+// in, and the strikeout swinging it ends in. Every spot's mark off the plate, at its full size, is clear of both boxes.
 for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [1024, 768]]) {
   const roCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   const ro = await roCtx.newPage();
@@ -1487,13 +1498,17 @@ for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [
     const { SPOTS, spotXZ } = await import(new URL('js/atbat.js', location.href));
     const { markRadius } = await import(new URL('js/tracker.js', location.href));
     const { stage, state } = window.arsenal.atBat, cam = stage.camera(), dpr = cam.dpr, r = markRadius(cam) / dpr;
-    const c = document.getElementById('ab-flight').getBoundingClientRect(), b = document.querySelector('.bat-stage .readout').getBoundingClientRect();
-    const box = { left: b.left - c.left, right: b.right - c.left, top: b.top - c.top, bottom: b.bottom - c.top };
-    const under = SPOTS.filter(s => !s.zone).filter(s => {
+    const c = document.getElementById('ab-flight').getBoundingClientRect();
+    const boxes = ['.bat-stage .readout', '#ab-board'].map(sel => { const b = document.querySelector(sel).getBoundingClientRect(); return { left: b.left - c.left, right: b.right - c.left, top: b.top - c.top, bottom: b.bottom - c.top }; });
+    const under = boxes.map(box => SPOTS.filter(s => !s.zone).filter(s => {
       const [sx, sz] = spotXZ(s, state.batter), p = cam.project([sx, 17 / 12, sz]), x = p.x / dpr, y = p.y / dpr;
       return x + r > box.left && x - r < box.right && y + r > box.top && y - r < box.bottom;
-    });
-    return { said: document.getElementById('ab-ro').textContent, mph: state.ab.pitches.at(-1)?.mph.toFixed(1), under: under.map(s => s.id), box: Object.values(box).map(Math.round) };
+    }).map(s => s.id));
+    const nm = document.querySelector('#ab-board .nm');
+    return {
+      said: document.getElementById('ab-ro').textContent, board: `${document.querySelector('#ab-board .speed')?.textContent} ${nm?.textContent}`, whole: [...(nm?.querySelectorAll('.nw') || [])].every(w => w.getClientRects().length === 1),
+      inside: boxes[1].right <= c.width && boxes[1].top >= 0, mph: state.ab.pitches.at(-1)?.mph.toFixed(1), under, box: boxes.map(b => Object.values(b).map(Math.round)),
+    };
   });
   for (const [batter, spot] of [['R', 0], ['L', 4]]) {
     const at = `at ${width}x${height} to a ${batter === 'R' ? 'right' : 'left'}-handed batter`;
@@ -1502,18 +1517,18 @@ for (const [width, height] of [[320, 640], [360, 740], [390, 844], [667, 375], [
     await ro.waitForFunction(() => window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const flying = await covered();
     // Each pitch comes in at its own speed, and the readout gives this one's.
-    assert.equal(flying.said, `Pitch 2\u00a0· ${flying.mph}\u00a0mph knuckle curve`, `${at}, while the pitch flies`);
-    assert.deepEqual(flying.under, [], `${at}, while the pitch flies the readout ${JSON.stringify(flying.box)} covers spots`);
+    assert.deepEqual([flying.said, flying.board, flying.whole, flying.inside], ['Pitch 2', `${flying.mph}\u00a0mph knuckle curve`, true, true], `${at}, while the pitch flies`);
+    assert.deepEqual(flying.under, [[], []], `${at}, while the pitch flies the readout and the radar board ${JSON.stringify(flying.box)} cover spots`);
     await ro.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const landed = await covered();
-    assert.equal(landed.said, `Swinging strike\u00a0· ${landed.mph}\u00a0mph knuckle curve`, `${at}, once the pitch is in`);
-    assert.deepEqual(landed.under, [], `${at}, once the pitch is in the readout ${JSON.stringify(landed.box)} covers spots`);
+    assert.deepEqual([landed.said, landed.board, landed.whole], ['Swinging strike', `${landed.mph}\u00a0mph knuckle curve`, true], `${at}, once the pitch is in`);
+    assert.deepEqual(landed.under, [[], []], `${at}, once the pitch is in the readout and the radar board ${JSON.stringify(landed.box)} cover spots`);
     await ro.goto('about:blank');
     await ro.goto(`${base}#ab.v${VERSION}.nola.${batter}.s${`.KC${spot}`.repeat(5)}`);
     await ro.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });
     const ended = await covered();
-    assert.equal(ended.said, 'Strikeout swinging\u00a0· 5 pitches', `${at}, at the end`);
-    assert.deepEqual(ended.under, [], `${at}, at the end the readout ${JSON.stringify(ended.box)} covers spots`);
+    assert.deepEqual([ended.said, ended.board], ['Strikeout swinging\u00a0· 5 pitches', `${ended.mph}\u00a0mph knuckle curve`], `${at}, at the end`);
+    assert.deepEqual(ended.under, [[], []], `${at}, at the end the readout and the radar board ${JSON.stringify(ended.box)} cover spots`);
   }
   await roCtx.close();
 }

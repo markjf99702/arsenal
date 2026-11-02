@@ -2,7 +2,7 @@
 import { Stage } from './stage.js';
 import { PITCHERS, pitcherByKey, startAtBat, throwCall, autoCall, whatIf, mixFor, HITTER_TYPES, hitterByKey, SPOTS, spotById, spotXZ, spotName, linkFor, parseLink, VERSION } from './atbat.js';
 import { resultWord, why, note, calledLine, ENDING, NAME } from './atbat-words.js';
-import { markKind, readoutRoom } from './tracker.js';
+import { markKind, readoutRoom, boardRoom } from './tracker.js';
 import { BY_CODE } from './pitches.js';
 import { newSeed } from './rng.js';
 import { COUNTS, HITTERS } from './league.js';
@@ -37,12 +37,14 @@ export function setupAtBat({ dark = false } = {}) {
   const stage = new Stage($('ab-flight'), { onArrive: () => land() });
   // On a phone the picture stays at the top of the screen (css/app.css), and what's scrolled into view stops below it.
   // The words over its top-left corner stop short of the high spot off the plate on that side, inside to a righty and
-  // away to a lefty, which are in the same place, and wrap to fit (--ro-max, css/app.css).
+  // away to a lefty, which are in the same place, and wrap to fit (--ro-max, css/app.css); the radar board in its
+  // top-right corner stops short of the one on the other side (--rb-max).
   const frame = $('ab-flight').parentElement, corner = spotXZ(spotById('2m2'), 'R');
   new ResizeObserver(() => {
     $('at-bat').style.setProperty('--ab-frame', `${Math.ceil(frame.getBoundingClientRect().height)}px`);
     const { W, H, dpr } = stage.size();
     frame.style.setProperty('--ro-max', `${Math.floor(readoutRoom(W, H, dpr, corner) * 10) / 10}px`);
+    frame.style.setProperty('--rb-max', `${Math.floor(boardRoom(W, H, dpr, corner) * 10) / 10}px`);
   }).observe(frame);
   // Into view, and out from behind the picture: the browser counts what's behind it as in view. Beside the picture (on a
   // computer, or a phone held sideways) something whose top is off the top of the screen is brought down whole too.
@@ -200,9 +202,11 @@ export function setupAtBat({ dark = false } = {}) {
     fly(rec);
   }
 
-  // Throw a pitch that has already happened in the model: the marks so far, and in the readout what's coming.
+  // Throw a pitch that has already happened in the model: the marks so far, in the readout what's coming, and its
+  // speed on the radar board, as a stadium's shows it out of the pitcher's hand.
   function fly(rec) {
-    readout(`Pitch ${rec.n}`, pitchLine(rec));
+    readout(`Pitch ${rec.n}`);
+    board(rec);
     stage.set({ marks: marks(S.ab.pitches.slice(0, -1)) });
     stage.show([rec.path]);
   }
@@ -228,13 +232,16 @@ export function setupAtBat({ dark = false } = {}) {
   // A no-break space keeps "mph" with its number wherever a line wraps, as on the card, and one before each separating
   // dot keeps it at the end of a line rather than the start of the next.
   const speed = p => `${p.mph.toFixed(1)}\u00a0mph`;
-  // In the readout over the picture the pitch's name is kept whole when the line wraps: "94.8 mph" over "four-seamer",
-  // never "four-" over "seamer".
-  const pitchLine = p => `${speed(p)} <span class="nw">${NAME[p.code]}</span>`;
-  // The lines under the count: what's coming or what happened, then the pitch, wrapping to fit (css/app.css). What
-  // happened is in a tag coloured like its mark (`kind`: strike, ball or play), so it reads at a glance as the mark lands.
-  const readout = (what = '', pitch = '', kind = '') => {
-    $('ab-ro').innerHTML = what && `${kind ? `<b class="tag k-${kind}">${what}</b>` : what}<span class="sep">\u00a0· </span><span>${pitch}</span>`;
+  // The line under the count: what's coming or what happened, and at the end how many pitches it took, wrapping to fit
+  // (css/app.css). What happened is in a tag coloured like its mark (`kind`: strike, ball or play), so it reads at a
+  // glance as the mark lands.
+  const readout = (what = '', more = '', kind = '') => {
+    $('ab-ro').innerHTML = what && `${kind ? `<b class="tag k-${kind}">${what}</b>` : what}${more ? `<span class="sep">\u00a0· </span><span>${more}</span>` : ''}`;
+  };
+  // The pitch's speed, big in the top-right corner as on a stadium's radar board, with its name under it. A name that
+  // has to wrap goes over two lines at its space ("knuckle" over "curve"), never at its hyphen ("four-" over "seamer").
+  const board = p => {
+    $('ab-board').innerHTML = p ? `<div class="speed"><b>${p.mph.toFixed(1)}</b>\u00a0<span>mph</span></div><div class="nm">${NAME[p.code].split(' ').map(w => `<span class="nw">${w}</span>`).join(' ')}</div>` : '';
   };
 
   function marks(ps) {
@@ -328,11 +335,13 @@ export function setupAtBat({ dark = false } = {}) {
       $('ab-copied').textContent = '';
       $('ab-link').hidden = true;
     }
-    // While a pitch flies the readout says what's coming (fly); once it's in, what happened.
+    // While a pitch flies the readout says what's coming (fly); once it's in, what happened, and the radar board keeps
+    // its speed.
     if (!S.pending) {
       if (over) readout(ENDING[ab.result], `${ab.pitches.length} pitch${ab.pitches.length === 1 ? '' : 'es'}`, markKind(last.result));
-      else if (last) readout(resultWord(last), pitchLine(last), markKind(last.result));
+      else if (last) readout(resultWord(last), '', markKind(last.result));
       else readout();
+      board(last);
     }
   }
 

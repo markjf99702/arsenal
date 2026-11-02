@@ -472,7 +472,20 @@ p { margin: 0; }
 .bat-stage #ab-ro:empty { display: none; }
 #ab-ro .sep { display: none; }
 #ab-ro > span:last-child { display: block; }
-#ab-ro .nw { white-space: nowrap; }
+/* The pitch's speed, big in the picture's top-right corner as on a stadium's radar board, the explorer's size, with its
+   name under it. It stops short of where a pitch high and off the plate on that side crosses (--rb-max, from
+   js/atbat-ui.js), as the count does on the left, wrapping the name to fit, on the same dark veil. */
+.bat-stage .board {
+  position: absolute; right: 6px; top: 6px; box-sizing: border-box; max-width: calc(var(--rb-max, 100%) - 6px); padding: 2px 8px 6px;
+  border-radius: 10px; background: rgba(15, 20, 30, .5); color: #fff; text-align: right; line-height: 1.15; pointer-events: none;
+  font-family: var(--display); text-shadow: 0 0 2px rgba(0, 0, 0, .85), 0 0 4px rgba(0, 0, 0, .6), 0 1px 3px rgba(0, 0, 0, .55);
+}
+.bat-stage .board:empty { display: none; }
+.board .speed { white-space: nowrap; }
+.board .speed b { font-size: 34px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.board .speed span { font-size: 16px; font-weight: 600; opacity: .9; }
+.board .nm { font-size: 16px; font-weight: 600; }
+.board .nw { white-space: nowrap; }
 /* Where the picture is narrower, on a phone, a phone held sideways, a tablet or a small window, the readout keeps to its
    top-left corner, clear of the zone and the pitcher's hand: the balls and strikes stacked beside the count. */
 @container ab-frame (max-width: 599px) {
@@ -483,10 +496,16 @@ p { margin: 0; }
   .count .dots { font-size: 13px; gap: 3px; }
   .count .dots i { width: 9px; height: 9px; border-width: 1.5px; }
   .bat-stage #ab-ro { font-size: 14px; line-height: 1.25; margin-top: 4px; }
+  .bat-stage .board { right: 5px; top: 5px; max-width: calc(var(--rb-max, 100%) - 5px); padding: 1px 5px 5px; border-radius: 9px; }
+  .board .speed b { font-size: 28px; }
+  .board .speed span, .board .nm { font-size: 14px; }
 }
 /* On the narrowest phones the readout has 80 to 90px across before the high spot off the plate: the count is smaller,
    and so are the words under it. */
-@container ab-frame (max-width: 330px) { .count .ct { font-size: 24px; } .bat-stage #ab-ro { font-size: 13px; } }
+@container ab-frame (max-width: 330px) {
+  .count .ct { font-size: 24px; } .bat-stage #ab-ro { font-size: 13px; }
+  .board .speed b { font-size: 24px; } .board .speed span, .board .nm { font-size: 13px; }
+}
 @container ab-frame (max-width: 310px) {
   .count { column-gap: 6px; }
   .count .ct { font-size: 22px; }
