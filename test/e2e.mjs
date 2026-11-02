@@ -1324,6 +1324,38 @@ for (const colorScheme of ['light', 'dark']) {
   await deskCtx.close();
 }
 
+// The dark palette's light towers, behind the plate, are each seen whole: under the top of the picture, and clear of the
+// speeds and times in its top-left corner and the legend in its top-right, with the longest of those there are (the
+// knuckle curve thrown with the knuckleball). A computer shows a pair; a phone has no room for them.
+for (const [width, height, want] of [[1280, 800, 2], [390, 844, 0]]) {
+  const darkCtx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: width < 1000 ? 2 : 1, colorScheme: 'dark', serviceWorkers: 'block' });
+  const dark = await darkCtx.newPage();
+  watch(dark);
+  await dark.goto(base);
+  await dark.evaluate(() => document.fonts.ready);
+  for (const [pitch, pair] of [['FF', null], ['KC', 'KN']]) {
+    await dark.evaluate(([pitch, pair]) => {
+      window.arsenal.pick(pitch);
+      document.getElementById('pair').value = pair || '';
+      document.getElementById('pair').dispatchEvent(new Event('change'));
+    }, [pitch, pair]);
+    await dark.waitForFunction(() => window.arsenal.stage.summary()?.every(s => s.arrived), null, { timeout: 15000 });
+    await dark.waitForTimeout(100);
+    const seen = await dark.evaluate(async () => {
+      const { lights } = await import(new URL('js/flight.js', location.href));
+      const stage = window.arsenal.stage, cam = stage.camera(), dpr = cam.dpr, c = stage.canvas.getBoundingClientRect();
+      const boxes = ['.stage .readout', '#legend'].map(sel => document.querySelector(sel).getBoundingClientRect());
+      return lights(cam).map(g => {
+        const x = c.left + g.x / dpr, y = c.top + g.y / dpr, r = g.r / dpr;
+        const under = boxes.filter(b => x + r > b.left && x - r < b.right && y + r > b.top && y - r < b.bottom).length;
+        return under ? 'under the words' : y - r < c.top ? 'cut off at the top' : x - r < c.left || x + r > c.right ? 'cut off at the side' : 'whole';
+      });
+    });
+    assert.deepEqual(seen, Array(want).fill('whole'), `at ${width}px, dark, ${pitch}${pair ? ` with ${pair}` : ''}: the light towers`);
+  }
+  await darkCtx.close();
+}
+
 // The address follows the at-bat once a pitch is thrown, so a reload, or a phone's Share, has the at-bat being played.
 {
   const idle = () => page.waitForFunction(() => !window.arsenal.atBat.state.busy, null, { timeout: 15000 });

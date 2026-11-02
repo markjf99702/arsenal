@@ -175,6 +175,23 @@ function chalkLine(ctx, cam, a, b, w = 0.25) {
   if (poly(ctx, cam, [add(a, s), add(b, s), add(b, scale(s, -1)), add(a, scale(s, -1))])) ctx.fill();
 }
 
+// A night game's light towers beyond the outfield, as glows above the stands, in pairs either side of centre field: where
+// each glow is and how far it reaches, in device pixels. A pair is left out unless both are seen whole, under the top of
+// the picture and clear of the words over it, which reach 250 CSS pixels in from the left (the speeds and times of two
+// pitches with the longest names) and 140 in from the right (the legend). So a computer shows them, and a phone, with
+// no room between the two, shows none.
+export function lights(cam) {
+  const dpr = cam.dpr || 1, r = cam.W * 0.035, out = [];
+  for (const a of [2.5, 7]) {
+    const pair = [-a, a].map(d => {
+      const p = cam.project([460 * Math.sin((d * Math.PI) / 180), 460 * Math.cos((d * Math.PI) / 180), 40]);
+      return { x: p.x, y: p.y, r };
+    });
+    if (pair.every(g => g.y >= r && g.x - r >= 250 * dpr && g.x + r <= cam.W - 140 * dpr)) out.push(...pair);
+  }
+  return out;
+}
+
 export function drawCatcherField(ctx, cam, c) {
   const { W, H } = cam;
   const horizon = cam.project([0, 5000, cam.eye[2]]).y;
@@ -186,12 +203,10 @@ export function drawCatcherField(ctx, cam, c) {
   ctx.fillStyle = c.stands;
   if (poly(ctx, cam, [...arc(440, 8), ...arc(440, 24).reverse()])) ctx.fill();
   if (c.lights) {
-    for (const a of [-38, -14, 14, 38]) {
-      const r = (a * Math.PI) / 180;
-      const p = cam.project([460 * Math.sin(r), 460 * Math.cos(r), 60]);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, W * 0.05);
+    for (const { x, y, r } of lights(cam)) {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, 'rgba(255,250,230,.95)'); g.addColorStop(0.15, 'rgba(255,245,215,.5)'); g.addColorStop(1, 'rgba(255,240,200,0)');
-      ctx.fillStyle = g; ctx.fillRect(p.x - W * 0.05, p.y - W * 0.05, W * 0.1, W * 0.1);
+      ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
     }
   }
   ctx.fillStyle = c.wall;
