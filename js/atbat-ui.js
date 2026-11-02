@@ -202,8 +202,10 @@ export function setupAtBat({ dark = false } = {}) {
   // A no-break space keeps "mph" with its number wherever a line wraps, as on the card, and one before each separating
   // dot keeps it at the end of a line rather than the start of the next.
   const speed = p => `${p.mph.toFixed(1)}\u00a0mph`;
-  const pitchLine = p => `${speed(p)} ${NAME[p.code]}`;
-  // The line under the count: what's coming or what happened, then the pitch. On a phone they're two short lines. What
+  // In the readout over the picture the pitch's name is kept whole when the line wraps: "94.8 mph" over "four-seamer",
+  // never "four-" over "seamer".
+  const pitchLine = p => `${speed(p)} <span class="nw">${NAME[p.code]}</span>`;
+  // The lines under the count: what's coming or what happened, then the pitch, wrapping to fit (css/app.css). What
   // happened is in a tag coloured like its mark (`kind`: strike, ball or play), so it reads at a glance as the mark lands.
   const readout = (what = '', pitch = '', kind = '') => {
     $('ab-ro').innerHTML = what && `${kind ? `<b class="tag k-${kind}">${what}</b>` : what}<span class="sep">\u00a0· </span><span>${pitch}</span>`;

@@ -1020,6 +1020,8 @@ for (const [width, height] of [[390, 844], [320, 640]]) {
   assert.deepEqual(await ph.evaluate(() => ['ab-suggest', 'ab-run'].map(id => document.getElementById(id).getAttribute('aria-disabled'))), ['false', 'false'], `${at}, the buttons still wait after the pitch landed`);
   assert.equal(await ph.locator('#ab-last .res').textContent(), 'Called strike');
   assert.equal(await ph.locator('#ab-ro').textContent(), 'Called strike\u00a0· 94.8\u00a0mph four-seamer', `${at}, the readout doesn't say what the pitch did`);
+  // The pitch's name is kept whole where the line wraps: "four-seamer", not "four-" over "seamer".
+  assert.equal(await ph.evaluate(() => document.querySelector('#ab-ro .nw').getClientRects().length), 1, `${at}, the pitch's name in the readout is split over two lines`);
   const tag = await tagged(ph);
   assert.deepEqual(tag && { words: tag.words, kind: tag.kind, readable: tag.ratio >= 4.5 }, { words: 'Called strike', kind: 'strike', readable: true }, `${at}, the readout's tag: ${JSON.stringify(tag)}`);
 

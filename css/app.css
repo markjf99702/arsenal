@@ -445,7 +445,8 @@ p { margin: 0; }
 .bat-stage #ab-ro { margin-top: 2px; line-height: 1.3; }
 .bat-stage #ab-ro:empty { display: none; }
 #ab-ro .sep { display: none; }
-#ab-ro span:last-child { display: block; }
+#ab-ro > span:last-child { display: block; }
+#ab-ro .nw { white-space: nowrap; }
 /* Where the picture is narrower, on a phone, a phone held sideways, a tablet or a small window, the readout keeps to its
    top-left corner, clear of the zone and the pitcher's hand: the balls and strikes stacked beside the count. */
 @container ab-frame (max-width: 599px) {
