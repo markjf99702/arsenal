@@ -2,7 +2,7 @@
 // Statcast measures the league. Used by tools/calibrate.mjs and test/atbat.test.mjs, which hold the hitter to the same
 // checks (checks, below): the test fails on knobs that miss them, and the calibrator won't write them.
 import { LEAGUE, COUNTS, TYPES, ZONES, HITTERS } from '../js/league.js';
-import { autoAtBat, autoCall, startAtBat, throwCall, spotById, pitcherByKey, AVERAGE, LEAGUE_ARM, PITCHERS, ZONE, inZone } from '../js/atbat.js';
+import { autoAtBat, autoCall, startAtBat, throwCall, spotById, pitcherByKey, AVERAGE, LEAGUE_ARM, PITCHERS, ZONE, inZone, whatIf } from '../js/atbat.js';
 
 const L = LEAGUE;
 const outOfZone = L.pitches - L.zone.pitches;
@@ -52,6 +52,20 @@ for (const [zn, v] of Object.entries(ZONES)) {
   g.w += W['1B'] * v.singles + W['2B'] * v.doubles + W['3B'] * v.triples + W.HR * v.hrs;
 }
 for (const g of Object.values(GROUPS)) Object.assign(g, { whiff: g.whiffs / g.swings, wobacon: g.w / g.bip });
+// Breaking balls (sliders, sweepers, curves, knuckle curves and slurves) with two strikes: where they crossed, as
+// Statcast's zones put it, over the middle (zone 5), elsewhere in the zone (1 to 4, 6 to 9), or out of it above or below
+// the zone's middle height (11 and 12, 13 and 14). And how many of 2026's were missed per 100 thrown in each.
+export const BREAKING = new Set(['SL', 'ST', 'CU', 'KC', 'SV']);
+export const heightGroup = (x, z) => {
+  const g = zoneGroup(x, z);
+  return g === 'middle' ? 'middle' : g !== 'out' ? 'zone' : z >= (ZONE.top + ZONE.bottom) / 2 ? 'above' : 'below';
+};
+export const BREAKING2 = {};
+for (const [zn, v] of Object.entries(ZONES)) {
+  const g = BREAKING2[zn === '5' ? 'middle' : Number(zn) <= 9 ? 'zone' : Number(zn) <= 12 ? 'above' : 'below'] ||= { pitches: 0, whiffs: 0 };
+  g.pitches += v.breaking2.pitches; g.whiffs += v.breaking2.whiffs;
+}
+for (const g of Object.values(BREAKING2)) g.per100 = (100 * g.whiffs) / g.pitches;
 
 // The platoon split, 2026's: each hand of pitcher to each side of the plate pooled into the same side (RR and LL) and
 // the other (RL and LR). Its wOBA (Statcast's weights over plate appearances, as the lab counts it), misses per swing,
@@ -84,7 +98,7 @@ export function oddsAfter(strata) {
 
 export function measure(params, pas = 6000, seed = 1) {
   const c = { pa: 0, pitches: 0, k: 0, bb: 0, hbp: 0, swing: 0, whiff: 0, zone: 0, zoneSwing: 0, zoneWhiff: 0, chaseSwing: 0, chaseWhiff: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0, contact: 0, foul: 0, bip: 0, hits: 0, hr: 0, ab: 0 };
-  const counts = {}, types = {}, groups = {}, after = {}, contactScores = [];
+  const counts = {}, types = {}, groups = {}, after = {}, breaking2 = {}, contactScores = [];
   const sides = { same: {}, other: {} };
   for (const ab of atBats(LEAGUE_ARM, params, pas, seed)) {
     const sd = sides[ab.batter === LEAGUE_ARM.hand ? 'same' : 'other'];
@@ -119,6 +133,10 @@ export function measure(params, pas = 6000, seed = 1) {
       const tc = types[p.code] ||= { pitches: 0, swings: 0, whiffs: 0, zone: 0, zoneSwings: 0 };
       const gc = groups[zoneGroup(p.plate[0], p.plate[1])] ||= { pitches: 0, swings: 0, whiffs: 0, bip: 0, w: 0 };
       cc.pitches++; tc.pitches++; gc.pitches++;
+      if (p.before.strikes === 2 && BREAKING.has(p.code)) {
+        const b = breaking2[heightGroup(p.plate[0], p.plate[1])] ||= { pitches: 0, whiffs: 0 };
+        b.pitches++; if (MISSED(p)) b.whiffs++;
+      }
       if (p.swing) { gc.swings++; if (MISSED(p)) gc.whiffs++; }
       if (p.result === 'inplay') { gc.bip++; gc.w += wobaOf(p.play); }
       if (p.inZone) { c.zone++; cc.zone++; tc.zone++; }
@@ -157,6 +175,7 @@ export function measure(params, pas = 6000, seed = 1) {
     }])),
     after: oddsAfter(after),
     groups: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, { pitches: v.pitches, swings: v.swings, bip: v.bip, whiff: v.whiffs / v.swings, wobacon: v.w / v.bip }])),
+    breaking2: Object.fromEntries(Object.entries(breaking2).map(([k, v]) => [k, { pitches: v.pitches, per100: (100 * v.whiffs) / v.pitches }])),
     platoon: Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, { pa: v.pa, woba: v.w / v.pa, k: v.k / v.pa, bb: v.bb / v.pa, whiff: v.whiffs / v.swings, chase: v.chases / v.out, wobacon: v.wc / v.bip }])),
     contactScores,
   };
@@ -289,6 +308,15 @@ export function plan(params, key, call, pas = 1000, seeds = SEEDS) {
   return { per, k: per.reduce((a, x) => a + x.k, 0) / per.length, w: per.reduce((a, x) => a + x.w, 0) / per.length };
 }
 
+// What a map of the 25 spots shows for one pitch (js/atbat-ui.js): misses per 100 throws called to each of `spots`, from
+// `count` with nothing thrown before, `throws` of them, the same throws as the 400 behind the chart of every pitch.
+export function mapMisses(params, key, code, spots, [balls, strikes] = [0, 2], throws = 400) {
+  const ab = { ...startAtBat({ pitcher: pitcherByKey(key), batter: 'R', seed: 1, params }), balls, strikes };
+  return Object.fromEntries(spots.map(id => [id, (100 * whatIf(ab, spotById(id), throws, 1, 0, [code])[code].whiff) / throws]));
+}
+// The pitches the map is checked on: the league-average righty's slider and curve, and Aaron Nola's knuckle curve.
+export const MAPPED = [['average', 'SL'], ['average', 'CU'], ['nola', 'KC']];
+
 // What the hitter is held to, on three seeds pooled, so knobs that only pass on the seed they were tuned on don't pass:
 // 3,000 at-bats a seed for the league, and 16,000 for each kind of pitch (enough for one thrown as seldom as the
 // knuckle curve, 2% of the league's pitches) and the platoon split (a few points of wOBA between the two sides of the
@@ -302,9 +330,9 @@ export function run(params) {
   for (const [group, list] of Object.entries(PLANS)) plans[group] = list.map(([key, what, call, even]) => ({ key, what, even, ...plan(params, key, call) }));
   plans.miller = plan(params, MILLER[0], MILLER[2]);
   const big = measure(params, 16000, SEEDS);
-  return { lab: measure(params, 3000, SEEDS), types: big.types, platoon: big.platoon, pitchers: measurePitchers(params, 1200, SEEDS), hitters: measureHitters(params, 3000, SEEDS), plans };
+  return { lab: measure(params, 3000, SEEDS), types: big.types, platoon: big.platoon, breaking2: big.breaking2, pitchers: measurePitchers(params, 1200, SEEDS), hitters: measureHitters(params, 3000, SEEDS), plans };
 }
-export function checks(params, { lab, types, platoon, pitchers, hitters, plans } = run(params)) {
+export function checks(params, { lab, types, platoon, breaking2, pitchers, hitters, plans } = run(params)) {
   const out = [];
   const near = (group, what, sim, real, by, fmt = v => v.toFixed(3)) => out.push({ group, what, ok: Math.abs(sim - real) <= by, said: `${what}: ${fmt(sim)} against ${fmt(real)} (within ${fmt(by)})` });
   for (const [key, by] of [['k', 0.03], ['bb', 0.015], ['hbp', 0.006], ['ppa', 0.2], ['swing', 0.025], ['whiff', 0.025], ['zone', 0.025], ['zoneSwing', 0.025], ['zoneWhiff', 0.025],
@@ -372,6 +400,18 @@ export function checks(params, { lab, types, platoon, pitchers, hitters, plans }
     });
     near('hitters', `${type} hitter's swings in the zone`, m.zoneSwing, q.zoneSwing, 0.03, pct);
     near('hitters', `${type} hitter's wOBA on contact`, m.wobacon, q.wobacon, 0.04);
+  }
+  // Where breaking balls with two strikes get missed, per 100 thrown: most below the zone, as in 2026 (21 per 100 there,
+  // against 8 over the middle), more than over the middle, elsewhere in the zone or above it; and fewest over the middle.
+  // So a map of the spots for one shows the misses down and in the dirt, not down the middle.
+  const per = g => breaking2[g]?.per100 ?? 0, said = g => `${g} ${per(g).toFixed(1)} (2026: ${BREAKING2[g].per100.toFixed(1)})`;
+  const others = ['middle', 'zone', 'above'];
+  out.push({ group: 'peak', what: 'two-strike breaking balls missed most below the zone', ok: others.every(g => per('below') > per(g)), said: `two-strike breaking balls, missed per 100: ${['below', ...others].map(said).join(', ')}; most below, at least` });
+  out.push({ group: 'peak', what: 'two-strike breaking balls missed least over the middle', ok: ['zone', 'above', 'below'].every(g => per('middle') < per(g)), said: `two-strike breaking balls, missed per 100: ${['middle', 'zone', 'above', 'below'].map(said).join(', ')}; fewest over the middle, at least` });
+  // And the map itself, at 0-2: fewer misses called down the middle than in the dirt under it.
+  for (const [key, code] of MAPPED) {
+    const m = mapMisses(params, key, code, ['00', 'm20']);
+    out.push({ group: 'peak', what: `${key}'s ${code} at 0-2 on the map`, ok: m['00'] < m.m20, said: `${key}'s ${code} at 0-2, missed per 100 throws: down the middle ${m['00'].toFixed(1)}, in the dirt ${m.m20.toFixed(1)} (fewer down the middle)` });
   }
   // Changing speeds still works: a changeup after a four-seamer fools him more than one after a changeup.
   const sc = speedChange(params);

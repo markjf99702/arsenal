@@ -79,6 +79,10 @@ for (const c of COUNTS) {
 console.log('by zone');
 const zones = {};
 for (const zn of ZONES) zones[zn] = pick(await one([['hfZ', [zn]]]), ['pitches', 'swings', 'whiffs', 'bip', 'singles', 'doubles', 'triples', 'hrs']);
+// And breaking balls (sliders, sweepers, curves, knuckle curves and slurves) with two strikes, with the strikeouts on
+// them: the lab checks that the hitter misses them most where 2026's hitters did (test/lab.mjs).
+const BREAKING = ['SL', 'ST', 'CU', 'KC', 'SV'], TWO_STRIKES = ['02', '12', '22', '32'];
+for (const zn of ZONES) zones[zn].breaking2 = pick(await one([['hfZ', [zn]], ['hfC', TWO_STRIKES], ['hfPT', BREAKING]]), ['pitches', 'swings', 'whiffs', 'so']);
 
 console.log('by pitch type');
 const types = {};
@@ -293,7 +297,8 @@ const js = `// Made by tools/league.mjs from Baseball Savant's Statcast search o
 // from his average pitch to pitch (mph). after, in LEAGUE and each of TYPES, from every sixth day: lor, how much likelier
 // a swing missed right after a pitch at least 6 mph faster or slower than right after the same kind of pitch (the log
 // of the odds ratio, within the same pitcher, kind of pitch, count and height; 0 is no different), and the swings
-// compared. ZONES: each Statcast zone. platoon, in LEAGUE: each hand of pitcher to each side of the plate (RL, a
+// compared. ZONES: each Statcast zone, and in each, breaking2: breaking balls (SL, ST, CU, KC, SV) with two strikes, and
+// the strikeouts on them (so). platoon, in LEAGUE: each hand of pitcher to each side of the plate (RL, a
 // right-hander to left-handed batters); mix, in each of TYPES: the share of right-handers' pitches to right-handed (R)
 // and left-handed (L) batters that were that kind.
 // PITCHERS: the arsenals you can pitch as, with their season's plate appearances (paBy: to right- and left-handed

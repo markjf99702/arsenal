@@ -543,6 +543,8 @@ test('each kind of pitch gets missed, swung at in the zone and chased about as o
 
 test('where a pitch crosses matters as it did in 2026: misses and damage over the middle, on the edges and corners, and off the plate', () => holds('zones'));
 
+test('breaking balls with two strikes get missed most below the zone and least over the middle, as in 2026, and so on the map of the spots', () => holds('peak'));
+
 // The hitter notices patterns, so no simple plan beats a pitcher's own calls: down the middle every pitch, one pitch to
 // one spot, or the same two in turn (test/lab.mjs, PLANS); and Miller's four-seamer up and slider down and away in
 // turn is no surer a strikeout than his real 47.4%.

@@ -7,7 +7,8 @@
 // from his average pitch to pitch (mph). after, in LEAGUE and each of TYPES, from every sixth day: lor, how much likelier
 // a swing missed right after a pitch at least 6 mph faster or slower than right after the same kind of pitch (the log
 // of the odds ratio, within the same pitcher, kind of pitch, count and height; 0 is no different), and the swings
-// compared. ZONES: each Statcast zone. platoon, in LEAGUE: each hand of pitcher to each side of the plate (RL, a
+// compared. ZONES: each Statcast zone, and in each, breaking2: breaking balls (SL, ST, CU, KC, SV) with two strikes, and
+// the strikeouts on them (so). platoon, in LEAGUE: each hand of pitcher to each side of the plate (RL, a
 // right-hander to left-handed batters); mix, in each of TYPES: the share of right-handers' pitches to right-handed (R)
 // and left-handed (L) batters that were that kind.
 // PITCHERS: the arsenals you can pitch as, with their season's plate appearances (paBy: to right- and left-handed
@@ -393,7 +394,13 @@ export const ZONES = {
   "singles": 1354,
   "doubles": 364,
   "triples": 30,
-  "hrs": 287
+  "hrs": 287,
+  "breaking2": {
+   "pitches": 1246,
+   "swings": 890,
+   "whiffs": 161,
+   "so": 448
+  }
  },
  "2": {
   "pitches": 37924,
@@ -403,7 +410,13 @@ export const ZONES = {
   "singles": 1933,
   "doubles": 591,
   "triples": 58,
-  "hrs": 661
+  "hrs": 661,
+  "breaking2": {
+   "pitches": 1524,
+   "swings": 1318,
+   "whiffs": 223,
+   "so": 413
+  }
  },
  "3": {
   "pitches": 27394,
@@ -413,7 +426,13 @@ export const ZONES = {
   "singles": 1292,
   "doubles": 304,
   "triples": 40,
-  "hrs": 320
+  "hrs": 320,
+  "breaking2": {
+   "pitches": 1268,
+   "swings": 1006,
+   "whiffs": 177,
+   "so": 398
+  }
  },
  "4": {
   "pitches": 39930,
@@ -423,7 +442,13 @@ export const ZONES = {
   "singles": 2584,
   "doubles": 748,
   "triples": 56,
-  "hrs": 578
+  "hrs": 578,
+  "breaking2": {
+   "pitches": 2667,
+   "swings": 2292,
+   "whiffs": 226,
+   "so": 577
+  }
  },
  "5": {
   "pitches": 51154,
@@ -433,7 +458,13 @@ export const ZONES = {
   "singles": 3781,
   "doubles": 1397,
   "triples": 130,
-  "hrs": 1253
+  "hrs": 1253,
+  "breaking2": {
+   "pitches": 3484,
+   "swings": 3312,
+   "whiffs": 291,
+   "so": 464
+  }
  },
  "6": {
   "pitches": 39859,
@@ -443,7 +474,13 @@ export const ZONES = {
   "singles": 2512,
   "doubles": 768,
   "triples": 90,
-  "hrs": 590
+  "hrs": 590,
+  "breaking2": {
+   "pitches": 2876,
+   "swings": 2655,
+   "whiffs": 300,
+   "so": 508
+  }
  },
  "7": {
   "pitches": 32377,
@@ -453,7 +490,13 @@ export const ZONES = {
   "singles": 1817,
   "doubles": 508,
   "triples": 25,
-  "hrs": 303
+  "hrs": 303,
+  "breaking2": {
+   "pitches": 3158,
+   "swings": 2709,
+   "whiffs": 442,
+   "so": 828
+  }
  },
  "8": {
   "pitches": 43595,
@@ -463,7 +506,13 @@ export const ZONES = {
   "singles": 3043,
   "doubles": 1078,
   "triples": 95,
-  "hrs": 717
+  "hrs": 717,
+  "breaking2": {
+   "pitches": 4565,
+   "swings": 4293,
+   "whiffs": 543,
+   "so": 796
+  }
  },
  "9": {
   "pitches": 35986,
@@ -473,7 +522,13 @@ export const ZONES = {
   "singles": 1996,
   "doubles": 527,
   "triples": 48,
-  "hrs": 364
+  "hrs": 364,
+  "breaking2": {
+   "pitches": 4147,
+   "swings": 3723,
+   "whiffs": 621,
+   "so": 980
+  }
  },
  "11": {
   "pitches": 86709,
@@ -483,7 +538,13 @@ export const ZONES = {
   "singles": 1062,
   "doubles": 265,
   "triples": 13,
-  "hrs": 122
+  "hrs": 122,
+  "breaking2": {
+   "pitches": 3157,
+   "swings": 897,
+   "whiffs": 228,
+   "so": 246
+  }
  },
  "12": {
   "pitches": 65973,
@@ -493,7 +554,13 @@ export const ZONES = {
   "singles": 1073,
   "doubles": 195,
   "triples": 29,
-  "hrs": 138
+  "hrs": 138,
+  "breaking2": {
+   "pitches": 2898,
+   "swings": 1227,
+   "whiffs": 329,
+   "so": 386
+  }
  },
  "13": {
   "pitches": 94541,
@@ -503,7 +570,13 @@ export const ZONES = {
   "singles": 1656,
   "doubles": 392,
   "triples": 16,
-  "hrs": 116
+  "hrs": 116,
+  "breaking2": {
+   "pitches": 15606,
+   "swings": 6899,
+   "whiffs": 3271,
+   "so": 3341
+  }
  },
  "14": {
   "pitches": 127653,
@@ -513,7 +586,13 @@ export const ZONES = {
   "singles": 1995,
   "doubles": 354,
   "triples": 41,
-  "hrs": 121
+  "hrs": 121,
+  "breaking2": {
+   "pitches": 26876,
+   "swings": 11359,
+   "whiffs": 5770,
+   "so": 5861
+  }
  }
 };
 export const PITCHERS = [

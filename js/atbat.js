@@ -555,10 +555,12 @@ export function autoAtBat(options) {
 // `from + runs` of them, so a chart can be thrown a slice at a time and come out the same as all at once. Every pitch's
 // i-th throw starts from the same random draws (for how far it misses the spot, what the hitter guesses, and the rest),
 // so what tells two pitches apart is the pitches more than their luck. Each faces the hitter as he stands, with every
-// pitch of the at-bat so far: what he looks for, and where he's ready to hit one, come from all of them.
-export function whatIf(ab, spot, runs = 100, seed = 1, from = 0) {
+// pitch of the at-bat so far: what he looks for, and where he's ready to hit one, come from all of them. `codes` throws
+// only those of his pitches, the same throws as with all of them.
+export function whatIf(ab, spot, runs = 100, seed = 1, from = 0, codes = null) {
   const out = {};
   for (const entry of ab.pitcher.pitches) {
+    if (codes && !codes.includes(entry.code)) continue;
     const tally = { ball: 0, called: 0, whiff: 0, foul: 0, out: 0, hit: 0, hbp: 0, runs };
     for (let i = from; i < from + runs; i++) {
       const copy = startAtBat({ pitcher: ab.pitcher, batter: ab.batter, hitter: ab.hitter, seed: (seed * 7919 + i * 104729) >>> 0, params: ab.params });
