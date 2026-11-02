@@ -139,6 +139,12 @@ const rows = {};
 for (const t of TYPES) {
   for (const r of await search(season, [['hfPT', [t]]], 'name')) (rows[r.player_id] ||= []).push({ t, r });
 }
+// Each pitcher's batters hit by a pitch, and how many of each of his pitches crossed in the zone.
+const hbpOf = Object.fromEntries((await search(season, [['hfPR', ['hit_by_pitch']]], 'name')).map(r => [r.player_id, n(r)]));
+const inZone = {};
+for (const t of TYPES) {
+  for (const r of await search(season, [['hfPT', [t]], ['hfZ', IN_ZONE]], 'name')) (inZone[r.player_id] ||= {})[t] = n(r);
+}
 const pitchers = PITCHERS.map(([id, key, line, tag]) => {
   const mine = rows[id] || [];
   const total = mine.reduce((s, x) => s + n(x.r), 0);
@@ -149,7 +155,8 @@ const pitchers = PITCHERS.map(([id, key, line, tag]) => {
     key, line, tag,
     name: mine[0].r.player_name.split(', ').reverse().join(' '),
     hand: sideOf < 0 ? 'R' : 'L',
-    pa: num(t.pa), so: num(t.so), bb: num(t.bb),
+    pa: num(t.pa), so: num(t.so), bb: num(t.bb), hbp: hbpOf[id] || 0,
+    bip: num(t.bip), singles: num(t.singles), doubles: num(t.doubles), triples: num(t.triples), hrs: num(t.hrs),
     pitches: mine
       // A pitch he throws at least one time in twenty-five, or a hundred times.
       .filter(x => n(x.r) / total >= 0.04 || n(x.r) >= 100)
@@ -165,6 +172,8 @@ const pitchers = PITCHERS.map(([id, key, line, tag]) => {
         side: round(Math.abs(num(r.release_pos_x)), 2),
         extension: round(num(r.release_extension), 2),
         whiff: round(num(r.whiffs) / num(r.swings), 3),
+        zone: round((inZone[id]?.[t] || 0) / n(r), 3),
+        bip: num(r.bip), hits: num(r.hits), hrs: num(r.hrs),
         sd: own[id][t] ?? null,
       })),
   };
@@ -228,8 +237,10 @@ const js = `// Made by tools/league.mjs from Baseball Savant's Statcast search o
 // a swing missed right after a pitch at least 6 mph faster or slower than right after the same kind of pitch (the log
 // of the odds ratio, within the same pitcher, kind of pitch, count and height; 0 is no different), and the swings
 // compared. ZONES: each Statcast zone.
-// PITCHERS: the arsenals you can pitch as, with their season's plate appearances, strikeouts and walks. side is feet
-// from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of his pitches.
+// PITCHERS: the arsenals you can pitch as, with their season's plate appearances, strikeouts, walks, batters hit by a
+// pitch, balls in play, and singles, doubles, triples and home runs against them. side is feet from the middle of the
+// rubber at release, toward the arm side; sd as TYPES's, from all of his pitches; zone, the share of the pitch that
+// crossed in the zone; bip, hits and hrs, its balls in play, and the hits and home runs among them.
 export const LEAGUE = ${JSON.stringify(league)};
 export const COUNTS = ${JSON.stringify(counts, null, 1)};
 export const TYPES = ${JSON.stringify(types, null, 1)};

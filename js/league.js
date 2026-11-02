@@ -8,8 +8,10 @@
 // a swing missed right after a pitch at least 6 mph faster or slower than right after the same kind of pitch (the log
 // of the odds ratio, within the same pitcher, kind of pitch, count and height; 0 is no different), and the swings
 // compared. ZONES: each Statcast zone.
-// PITCHERS: the arsenals you can pitch as, with their season's plate appearances, strikeouts and walks. side is feet
-// from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of his pitches.
+// PITCHERS: the arsenals you can pitch as, with their season's plate appearances, strikeouts, walks, batters hit by a
+// pitch, balls in play, and singles, doubles, triples and home runs against them. side is feet from the middle of the
+// rubber at release, toward the arm side; sd as TYPES's, from all of his pitches; zone, the share of the pitch that
+// crossed in the zone; bip, hits and hrs, its balls in play, and the hits and home runs among them.
 export const LEAGUE = {"pitches":714483,"pa":183849,"so":40700,"bb":16337,"hits":39849,"singles":26110,"doubles":7493,"triples":671,"hrs":5575,"swings":340741,"whiffs":85444,"takes":373742,"bip":124611,"hbp":2119,"called":115698,"balls":255886,"tips":7514,"zone":{"pitches":339240,"swings":226357,"whiffs":36416,"called":105034},"after":{"lor":-0.175,"apart":8877,"same":8330},"woba":{"BB":0.7,"HBP":0.7,"1B":0.9,"2B":1.25,"3B":1.6,"HR":2},"sz":{"top":3.215,"bottom":1.622,"days":32,"pitches":121091}};
 export const COUNTS = {
  "0-0": {
@@ -469,6 +471,12 @@ export const PITCHERS = [
   "pa": 712,
   "so": 200,
   "bb": 49,
+  "hbp": 11,
+  "bip": 451,
+  "singles": 90,
+  "doubles": 34,
+  "triples": 2,
+  "hrs": 20,
   "pitches": [
    {
     "code": "FF",
@@ -481,6 +489,10 @@ export const PITCHERS = [
     "side": 2.37,
     "extension": 6.77,
     "whiff": 0.297,
+    "zone": 0.525,
+    "bip": 175,
+    "hits": 58,
+    "hrs": 13,
     "sd": 0.71
    },
    {
@@ -494,6 +506,10 @@ export const PITCHERS = [
     "side": 2.52,
     "extension": 6.73,
     "whiff": 0.286,
+    "zone": 0.517,
+    "bip": 51,
+    "hits": 12,
+    "hrs": 3,
     "sd": 0.94
    },
    {
@@ -507,6 +523,10 @@ export const PITCHERS = [
     "side": 2.52,
     "extension": 6.72,
     "whiff": 0.374,
+    "zone": 0.236,
+    "bip": 55,
+    "hits": 20,
+    "hrs": 1,
     "sd": 0.74
    },
    {
@@ -520,6 +540,10 @@ export const PITCHERS = [
     "side": 2.57,
     "extension": 6.74,
     "whiff": 0.149,
+    "zone": 0.532,
+    "bip": 70,
+    "hits": 25,
+    "hrs": 2,
     "sd": 0.73
    },
    {
@@ -533,6 +557,10 @@ export const PITCHERS = [
     "side": 2.46,
     "extension": 6.74,
     "whiff": 0.177,
+    "zone": 0.43,
+    "bip": 59,
+    "hits": 21,
+    "hrs": 0,
     "sd": 0.68
    },
    {
@@ -546,6 +574,10 @@ export const PITCHERS = [
     "side": 2.43,
     "extension": 6.77,
     "whiff": 0.358,
+    "zone": 0.406,
+    "bip": 40,
+    "hits": 10,
+    "hrs": 1,
     "sd": 1.02
    }
   ]
@@ -559,6 +591,12 @@ export const PITCHERS = [
   "pa": 665,
   "so": 252,
   "bb": 44,
+  "hbp": 9,
+  "bip": 360,
+  "singles": 72,
+  "doubles": 8,
+  "triples": 2,
+  "hrs": 14,
   "pitches": [
    {
     "code": "FF",
@@ -571,6 +609,10 @@ export const PITCHERS = [
     "side": 1.89,
     "extension": 7.57,
     "whiff": 0.402,
+    "zone": 0.532,
+    "bip": 180,
+    "hits": 60,
+    "hrs": 8,
     "sd": 1.32
    },
    {
@@ -584,6 +626,10 @@ export const PITCHERS = [
     "side": 2.01,
     "extension": 7.57,
     "whiff": 0.209,
+    "zone": 0.503,
+    "bip": 70,
+    "hits": 11,
+    "hrs": 3,
     "sd": 1.22
    },
    {
@@ -597,6 +643,10 @@ export const PITCHERS = [
     "side": 1.98,
     "extension": 7.49,
     "whiff": 0.353,
+    "zone": 0.483,
+    "bip": 63,
+    "hits": 17,
+    "hrs": 3,
     "sd": 1.53
    },
    {
@@ -610,6 +660,10 @@ export const PITCHERS = [
     "side": 1.78,
     "extension": 7.27,
     "whiff": 0.439,
+    "zone": 0.371,
+    "bip": 42,
+    "hits": 8,
+    "hrs": 0,
     "sd": 1.03
    }
   ]
@@ -623,6 +677,12 @@ export const PITCHERS = [
   "pa": 750,
   "so": 184,
   "bb": 47,
+  "hbp": 1,
+  "bip": 518,
+  "singles": 123,
+  "doubles": 27,
+  "triples": 3,
+  "hrs": 26,
   "pitches": [
    {
     "code": "FF",
@@ -635,6 +695,10 @@ export const PITCHERS = [
     "side": 2.38,
     "extension": 6.73,
     "whiff": 0.15,
+    "zone": 0.638,
+    "bip": 306,
+    "hits": 110,
+    "hrs": 13,
     "sd": 1.25
    },
    {
@@ -648,6 +712,10 @@ export const PITCHERS = [
     "side": 2.55,
     "extension": 6.77,
     "whiff": 0.429,
+    "zone": 0.261,
+    "bip": 178,
+    "hits": 55,
+    "hrs": 8,
     "sd": 1.07
    },
    {
@@ -661,6 +729,10 @@ export const PITCHERS = [
     "side": 2.49,
     "extension": 6.69,
     "whiff": 0.362,
+    "zone": 0.299,
+    "bip": 28,
+    "hits": 12,
+    "hrs": 5,
     "sd": 1.3
    }
   ]
@@ -674,6 +746,12 @@ export const PITCHERS = [
   "pa": 857,
   "so": 231,
   "bb": 45,
+  "hbp": 6,
+  "bip": 574,
+  "singles": 150,
+  "doubles": 35,
+  "triples": 0,
+  "hrs": 19,
   "pitches": [
    {
     "code": "SI",
@@ -686,6 +764,10 @@ export const PITCHERS = [
     "side": 1.9,
     "extension": 6.88,
     "whiff": 0.119,
+    "zone": 0.601,
+    "bip": 310,
+    "hits": 119,
+    "hrs": 12,
     "sd": 0.83
    },
    {
@@ -699,6 +781,10 @@ export const PITCHERS = [
     "side": 2,
     "extension": 6.99,
     "whiff": 0.46,
+    "zone": 0.326,
+    "bip": 180,
+    "hits": 54,
+    "hrs": 4,
     "sd": 0.91
    },
    {
@@ -712,6 +798,10 @@ export const PITCHERS = [
     "side": 1.89,
     "extension": 6.82,
     "whiff": 0.431,
+    "zone": 0.446,
+    "bip": 84,
+    "hits": 31,
+    "hrs": 3,
     "sd": 1.1
    }
   ]
@@ -725,6 +815,12 @@ export const PITCHERS = [
   "pa": 648,
   "so": 200,
   "bb": 31,
+  "hbp": 15,
+  "bip": 402,
+  "singles": 96,
+  "doubles": 22,
+  "triples": 1,
+  "hrs": 10,
   "pitches": [
    {
     "code": "FF",
@@ -737,6 +833,10 @@ export const PITCHERS = [
     "side": 2.97,
     "extension": 6.61,
     "whiff": 0.275,
+    "zone": 0.557,
+    "bip": 157,
+    "hits": 51,
+    "hrs": 9,
     "sd": 1.41
    },
    {
@@ -750,6 +850,10 @@ export const PITCHERS = [
     "side": 2.97,
     "extension": 6.42,
     "whiff": 0.382,
+    "zone": 0.427,
+    "bip": 134,
+    "hits": 46,
+    "hrs": 0,
     "sd": 1.73
    },
    {
@@ -763,6 +867,10 @@ export const PITCHERS = [
     "side": 3.04,
     "extension": 6.67,
     "whiff": 0.303,
+    "zone": 0.426,
+    "bip": 65,
+    "hits": 19,
+    "hrs": 1,
     "sd": 1.44
    },
    {
@@ -776,6 +884,10 @@ export const PITCHERS = [
     "side": 3,
     "extension": 6.64,
     "whiff": 0.106,
+    "zone": 0.594,
+    "bip": 46,
+    "hits": 13,
+    "hrs": 0,
     "sd": 1.41
    }
   ]
@@ -789,6 +901,12 @@ export const PITCHERS = [
   "pa": 744,
   "so": 177,
   "bb": 59,
+  "hbp": 2,
+  "bip": 506,
+  "singles": 105,
+  "doubles": 32,
+  "triples": 3,
+  "hrs": 37,
   "pitches": [
    {
     "code": "KC",
@@ -801,6 +919,10 @@ export const PITCHERS = [
     "side": 1.84,
     "extension": 6.76,
     "whiff": 0.411,
+    "zone": 0.38,
+    "bip": 148,
+    "hits": 44,
+    "hrs": 10,
     "sd": 0.82
    },
    {
@@ -814,6 +936,10 @@ export const PITCHERS = [
     "side": 1.88,
     "extension": 6.94,
     "whiff": 0.141,
+    "zone": 0.528,
+    "bip": 111,
+    "hits": 44,
+    "hrs": 11,
     "sd": 1.03
    },
    {
@@ -827,6 +953,10 @@ export const PITCHERS = [
     "side": 1.86,
     "extension": 6.99,
     "whiff": 0.122,
+    "zone": 0.533,
+    "bip": 109,
+    "hits": 46,
+    "hrs": 12,
     "sd": 1.08
    },
    {
@@ -840,6 +970,10 @@ export const PITCHERS = [
     "side": 1.98,
     "extension": 6.9,
     "whiff": 0.256,
+    "zone": 0.339,
+    "bip": 88,
+    "hits": 20,
+    "hrs": 1,
     "sd": 0.9
    },
    {
@@ -853,6 +987,10 @@ export const PITCHERS = [
     "side": 1.9,
     "extension": 6.89,
     "whiff": 0.256,
+    "zone": 0.43,
+    "bip": 43,
+    "hits": 21,
+    "hrs": 2,
     "sd": 0.91
    }
   ]
@@ -866,6 +1004,12 @@ export const PITCHERS = [
   "pa": 272,
   "so": 129,
   "bb": 26,
+  "hbp": 2,
+  "bip": 115,
+  "singles": 31,
+  "doubles": 3,
+  "triples": 0,
+  "hrs": 3,
   "pitches": [
    {
     "code": "SL",
@@ -878,6 +1022,10 @@ export const PITCHERS = [
     "side": 1.51,
     "extension": 6.78,
     "whiff": 0.563,
+    "zone": 0.457,
+    "bip": 46,
+    "hits": 17,
+    "hrs": 1,
     "sd": 0.77
    },
    {
@@ -891,6 +1039,10 @@ export const PITCHERS = [
     "side": 1.41,
     "extension": 6.76,
     "whiff": 0.365,
+    "zone": 0.458,
+    "bip": 67,
+    "hits": 19,
+    "hrs": 1,
     "sd": 0.8
    }
   ]
@@ -904,6 +1056,12 @@ export const PITCHERS = [
   "pa": 294,
   "so": 40,
   "bb": 22,
+  "hbp": 2,
+  "bip": 228,
+  "singles": 52,
+  "doubles": 6,
+  "triples": 1,
+  "hrs": 2,
   "pitches": [
    {
     "code": "SI",
@@ -916,6 +1074,10 @@ export const PITCHERS = [
     "side": 3.84,
     "extension": 6.06,
     "whiff": 0.12,
+    "zone": 0.595,
+    "bip": 179,
+    "hits": 50,
+    "hrs": 2,
     "sd": 0.64
    },
    {
@@ -929,6 +1091,10 @@ export const PITCHERS = [
     "side": 3.82,
     "extension": 6.05,
     "whiff": 0.234,
+    "zone": 0.437,
+    "bip": 49,
+    "hits": 11,
+    "hrs": 0,
     "sd": 0.69
    }
   ]
@@ -942,6 +1108,12 @@ export const PITCHERS = [
   "pa": 194,
   "so": 33,
   "bb": 11,
+  "hbp": 2,
+  "bip": 148,
+  "singles": 38,
+  "doubles": 10,
+  "triples": 2,
+  "hrs": 7,
   "pitches": [
    {
     "code": "KN",
@@ -954,6 +1126,10 @@ export const PITCHERS = [
     "side": 0.9,
     "extension": 6.41,
     "whiff": 0.21,
+    "zone": 0.495,
+    "bip": 43,
+    "hits": 17,
+    "hrs": 2,
     "sd": 2.4
    },
    {
@@ -967,6 +1143,10 @@ export const PITCHERS = [
     "side": 1.16,
     "extension": 6.62,
     "whiff": 0.163,
+    "zone": 0.462,
+    "bip": 31,
+    "hits": 11,
+    "hrs": 0,
     "sd": 0.85
    },
    {
@@ -980,6 +1160,10 @@ export const PITCHERS = [
     "side": 1.04,
     "extension": 6.67,
     "whiff": 0.2,
+    "zone": 0.463,
+    "bip": 24,
+    "hits": 10,
+    "hrs": 2,
     "sd": 0.73
    },
    {
@@ -993,6 +1177,10 @@ export const PITCHERS = [
     "side": 1.15,
     "extension": 6.75,
     "whiff": 0.175,
+    "zone": 0.611,
+    "bip": 30,
+    "hits": 13,
+    "hrs": 1,
     "sd": 0.78
    },
    {
@@ -1006,6 +1194,10 @@ export const PITCHERS = [
     "side": 1.29,
     "extension": 6.69,
     "whiff": 0.1,
+    "zone": 0.535,
+    "bip": 20,
+    "hits": 6,
+    "hrs": 2,
     "sd": 0.94
    }
   ]

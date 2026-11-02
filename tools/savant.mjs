@@ -47,11 +47,12 @@ export async function fetchCSV(url) {
   }
 }
 
-// A Statcast search for one regular season. `filters` is a list of [param, values] pairs, e.g. [['hfPT', ['FF', 'SI']]];
-// `group` is 'league' (one row of totals) or 'name' (a row per pitcher).
-export function search(season, filters = [], group = 'league') {
-  const extra = filters.map(([k, vs]) => `&${k}=${vs.map(v => `${encodeURIComponent(v)}%7C`).join('')}`).join('');
-  return fetchCSV('https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfGT=R%7C&player_type=pitcher'
+// A Statcast search for one regular season. `filters` is a list of [param, values] pairs, e.g. [['hfPT', ['FF', 'SI']]],
+// or [param, value] for one that takes a single value, e.g. ['batter_stands', 'L']; `group` is 'league' (one row of
+// totals) or 'name' (a row per pitcher, or per batter with `players` 'batter').
+export function search(season, filters = [], group = 'league', players = 'pitcher') {
+  const extra = filters.map(([k, vs]) => `&${k}=${typeof vs === 'string' ? encodeURIComponent(vs) : vs.map(v => `${encodeURIComponent(v)}%7C`).join('')}`).join('');
+  return fetchCSV(`https://baseballsavant.mlb.com/statcast_search/csv?all=true&hfGT=R%7C&player_type=${players}`
     + `&hfSea=${season}%7C&min_pitches=0&min_results=0&min_pas=0&group_by=${group}&sort_col=pitches&sort_order=desc${extra}`);
 }
 
