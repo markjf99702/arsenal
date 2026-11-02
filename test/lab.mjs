@@ -36,7 +36,7 @@ export function measure(params, pas = 6000, seed = 1) {
     for (const p of ab.pitches) {
       c.pitches++;
       const ck = `${p.before.balls}-${p.before.strikes}`;
-      const cc = counts[ck] ||= { pitches: 0, swings: 0, zone: 0, whiffs: 0, fouls: 0, contact: 0 };
+      const cc = counts[ck] ||= { pitches: 0, swings: 0, zone: 0, whiffs: 0, fouls: 0, contact: 0, zoneTake: 0, zoneCalled: 0, chaseTake: 0, chaseCalled: 0 };
       const tc = types[p.code] ||= { pitches: 0, swings: 0, whiffs: 0, zone: 0 };
       cc.pitches++; tc.pitches++;
       if (p.inZone) { c.zone++; cc.zone++; tc.zone++; }
@@ -52,7 +52,8 @@ export function measure(params, pas = 6000, seed = 1) {
           if (p.play === 'HR') c.hr++;
         }
       } else if (p.result !== 'hbp') {
-        if (p.inZone) { c.zoneTake++; if (p.result === 'called') c.zoneCalled++; } else { c.chaseTake++; if (p.result === 'called') c.chaseCalled++; }
+        const called = p.result === 'called';
+        if (p.inZone) { c.zoneTake++; cc.zoneTake++; if (called) { c.zoneCalled++; cc.zoneCalled++; } } else { c.chaseTake++; cc.chaseTake++; if (called) { c.chaseCalled++; cc.chaseCalled++; } }
       }
     }
   }
@@ -64,7 +65,10 @@ export function measure(params, pas = 6000, seed = 1) {
     chaseSwing: c.chaseSwing / outZ, chaseWhiff: c.chaseWhiff / c.chaseSwing,
     calledZone: c.zoneCalled / c.zoneTake, calledChase: c.chaseCalled / c.chaseTake,
     foul: c.foul / c.contact, hitsPerBip: c.hits / c.bip, hrPerBip: c.hr / c.bip,
-    counts: Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, { pitches: v.pitches, swing: v.swings / v.pitches, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings, foul: v.fouls / v.contact }])),
+    counts: Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, {
+      pitches: v.pitches, swing: v.swings / v.pitches, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings, foul: v.fouls / v.contact,
+      calledZone: v.zoneCalled / v.zoneTake, calledOut: v.chaseCalled / v.chaseTake, zoneTake: v.zoneTake, chaseTake: v.chaseTake,
+    }])),
     types: Object.fromEntries(Object.entries(types).map(([k, v]) => [k, { pitches: v.pitches, swings: v.swings, zone: v.zone / v.pitches, whiff: v.whiffs / v.swings }])),
     contactScores,
   };

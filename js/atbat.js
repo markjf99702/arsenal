@@ -237,7 +237,8 @@ export function throwCall(ab, call) {
   if (!swing && plate[1] > 0.6 && plate[1] < 5.5 && R.chance(sigmoid((towardHim - P.hbp.at) / P.hbp.width))) {
     out.result = 'hbp';
   } else if (!swing) {
-    out.result = R.chance(sigmoid((margin(plate[0], plate[1]) - P.ump.shift) / P.ump.width)) ? 'called' : 'ball';
+    // The umpire's zone, which shifts with the count: in 2026 they called more strikes at 3-0 and fewer at 0-2.
+    out.result = R.chance(sigmoid((margin(plate[0], plate[1]) - P.ump.shift - P.umpBy[`${before.balls}-${before.strikes}`]) / P.ump.width)) ? 'called' : 'ball';
   } else {
     // Contact: how far off his swing is in place and time, how far he has to reach, and the pitch's stuff:
     // what makes one kind of pitch, or one pitcher's version of it, harder to square up than its speed and

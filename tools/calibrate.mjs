@@ -76,6 +76,17 @@ function nudge(m) {
   // Too many strikes called off the plate means the umpire's edge is too soft: narrow it.
   P.ump.shift = clamp(P.ump.shift - 0.4 * P.ump.width * (logit(TARGET.calledZone) - logit(m.calledZone)), -0.3, 0.3);
   P.ump.width = clamp(P.ump.width * (TARGET.calledChase / Math.max(0.005, m.calledChase)) ** 0.25, 0.01, 0.3);
+  // And in each count, his zone's edge in or out from there, until taken pitches in and out of the zone are called
+  // strikes as often as in 2026's count; the shifts average out to nothing over pitches taken, so the league's level
+  // stays the shift's above.
+  const lo = v => logit(clamp(v, 0.002, 0.998));
+  let shifted = 0, takes = 0;
+  for (const [c, v] of Object.entries(m.counts)) {
+    if (v.zoneTake < 100 || v.chaseTake < 100) continue;
+    P.umpBy[c] = clamp(P.umpBy[c] - 0.2 * P.ump.width * ((lo(COUNTS[c].calledZone) - lo(v.calledZone)) + (lo(COUNTS[c].calledOut) - lo(v.calledOut))), -0.3, 0.3);
+    shifted += P.umpBy[c] * (v.zoneTake + v.chaseTake); takes += v.zoneTake + v.chaseTake;
+  }
+  for (const c of Object.keys(P.umpBy)) P.umpBy[c] -= shifted / takes;
   // Each kind of pitch: its stuff, until hitters miss it as often as they really do.
   for (const [t, v] of Object.entries(m.types)) {
     if (!TYPES[t] || v.swings < 120) continue;

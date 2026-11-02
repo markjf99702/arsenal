@@ -387,6 +387,15 @@ test('how much contact goes foul is set count by count', () => {
   assert.ok(Math.abs(more['0-0'].foul - base['0-0'].foul) < 0.02, `0-0: ${base['0-0'].foul.toFixed(3)}, then ${more['0-0'].foul.toFixed(3)}`);
 });
 
+// The umpire's zone shifts with the count, a knob for each (js/atbat-params.js, umpBy): moved in at 0-2, fewer pitches he
+// takes there are called strikes, in the zone and out of it, and no fewer at 3-0.
+test('the umpire’s zone can shift with the count', () => {
+  const called = params => measure(params, 2500, 8).counts;
+  const base = called(PARAMS), tight = called({ ...PARAMS, umpBy: { ...PARAMS.umpBy, '0-2': PARAMS.umpBy['0-2'] + 0.1 } });
+  for (const k of ['calledZone', 'calledOut']) assert.ok(tight['0-2'][k] < base['0-2'][k] * 0.93, `0-2 ${k}: ${base['0-2'][k].toFixed(3)}, then ${tight['0-2'][k].toFixed(3)}`);
+  assert.ok(Math.abs(tight['3-0'].calledZone - base['3-0'].calledZone) < 0.02, `3-0: ${base['3-0'].calledZone.toFixed(3)}, then ${tight['3-0'].calledZone.toFixed(3)}`);
+});
+
 test('changing speeds works: a changeup after a fastball fools him more than one after a changeup', () => {
   const after = prevCode => {
     let swings = 0, whiffs = 0;
