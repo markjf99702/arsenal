@@ -7,10 +7,10 @@
 // zone's average top and bottom, how much a pitcher's speed varies pitch to pitch, how often hitters missed a pitch
 // right after one of another speed or the same kind, and what Statcast's wOBA counts each hit as.
 // --cache=DIR keeps every download in DIR and reads it back on the next run.
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { search, details, useCache, num, round } from './savant.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { search, details, fetchCSV, useCache, num, round } from './savant.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -35,6 +35,44 @@ const PITCHERS = [
   [643511, 'rogers', 'A submariner: an 83 mph sinker from below the knees.', 'submariner'],
   [663362, 'waldron', 'A knuckleballer, with fastballs to keep hitters honest.', 'knuckleball'],
 ];
+
+// Each pitcher's spin, from Savant's leaderboards: which way his spin itself pushes each pitch (spin), as Hawk-Eye
+// measures its spin axis, in degrees clockwise from 12 o'clock seen from behind a right-hander (a left-hander's mirrored,
+// as tools/statcast.mjs gives the league's), and how much of the spin does the pushing (active, percent). The
+// spin-direction leaderboard counts knuckle curves as curves; neither has the knuckleball.
+const SPIN_BOARD = { KC: 'CU' };
+const ACTIVE = { FF: 'fourseam', SI: 'sinker', FC: 'cutter', CH: 'changeup', FS: 'splitter', CU: 'curve', KC: 'curve', SL: 'slider', ST: 'sweeper', SV: 'slurve' };
+async function spins() {
+  const active = Object.fromEntries((await fetchCSV(`https://baseballsavant.mlb.com/leaderboard/active-spin?year=${season}&min=1&hand=&csv=true`)).map(r => [String(r.entity_id), r]));
+  const boards = {};
+  return async (id, code) => {
+    if (code === 'KN') return { spin: null, active: null };
+    const t = SPIN_BOARD[code] || code;
+    boards[t] ||= await fetchCSV(`https://baseballsavant.mlb.com/leaderboard/spin-direction-pitches?year=${season}&min=1&pitch_type=${t}&pov=Pit&csv=true`);
+    const r = boards[t].find(row => String(row.player_id) === String(id)), deg = num(r?.hawkeye_measured);
+    // The leaderboard's angle (pov=Pit) is 180 at 12 o'clock and falls clockwise.
+    let spin = deg == null ? null : (180 - deg) * (r.pitch_hand === 'L' ? -1 : 1);
+    if (spin != null) spin = round(((spin % 360) + 360) % 360);
+    const a = ACTIVE[code] && num(active[String(id)]?.[`active_spin_${ACTIVE[code]}`]);
+    return { spin, active: a == null ? null : Math.round(a) };
+  };
+}
+
+// --spin adds each pitcher's spin and active spin to js/league.js as it stands, and fetches nothing else.
+if (args.includes('--spin')) {
+  const file = join(root, 'js/league.js');
+  const { PITCHERS: now } = await import(`${pathToFileURL(file).href}?${Date.now()}`);
+  const spinOf = await spins();
+  for (const p of now) {
+    const [id] = PITCHERS.find(([, key]) => key === p.key);
+    for (const e of p.pitches) { Object.assign(e, await spinOf(id, e.code)); console.log(p.key, e.code, e.spin, e.active); }
+  }
+  const text = await readFile(file, 'utf8');
+  const from = text.indexOf('export const PITCHERS = '), to = text.indexOf('\nexport const HITTERS = ');
+  await writeFile(file, `${text.slice(0, from)}export const PITCHERS = ${JSON.stringify(now, null, 1)};${text.slice(to)}`);
+  console.log('added the pitchers\' spin to js/league.js');
+  process.exit(0);
+}
 
 // Statcast's zones: 1 to 9 are the strike zone in thirds, from the top row down and from the catcher's left; 11 to 14
 // are the four quarters around it (high and to his left, high and right, low and left, low and right).
@@ -175,6 +213,8 @@ for (const b of SIDES) {
   for (const r of await search(season, [['batter_stands', b]], 'name')) Object.assign(toSide[b][r.player_id] ||= {}, { pa: num(r.pa), all: n(r) });
   for (const t of TYPES) for (const r of await search(season, [['hfPT', [t]], ['batter_stands', b]], 'name')) (toSide[b][r.player_id] ||= {})[t] = n(r);
 }
+const spinOf = await spins(), spun = {};
+for (const [id] of PITCHERS) for (const { t } of rows[id] || []) (spun[id] ||= {})[t] = await spinOf(id, t);
 const pitchers = PITCHERS.map(([id, key, line, tag]) => {
   const mine = rows[id] || [];
   const total = mine.reduce((s, x) => s + n(x.r), 0);
@@ -206,6 +246,7 @@ const pitchers = PITCHERS.map(([id, key, line, tag]) => {
         mix: Object.fromEntries(SIDES.map(b => [b, round((toSide[b][id]?.[t] || 0) / (toSide[b][id]?.all || 1), 3)])),
         bip: num(r.bip), hits: num(r.hits), hrs: num(r.hrs),
         sd: own[id][t] ?? null,
+        ...spun[id][t],
       })),
   };
 });
@@ -305,7 +346,9 @@ const js = `// Made by tools/league.mjs from Baseball Savant's Statcast search o
 // batters), strikeouts, walks, batters hit by a pitch, balls in play, and singles, doubles, triples and home runs
 // against them. side is feet from the middle of the rubber at release, toward the arm side; sd as TYPES's, from all of
 // his pitches; zone, the share of the pitch that crossed in the zone; bip, hits and hrs, its balls in play, and the hits
-// and home runs among them; mix, its share of his pitches to right-handed (R) and left-handed (L) batters.
+// and home runs among them; mix, its share of his pitches to right-handed (R) and left-handed (L) batters; spin, which way
+// his spin itself pushes it, as Hawk-Eye measures it, in degrees clockwise from 12 o'clock seen from behind a
+// right-hander (a left-hander's mirrored), and active, the percent of the spin that does the pushing (null if unmeasured).
 // HITTERS: the season's qualified hitters (all, with at least qualified plate appearances), and the quarters of them
 // the hitter types are tuned to: free swingers (who chased most out of the zone), patient (chased least), contact
 // (missed least per swing) and power (most isolated power, extra bases per at-bat), each pooled, with the range of what

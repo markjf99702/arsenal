@@ -635,7 +635,9 @@ export const PITCHERS = [
     "bip": 175,
     "hits": 58,
     "hrs": 13,
-    "sd": 0.71
+    "sd": 0.71,
+    "spin": 52.1,
+    "active": 97
    },
    {
     "code": "ST",
@@ -656,7 +658,9 @@ export const PITCHERS = [
     "bip": 51,
     "hits": 12,
     "hrs": 3,
-    "sd": 0.94
+    "sd": 0.94,
+    "spin": 271.2,
+    "active": 36
    },
    {
     "code": "CH",
@@ -677,7 +681,9 @@ export const PITCHERS = [
     "bip": 55,
     "hits": 20,
     "hrs": 1,
-    "sd": 0.74
+    "sd": 0.74,
+    "spin": 80,
+    "active": 97
    },
    {
     "code": "SI",
@@ -698,7 +704,9 @@ export const PITCHERS = [
     "bip": 70,
     "hits": 25,
     "hrs": 2,
-    "sd": 0.73
+    "sd": 0.73,
+    "spin": 54.3,
+    "active": 96
    },
    {
     "code": "FS",
@@ -719,7 +727,9 @@ export const PITCHERS = [
     "bip": 59,
     "hits": 21,
     "hrs": 0,
-    "sd": 0.68
+    "sd": 0.68,
+    "spin": 64.5,
+    "active": 91
    },
    {
     "code": "SL",
@@ -740,7 +750,9 @@ export const PITCHERS = [
     "bip": 40,
     "hits": 10,
     "hrs": 1,
-    "sd": 1.02
+    "sd": 1.02,
+    "spin": 305.3,
+    "active": 25
    }
   ]
  },
@@ -783,7 +795,9 @@ export const PITCHERS = [
     "bip": 180,
     "hits": 60,
     "hrs": 8,
-    "sd": 1.32
+    "sd": 1.32,
+    "spin": 40.8,
+    "active": 94
    },
    {
     "code": "FC",
@@ -804,7 +818,9 @@ export const PITCHERS = [
     "bip": 70,
     "hits": 11,
     "hrs": 3,
-    "sd": 1.22
+    "sd": 1.22,
+    "spin": 12.5,
+    "active": 47
    },
    {
     "code": "SL",
@@ -825,7 +841,9 @@ export const PITCHERS = [
     "bip": 63,
     "hits": 17,
     "hrs": 3,
-    "sd": 1.53
+    "sd": 1.53,
+    "spin": 307.8,
+    "active": 38
    },
    {
     "code": "CU",
@@ -846,7 +864,9 @@ export const PITCHERS = [
     "bip": 42,
     "hits": 8,
     "hrs": 0,
-    "sd": 1.03
+    "sd": 1.03,
+    "spin": 225.7,
+    "active": 72
    }
   ]
  },
@@ -889,7 +909,9 @@ export const PITCHERS = [
     "bip": 306,
     "hits": 110,
     "hrs": 13,
-    "sd": 1.25
+    "sd": 1.25,
+    "spin": 36.3,
+    "active": 98
    },
    {
     "code": "FS",
@@ -910,7 +932,9 @@ export const PITCHERS = [
     "bip": 178,
     "hits": 55,
     "hrs": 8,
-    "sd": 1.07
+    "sd": 1.07,
+    "spin": 51.8,
+    "active": 82
    },
    {
     "code": "SL",
@@ -931,7 +955,9 @@ export const PITCHERS = [
     "bip": 28,
     "hits": 12,
     "hrs": 5,
-    "sd": 1.3
+    "sd": 1.3,
+    "spin": 358,
+    "active": 18
    }
   ]
  },
@@ -974,7 +1000,9 @@ export const PITCHERS = [
     "bip": 310,
     "hits": 119,
     "hrs": 12,
-    "sd": 0.83
+    "sd": 0.83,
+    "spin": 55.9,
+    "active": 91
    },
    {
     "code": "CH",
@@ -995,7 +1023,9 @@ export const PITCHERS = [
     "bip": 180,
     "hits": 54,
     "hrs": 4,
-    "sd": 0.91
+    "sd": 0.91,
+    "spin": 70.2,
+    "active": 85
    },
    {
     "code": "SL",
@@ -1016,7 +1046,9 @@ export const PITCHERS = [
     "bip": 84,
     "hits": 31,
     "hrs": 3,
-    "sd": 1.1
+    "sd": 1.1,
+    "spin": 234.2,
+    "active": 32
    }
   ]
  },
@@ -1059,7 +1091,9 @@ export const PITCHERS = [
     "bip": 157,
     "hits": 51,
     "hrs": 9,
-    "sd": 1.41
+    "sd": 1.41,
+    "spin": 65.7,
+    "active": 93
    },
    {
     "code": "SL",
@@ -1080,7 +1114,9 @@ export const PITCHERS = [
     "bip": 134,
     "hits": 46,
     "hrs": 0,
-    "sd": 1.73
+    "sd": 1.73,
+    "spin": 234.9,
+    "active": 66
    },
    {
     "code": "CH",
@@ -1101,7 +1137,9 @@ export const PITCHERS = [
     "bip": 65,
     "hits": 19,
     "hrs": 1,
-    "sd": 1.44
+    "sd": 1.44,
+    "spin": 83.3,
+    "active": 99
    },
    {
     "code": "SI",
@@ -1122,7 +1160,9 @@ export const PITCHERS = [
     "bip": 46,
     "hits": 13,
     "hrs": 0,
-    "sd": 1.41
+    "sd": 1.41,
+    "spin": 66,
+    "active": 91
    }
   ]
  },
@@ -1165,7 +1205,9 @@ export const PITCHERS = [
     "bip": 148,
     "hits": 44,
     "hrs": 10,
-    "sd": 0.82
+    "sd": 0.82,
+    "spin": 235.3,
+    "active": 85
    },
    {
     "code": "FF",
@@ -1186,7 +1228,9 @@ export const PITCHERS = [
     "bip": 111,
     "hits": 44,
     "hrs": 11,
-    "sd": 1.03
+    "sd": 1.03,
+    "spin": 47.3,
+    "active": 94
    },
    {
     "code": "SI",
@@ -1207,7 +1251,9 @@ export const PITCHERS = [
     "bip": 109,
     "hits": 46,
     "hrs": 12,
-    "sd": 1.08
+    "sd": 1.08,
+    "spin": 48,
+    "active": 91
    },
    {
     "code": "CH",
@@ -1228,7 +1274,9 @@ export const PITCHERS = [
     "bip": 88,
     "hits": 20,
     "hrs": 1,
-    "sd": 0.9
+    "sd": 0.9,
+    "spin": 70.5,
+    "active": 99
    },
    {
     "code": "FC",
@@ -1249,7 +1297,9 @@ export const PITCHERS = [
     "bip": 43,
     "hits": 21,
     "hrs": 2,
-    "sd": 0.91
+    "sd": 0.91,
+    "spin": 23.5,
+    "active": 43
    }
   ]
  },
@@ -1292,7 +1342,9 @@ export const PITCHERS = [
     "bip": 46,
     "hits": 17,
     "hrs": 1,
-    "sd": 0.77
+    "sd": 0.77,
+    "spin": 219.5,
+    "active": 60
    },
    {
     "code": "FF",
@@ -1313,7 +1365,9 @@ export const PITCHERS = [
     "bip": 67,
     "hits": 19,
     "hrs": 1,
-    "sd": 0.8
+    "sd": 0.8,
+    "spin": 21,
+    "active": 85
    }
   ]
  },
@@ -1356,7 +1410,9 @@ export const PITCHERS = [
     "bip": 179,
     "hits": 50,
     "hrs": 2,
-    "sd": 0.64
+    "sd": 0.64,
+    "spin": 140,
+    "active": 73
    },
    {
     "code": "SL",
@@ -1377,7 +1433,9 @@ export const PITCHERS = [
     "bip": 49,
     "hits": 11,
     "hrs": 0,
-    "sd": 0.69
+    "sd": 0.69,
+    "spin": 308.2,
+    "active": 64
    }
   ]
  },
@@ -1420,7 +1478,9 @@ export const PITCHERS = [
     "bip": 43,
     "hits": 17,
     "hrs": 2,
-    "sd": 2.4
+    "sd": 2.4,
+    "spin": null,
+    "active": null
    },
    {
     "code": "FC",
@@ -1441,7 +1501,9 @@ export const PITCHERS = [
     "bip": 31,
     "hits": 11,
     "hrs": 0,
-    "sd": 0.85
+    "sd": 0.85,
+    "spin": 11.5,
+    "active": 51
    },
    {
     "code": "FF",
@@ -1462,7 +1524,9 @@ export const PITCHERS = [
     "bip": 24,
     "hits": 10,
     "hrs": 2,
-    "sd": 0.73
+    "sd": 0.73,
+    "spin": 40.1,
+    "active": 89
    },
    {
     "code": "SI",
@@ -1483,7 +1547,9 @@ export const PITCHERS = [
     "bip": 30,
     "hits": 13,
     "hrs": 1,
-    "sd": 0.78
+    "sd": 0.78,
+    "spin": 42.4,
+    "active": 84
    },
    {
     "code": "ST",
@@ -1504,7 +1570,9 @@ export const PITCHERS = [
     "bip": 20,
     "hits": 6,
     "hrs": 2,
-    "sd": 0.94
+    "sd": 0.94,
+    "spin": 259.9,
+    "active": 48
    }
   ]
  }

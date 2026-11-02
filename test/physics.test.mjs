@@ -8,7 +8,7 @@ import { Stage, PREV } from '../js/stage.js';
 import { tilt, spinTilt, spinOf, seamsMove } from '../js/spin.js';
 import { cross, norm } from '../js/math3.js';
 import { atBatCamera, markRadius, GROUND, HIGH_RELEASE, drawMarks, growth, GROW, MARK, SHAPE, MITT, FIGURE, KNEE, LETTERS, figure, onPicture, drawBatter } from '../js/tracker.js';
-import { SPOTS, spotXZ } from '../js/atbat.js';
+import { SPOTS, spotXZ, PITCHERS, pitchFor } from '../js/atbat.js';
 import { LEAGUE } from '../js/league.js';
 
 const steady = PITCHES.filter(p => p.code !== 'KN');
@@ -410,6 +410,22 @@ test('the clock\'s arrow and thin line, and the ball\'s axis, are drawn from the
   // it moves toward 2:00; the four-seamer's are a quarter of an hour apart.
   assert.deepEqual([spinTilt(BY_CODE.SI).text, tilt(BY_CODE.SI).text, seamsMove(BY_CODE.SI)], ['1:30', '2:00', true]);
   assert.deepEqual([spinTilt(BY_CODE.FF).text, tilt(BY_CODE.FF).text, seamsMove(BY_CODE.FF)], ['1:15', '1:00', false]);
+});
+
+// A real pitcher's ball turns on his own spin direction, not the league's (js/league.js); where none was measured (Waldron's
+// knuckleball), on the way it moves.
+test('a real pitcher\'s ball turns on his own spin direction', () => {
+  const deg = a => (a * 180) / Math.PI;
+  for (const pitcher of PITCHERS) {
+    for (const e of pitcher.pitches) {
+      if (e.code === 'KN') continue;
+      const f = throwPitch(pitchFor(pitcher, e, [0, 2.5]), { hand: pitcher.hand, rng: () => 0.5 });
+      const along = norm(cross(f.axis, [0, -1, 0])), drawn = (deg(Math.atan2(-along[0], along[2])) + 360) % 360;
+      const want = e.spin ?? (deg(Math.atan2(e.arm, e.rise)) + 360) % 360, mine = pitcher.hand === 'R' ? want : (360 - want) % 360;
+      assert.ok(Math.abs(((drawn - mine + 540) % 360) - 180) < 0.01, `${pitcher.key}'s ${e.code} turns toward ${drawn.toFixed(1)}°, not his ${mine.toFixed(1)}°`);
+    }
+  }
+  assert.ok(PITCHERS.every(p => p.pitches.every(e => e.code === 'KN' || e.spin != null)), 'a real pitcher\'s pitch with no spin direction');
 });
 
 test('the offline copy lists every script and font', async () => {

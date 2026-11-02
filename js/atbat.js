@@ -134,13 +134,14 @@ const sideOf = ab => (ab.pitcher.hand === ab.batter ? 1 : -1);
 const NO_TYPE = { zone: 0, chase: 0, miss: 1, damage: 0 };
 
 // The pitch as the flight model wants it, aimed at a spot on the plate (catcher's view, feet). The ball turns on his own
-// spin direction where there is one (spin), and otherwise the way his pitch moves, not on the league's.
+// spin direction where there is one (spin), and otherwise the way his pitch moves, not on the league's, with his own
+// share of spin doing the pushing (active).
 export function pitchFor(pitcher, entry, plate) {
   const base = BY_CODE[entry.code];
   const sgn = pitcher.hand === 'R' ? 1 : -1;
   return {
     ...base, side: -entry.side, target: [plate[0] * sgn, plate[1]],
-    n: { ...base.n, mph: entry.mph, rpm: entry.rpm || base.n.rpm, rise: entry.rise, arm: entry.arm, height: entry.height, extension: entry.extension, spin: entry.spin ?? null },
+    n: { ...base.n, mph: entry.mph, rpm: entry.rpm || base.n.rpm, rise: entry.rise, arm: entry.arm, height: entry.height, extension: entry.extension, spin: entry.spin ?? null, active: entry.active ?? base.n.active },
   };
 }
 
