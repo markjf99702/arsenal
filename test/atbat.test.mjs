@@ -477,6 +477,9 @@ test('what he has seen this at-bat moves what he looks for, and how hard he hits
   const off = sixth({ ...PARAMS, notice: { at: 0, next: 0, where: 0 } }), on = sixth(PARAMS);
   assert.ok(off.curve < 0.35 && on.curve > 0.7, `looking for the curve after five: ${off.curve.toFixed(2)}, then ${on.curve.toFixed(2)}`);
   assert.ok(on.contact > off.contact + 0.3, `how hard he hit the sixth: ${off.contact.toFixed(2)}, then ${on.contact.toFixed(2)}`);
+  // Looking for the curve alone makes him hit it harder; where the five crossed adds to that (notice.where).
+  const unready = sixth({ ...PARAMS, notice: { ...PARAMS.notice, where: 0 } });
+  assert.ok(on.contact > unready.contact + 0.3, `how hard he hit the sixth, looking for it: ${unready.contact.toFixed(2)}, then ready where the five crossed ${on.contact.toFixed(2)}`);
 });
 
 // A real pitcher's stuff with two strikes (js/atbat-params.js, pitcherPutaway) moves his strikeouts toward his own.
