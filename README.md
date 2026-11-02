@@ -51,7 +51,7 @@ npm test                      # the flight and at-bat models against the numbers
 node tools/screenshots.mjs    # redraws docs/*.png and og.png
 node tools/make-icons.mjs     # redraws the PNG icons from icon.svg
 node tools/statcast.mjs       # refreshes js/numbers.js from Baseball Savant
-node tools/league.mjs         # refreshes js/league.js, the at-bat's targets and the real pitchers' arsenals
+node tools/league.mjs         # refreshes js/league.js, the at-bat's targets and the real pitchers' arsenals (about ten minutes; --cache=DIR keeps the downloads)
 node tools/calibrate.mjs      # retunes the at-bat model to js/league.js and writes js/atbat-params.js
 npm run build                 # dist/arsenal.html, the whole thing in one file
 ```
