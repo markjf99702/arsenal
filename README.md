@@ -5,7 +5,7 @@
 **Every pitch in big-league baseball: how it's held, how it spins, how hard it's thrown and where it ends up.** Pick a pitch and it's thrown from the mound to home plate, seen from behind the plate, from the side or from above, with a ghost of the same throw with no spin so you can see what the spin did. Next to it are the grip, the ball turning on its real spin axis, and the 2026 Statcast numbers for that pitch.
 
 <p align="center">
-  <img src="docs/phone-flight.png" alt="A four-seam fastball and a changeup thrown together from behind the plate: the two paths look the same until late, then the changeup drops to the bottom of the zone; the readout gives both speeds, 94.8 and 86.0 mph, and 0.39 seconds to the plate for the four-seamer and 0.44 for the changeup" width="250">
+  <img src="docs/phone-flight.png" alt="A four-seam fastball and a changeup thrown together from behind the plate: the two paths look the same until late, then the changeup drops to the bottom of the zone; the readout gives both speeds, 94.8 and 86.0 mph, and the legend gives each its time to the plate beside its name, 0.39 seconds for the four-seamer and 0.44 for the changeup" width="250">
   &nbsp;
   <img src="docs/phone-side.png" alt="A curveball and a four-seamer from the third-base side: the curve starts on the same line and drops more than four feet on the way in, ending at the bottom of the strike zone" width="250">
   &nbsp;
