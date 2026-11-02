@@ -185,7 +185,9 @@ export function note(ab) {
     const apart = prev && Math.hypot(last.plate[0] - prev.plate[0], last.plate[1] - prev.plate[1]);
     if (prev && !last.picked && last.code !== prev.code && last.tunnel != null && last.tunnel < 0.6 && apart >= Math.max(2 * last.tunnel, 8 / 12)) {
       lead = `The ${X} looked just like the ${NAME[prev.code]} before it until the decision point, ${inches(last.tunnel)} apart there, then finished ${inches(apart)} away.`;
-    } else if (prev && Math.round(prev.mph - last.mph) >= 6) lead = `The ${X} was ${mph(Math.round(prev.mph - last.mph))} slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
+    // A much slower pitch, when it's what beat him: he was out in front of it, not knowing what it was. (If he was on
+    // time, or recognised it, the last pitch's why says so, and the speed wasn't it.)
+    } else if (prev && Math.round(prev.mph - last.mph) >= 6 && last.early > 0.008 && !last.picked) lead = `The ${X} was ${mph(Math.round(prev.mph - last.mph))} slower than the ${NAME[prev.code]} before it, and his timing was set for the faster one.`;
     else if (last.result === 'tip') lead = `He got only a piece of the ${X}, and the catcher held on for strike three.`;
     else if (!last.inZone) lead = `He chased the ${X} for strike three.`;
     else lead = `The ${X} beat him in the zone.`;

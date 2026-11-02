@@ -125,6 +125,8 @@ test('the scout’s note says what decided the at-bat', () => {
       const apart = Math.hypot(last.plate[0] - prev.plate[0], last.plate[1] - prev.plate[1]);
       assert.ok(apart >= Math.max(2 * last.tunnel, 8 / 12), at);
     }
+    // Fooled by the speed only when the last pitch's own why says so: he was out in front, and didn't recognise it.
+    if (/timing was set for the faster one/.test(text)) assert.ok(last.early > 0.008 && !last.picked, at);
     // Weak contact by when he swung: rolled over when early, jammed when late.
     if (/rolled it over/.test(text)) assert.ok(last.early > 0.008, at);
     if (/got in on him/.test(text)) assert.ok(last.early < -0.008, at);
