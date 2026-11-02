@@ -685,7 +685,7 @@ assert.match(await heading(), /^Forkball/i);
     last: getComputedStyle(document.getElementById('ab-last')).display,
   }));
   assert.deepEqual(first, {
-    how: 'Pick a pitch and a spot, then throw it. The hitter has to commit at the decision point, DECIDE seconds from the plate, and a swing at a pitch out of the zone is a chase. Strikes are red (called, swinging or fouled), balls green, balls in play blue.',
+    how: 'Pick a pitch and a spot, then throw it. The hitter has to commit at the decision point (the dashed ring on each pitch’s path), DECIDE seconds from the plate, and a swing at a pitch out of the zone is a chase. Strikes are red (called, swinging or fouled), balls green, balls in play blue.',
     above: true, last: 'none',
   }, 'before the first pitch');
   // The pitches and the spots are each a group of radio buttons, one stop for Tab at the one checked, so Throw is a few
