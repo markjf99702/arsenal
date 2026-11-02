@@ -13,13 +13,15 @@ const SHORT = code => BY_CODE[code]?.short || NAME[code];
 const lower = s => s[0].toLowerCase() + s.slice(1);
 const plural = (n, one) => `${n} ${one}${n === 1 ? '' : one.endsWith('h') ? 'es' : 's'}`;
 // Each kind of hitter as the caption puts him, from the quarter of 2026's qualified hitters he's tuned to (js/league.js).
+// It follows the pitcher's line, so it starts with the batter, or its "he" would read as the pitcher. Only what he's tuned
+// to is said of him: the power hitter does as much damage on contact as his quarter, but isn't tuned to their home runs.
 const QUARTER = key => {
   const h = HITTERS[key], chase = (h.swings - h.zoneSwings) / (h.pitches - h.zone);
   return {
-    free: `Free swinger: he chases ${pct(chase)} of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased most did.`,
-    patient: `Patient: he chases ${pct(chase)} of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased least did.`,
-    contact: `Contact: he misses ${pct(h.whiffs / h.swings)} of his swings, as the quarter of 2026’s qualified hitters who missed least did.`,
-    power: `Power: he hits a home run on ${pct(h.hrs / h.bip)} of the balls he puts in play, as the quarter of 2026’s qualified hitters with the most power did.`,
+    free: `The batter is a free swinger: he chases ${pct(chase)} of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased most did.`,
+    patient: `The batter is patient: he chases ${pct(chase)} of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased least did.`,
+    contact: `The batter is a contact hitter: he misses ${pct(h.whiffs / h.swings)} of his swings, as the quarter of 2026’s qualified hitters who missed least did.`,
+    power: `The batter is a power hitter: he hits the ball as hard as the quarter of 2026’s qualified hitters with the most power, who hit a home run on ${pct(h.hrs / h.bip)} of the balls they put in play.`,
   }[key];
 };
 // The batter, for what a screen reader hears and the notice says: "a right-handed batter", "a patient left-handed hitter".

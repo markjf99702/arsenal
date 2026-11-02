@@ -1041,7 +1041,7 @@ assert.match(await heading(), /^Forkball/i);
   assert.deepEqual(await page.locator('#ab-hitter option').allTextContents(), ['Average', 'Free swinger', 'Patient', 'Contact', 'Power']);
   await page.locator('#ab-hitter').selectOption('patient');
   assert.equal(await page.locator('#ab-live').textContent(), 'New at-bat: the league-average righty to a patient right-handed hitter.');
-  assert.match(await page.locator('#ab-line').textContent(), /\. Patient: he chases \d+% of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased least did\.$/);
+  assert.match(await page.locator('#ab-line').textContent(), /\. The batter is patient: he chases \d+% of pitches out of the zone, as the quarter of 2026’s qualified hitters who chased least did\.$/);
   await page.evaluate(() => window.arsenal.atBat.throw('FF', '00'));
   await idle();
   const hash = await page.evaluate(() => location.hash);
