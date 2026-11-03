@@ -440,7 +440,6 @@ p { margin: 0; }
   .pacepick input { flex: 1 1 100px; width: auto; min-width: 0; }
   .pacepick::after { content: ''; flex-basis: 100%; order: 1; }
   .pacepick .plain { order: 2; margin-top: 6px; }
-  .readout .like { font-size: 13px; max-width: 12.5em; }
 }
 /* On the narrowest phones the card's big numbers are a size smaller, and smaller again where even that doesn't fit, so
    "2,605 rpm", "↓ 10.3 in" and "10 ft 11 in" stay on one line. */

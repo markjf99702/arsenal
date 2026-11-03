@@ -123,11 +123,16 @@ function write(id, text, html = false) {
   if (html) $(id).innerHTML = text; else $(id).textContent = text;
 }
 // From your own mound, the speed from 60 ft 6 in that gets there as soon: "Same time to the plate as an 80 mph pitch from
-// 60 ft 6 in", with the pitch's name first when two are thrown.
+// 60 ft 6 in", with the pitch's name first when two are thrown. On a computer it goes over the picture, under the time,
+// once the pitch is in; on a phone, where it ran to two lines over where the pitch leaves the hand, it's the first
+// sentence of the caption under the picture instead (caption).
+const phone = matchMedia('(max-width: 640px)');
 function sameTime(f, two) {
   const mph = Math.round(sameTimeAs(f, card().n));
   return `${two ? `${f.p.short}: s` : 'S'}ame time to the plate as ${mph >= 80 && mph < 90 ? 'an' : 'a'} ${mph} mph pitch from 60 ft 6 in`;
 }
+const likeLine = s => (s?.[0]?.arrived && state.mound !== RUBBER_Y && !phone.matches ? sameTime(s[0].f, s.length > 1) : '');
+phone.addEventListener('change', () => { write('ro-like', likeLine(stage.summary())); caption(); });
 function readoutLoop() {
   cancelAnimationFrame(roRaf);
   write('landed', '');
@@ -141,7 +146,7 @@ function readoutLoop() {
       } else if (s.length > 1) {
         write('ro-time', `<span class="both">${s.map(x => `${x.f.p.short} ${x.f.T.toFixed(2)} s`).join(' · ')}</span>`, true);
       } else write('ro-time', `${main.f.T.toFixed(2)} s to the plate`);
-      write('ro-like', main.arrived && state.mound !== RUBBER_Y ? sameTime(main.f, s.length > 1) : '');
+      write('ro-like', likeLine(s));
       const timed = main.arrived && s.length > 1;
       if ($('legend').classList.contains('timed') !== timed) $('legend').classList.toggle('timed', timed);
       const deciding = s.some(x => t >= x.f.T - DECIDE && t < x.f.T) && state.speed < 1;
@@ -394,7 +399,17 @@ function caption() {
   const still = stage.reduced ? 'Your device asks for less motion, so each throw is shown where it finishes.' : '';
   const arm = card().arm;
   const by = arm ? `Thrown as ${arm.name} threw it in ${SEASON}: his speed, spin, movement and release, aimed where the league’s goes.` : '';
-  $('caption').textContent = [cap, by, estimate(), pairing(), still].filter(Boolean).join(' ');
+  // On a phone, from your own mound, it opens with the speed from 60 ft 6 in that gets there as soon, and the note that
+  // it's an estimate beside it.
+  const like = phoneLike();
+  $('caption').textContent = (like ? [like, estimate(), cap, by, pairing(), still] : [cap, by, estimate(), pairing(), still]).filter(Boolean).join(' ');
+}
+// On a phone, from your own mound: the speed from 60 ft 6 in that gets there as soon (sameTime), as a sentence, from the
+// pitch thrown, or one thrown with no scatter before the first throw.
+function phoneLike() {
+  if (!phone.matches || state.mound === RUBBER_Y) return '';
+  const f = stage.summary()?.[0]?.f || throwPitch(thrown(), { hand: state.hand, rng: () => 0.5 });
+  return `${sameTime(f, !!state.pair)}.`;
 }
 // Your own mound, or another speed: what's an estimate, and how.
 function estimate() {

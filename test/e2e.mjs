@@ -2599,16 +2599,19 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   assert.deepEqual([s.by, s.pressed, s.mph], ['', 'R', '80.3'], '#curveball.sale');
 }
 
-// Your own mound: from 46 feet at 60 mph, the four-seamer is let go of 46 feet from the plate, scaled down, the time over
-// the picture says it gets there as soon as an 80 mph pitch from 60 ft 6 in, the caption says it's an estimate, and the
-// card keeps the big leagues' numbers. Another pitch keeps its share of its own speed; the link keeps the mound and the
-// speed; Back to the pitch's own speed, and 60 ft 6 in, put it back. Pitch to a hitter stays big-league.
+// Your own mound: from 46 feet at 60 mph, the four-seamer is let go of 46 feet from the plate, scaled down, it gets there
+// as soon as an 80 mph pitch from 60 ft 6 in, the caption says it's an estimate, and the card keeps the big leagues'
+// numbers. On a phone that speed is the caption's first sentence, with the estimate beside it, and nothing over the
+// picture, where it ran to two lines over where the pitch leaves the hand; on a computer it's over the picture, under the
+// time. Another pitch keeps its share of its own speed; the link keeps the mound and the speed; Back to the pitch's own
+// speed, and 60 ft 6 in, put it back. Pitch to a hitter stays big-league.
 {
   const showing = () => page.evaluate(() => {
-    const f = window.arsenal.stage.flights[0];
+    const f = window.arsenal.stage.flights[0], caption = document.getElementById('caption').textContent;
     return {
       hash: location.hash, mph: document.getElementById('ro-mph').textContent, pace: document.getElementById('pace-mph').textContent,
       like: document.getElementById('ro-like').textContent, rubber: Math.round((f.release.y + f.p.n.extension) * 10) / 10,
+      said: (/^([^.]*same time to the plate as [^.]* from 60 ft 6 in)\. Thrown from \d+ ft at [\d.]+ mph, this is an estimate/i.exec(caption) || [])[1] || '',
       estimate: /this is an estimate/.test(document.getElementById('caption').textContent), back: document.getElementById('pace-back').hidden ? '' : document.getElementById('pace-back').textContent,
       card: [...document.querySelectorAll('#c-stats > div')].find(d => d.querySelector('dt').textContent === 'Speed').querySelector('b').textContent,
     };
@@ -2620,7 +2623,15 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.locator('#speed [data-v="1"]').click();
   await arrived();
   let s = await showing();
-  assert.deepEqual(s, { hash: '#four-seam.46ft.60mph', mph: '60.0', pace: '60.0 mph', like: 'Same time to the plate as an 80 mph pitch from 60 ft 6 in', rubber: 46, estimate: true, back: 'Back to 94.8', card: '94.8 mph' }, 'a four-seamer at 60 mph from 46 feet');
+  const LIKE = 'Same time to the plate as an 80 mph pitch from 60 ft 6 in';
+  assert.deepEqual(s, { hash: '#four-seam.46ft.60mph', mph: '60.0', pace: '60.0 mph', like: '', said: LIKE, rubber: 46, estimate: true, back: 'Back to 94.8', card: '94.8 mph' }, 'a four-seamer at 60 mph from 46 feet, on a phone');
+  // On a computer, over the picture; and turned back to a phone's width, under it again.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  s = await showing();
+  assert.deepEqual([s.like, s.said, s.estimate], [LIKE, '', true], 'on a computer');
+  await page.setViewportSize({ width: 390, height: 844 });
+  s = await showing();
+  assert.deepEqual([s.like, s.said], ['', LIKE], 'on a phone again');
   // On a phone the way back goes on a line under the slider, so the slider keeps its width, under the thumb, when the way
   // back appears as it's first moved: at 390 and 320px.
   for (const width of [390, 320]) {
@@ -2645,12 +2656,12 @@ assert.deepEqual([...seenBadges].sort(), ['ball', 'play', 'strike'], 'the logs c
   await page.goto(base + '#four-seam.46ft.60mph');
   await arrived();
   s = await showing();
-  assert.deepEqual([s.mph, s.rubber, s.like], ['60.0', 46, 'Same time to the plate as an 80 mph pitch from 60 ft 6 in'], 'opened from #four-seam.46ft.60mph');
+  assert.deepEqual([s.mph, s.rubber, s.like, s.said], ['60.0', 46, '', LIKE], 'opened from #four-seam.46ft.60mph');
   await page.locator('#pace-back').click();
   await page.locator('#mound [data-v="60.5"]').click();
   await arrived();
   s = await showing();
-  assert.deepEqual([s.hash, s.mph, s.rubber, s.like, s.estimate, s.back], ['#four-seam', '94.8', 60.5, '', false, ''], 'back to the big leagues');
+  assert.deepEqual([s.hash, s.mph, s.rubber, s.like, s.said, s.estimate, s.back], ['#four-seam', '94.8', 60.5, '', '', false, ''], 'back to the big leagues');
   // Pitch to a hitter is thrown from 60 ft 6 in whatever the explorer's mound.
   await page.locator('#mound [data-v="50"]').click();
   const bat = await page.evaluate(() => window.arsenal.atBat.stage.opts.mound);
