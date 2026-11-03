@@ -550,6 +550,18 @@ test('breaking balls with two strikes get missed most below the zone and least o
 // turn is no surer a strikeout than his real 47.4%.
 test('no simple plan beats a pitcher’s own calls', () => holds('plans'));
 
+// Chris Sale's four-seamer up and slider down and away in turn are most of his own calls, so the lab holds them only to
+// not beating those clearly (test/lab.mjs, PLANS): a run where they come out a little worse than his own calls, or a
+// little better, passes, and one where they come out .040 better doesn't.
+test('Sale’s four-seamer and slider in turn are held only to not clearly beating his own calls', () => {
+  const at = gap => {
+    const two = measured.plans.two.map(p => (p.key === 'sale' ? { ...p, w: measured.plans.own.sale.w + gap } : p));
+    return checks(PARAMS, { ...measured, plans: { ...measured.plans, two } }).find(c => c.what === 'sale: four-seamer up and slider down and away in turn');
+  };
+  for (const gap of [0.016, 0.001, -0.02]) assert.ok(at(gap).ok, at(gap).said);
+  assert.ok(!at(-0.04).ok, at(-0.04).said);
+});
+
 test('each real pitcher’s pitches get missed about as often as his really did, and he strikes out, walks and gets hit as he did', () => holds('pitchers'));
 
 // Fouls follow the count, a knob for each (js/atbat-params.js, fairBy): less of his contact goes fair in one, and more

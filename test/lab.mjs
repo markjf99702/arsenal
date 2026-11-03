@@ -276,19 +276,23 @@ const own = (j, ab) => autoCall(ab);
 const middle = (j, ab) => ({ code: autoCall(ab).code, spot: S('00') });
 const every = (code, spot) => () => ({ code, spot: S(spot) });
 const turns = (a, sa, b, sb) => j => (j % 2 ? { code: b, spot: S(sb) } : { code: a, spot: S(sa) });
-// The pitchers for whom down the middle every pitch does about as well as their own calls (checks, below).
+// How much more wOBA than a pitcher's own calls a plan has to allow (checks, below): .030 more, clearly worse, for most.
+// Down the middle every pitch, for the pitchers whose stuff plays there about as well as with their own calls
+// (MIDDLING), no more than .015 less; and Chris Sale's four-seamer up and slider down and away in turn, which are most of
+// his own calls, no more than .030 less, not clearly better.
+const WORSE = 0.03, EVEN = -0.015, NOT_BETTER = -0.03;
 export const MIDDLING = new Set(['miller', 'rogers']);
-// Each plan: the pitcher, what it is, its calls, and whether it does about as well as his own calls (checks, below).
+// Each plan: the pitcher, what it is, its calls, and how much more wOBA than his own calls it has to allow.
 export const PLANS = {
   // Down the middle every pitch, with his own mix: every pitcher.
-  middle: PITCHERS.map(p => [p.key, 'down the middle every pitch', middle, MIDDLING.has(p.key)]),
+  middle: PITCHERS.map(p => [p.key, 'down the middle every pitch', middle, MIDDLING.has(p.key) ? EVEN : WORSE]),
   // One pitch to one spot every time: Misiorowski's curve down and away, the league-average righty's curve at the knees,
   // Miller's slider down and away.
-  one: [['misiorowski', 'his curve down and away every pitch', every('CU', 'm11')], ['average', 'his curve down in the zone every pitch', every('CU', 'm10')],
-    ['miller', 'his slider down and away every pitch', every('SL', 'm11')]],
+  one: [['misiorowski', 'his curve down and away every pitch', every('CU', 'm11'), WORSE], ['average', 'his curve down in the zone every pitch', every('CU', 'm10'), WORSE],
+    ['miller', 'his slider down and away every pitch', every('SL', 'm11'), WORSE]],
   // Two pitches in turn, the same two spots.
-  two: [['average', 'curve and slider at the knees in turn', turns('CU', 'm10', 'SL', 'm10')], ['skenes', 'splitter and slider down and away in turn', turns('FS', 'm11', 'SL', 'm11')],
-    ['gausman', 'four-seamer up and splitter down in turn', turns('FF', '10', 'FS', 'm10')], ['sale', 'four-seamer up and slider down and away in turn', turns('FF', '10', 'SL', 'm11')]],
+  two: [['average', 'curve and slider at the knees in turn', turns('CU', 'm10', 'SL', 'm10'), WORSE], ['skenes', 'splitter and slider down and away in turn', turns('FS', 'm11', 'SL', 'm11'), WORSE],
+    ['gausman', 'four-seamer up and splitter down in turn', turns('FF', '10', 'FS', 'm10'), WORSE], ['sale', 'four-seamer up and slider down and away in turn', turns('FF', '10', 'SL', 'm11'), NOT_BETTER]],
 };
 // Mason Miller's four-seamer up in the zone and his slider down and away, in turn: no surer a strikeout than his real
 // 47.4%, on any seed.
@@ -327,7 +331,7 @@ export const SEEDS = [21, 22, 23];
 export function run(params) {
   const plans = { own: {} };
   for (const [key] of [...Object.values(PLANS).flat(), MILLER]) plans.own[key] ||= plan(params, key, own);
-  for (const [group, list] of Object.entries(PLANS)) plans[group] = list.map(([key, what, call, even]) => ({ key, what, even, ...plan(params, key, call) }));
+  for (const [group, list] of Object.entries(PLANS)) plans[group] = list.map(([key, what, call, by]) => ({ key, what, by, ...plan(params, key, call) }));
   plans.miller = plan(params, MILLER[0], MILLER[2]);
   const big = measure(params, 16000, SEEDS);
   return { lab: measure(params, 3000, SEEDS), types: big.types, platoon: big.platoon, breaking2: big.breaking2, pitchers: measurePitchers(params, 1200, SEEDS), hitters: measureHitters(params, 3000, SEEDS), plans };
@@ -372,14 +376,17 @@ export function checks(params, { lab, types, platoon, breaking2, pitchers, hitte
     for (const r of rows) if (r.code === 'KN') near('pitchers', `${key}'s knuckleball in the zone`, r.zone, r.zoneReal, 0.04, pct);
   }
   // Each plan is clearly worse for him than his own calls: at least .030 more wOBA, pooled. Two pitchers' stuff, with
-  // their own walks and damage, plays down the middle nearly as well as with their own calls (even, in PLANS): Mason
-  // Miller's, which is missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch there every time
-  // walks nobody. They are held only to doing no better there than with their own calls, give or take .015. (Matt
-  // Waldron's knuckleball, whose wobble the hitter can't read however often he's seen it, isn't held to the knuckleball
-  // to one spot every time: that does better than his own calls.)
+  // their own walks and damage, plays down the middle nearly as well as with their own calls (MIDDLING): Mason Miller's,
+  // which is missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch there every time walks
+  // nobody. They are held only to doing no better there than with their own calls, give or take .015. And a pitcher whose
+  // own calls are mostly two pitches does about as well throwing those two in turn: Chris Sale's four-seamer up and
+  // slider down and away are held only to being not clearly better than his own calls, by the same .030 the other way.
+  // (Matt Waldron's knuckleball, whose wobble the hitter can't read however often he's seen it, isn't held to the
+  // knuckleball to one spot every time: that does better than his own calls.)
+  const three = v => v.toFixed(3).replace(/^0/, ''), margin = by => (by > 0 ? `${three(by)} more, at least` : `no more than ${three(-by)} less`);
   for (const p of [...plans.middle, ...plans.one, ...plans.two]) {
-    const base = plans.own[p.key].w, by = p.even ? -0.015 : 0.03;
-    out.push({ group: 'plans', what: `${p.key}: ${p.what}`, ok: p.w >= base + by, said: `${p.key}, ${p.what}: wOBA ${p.w.toFixed(3)} against his own calls' ${base.toFixed(3)} (${by > 0 ? `.030 more, at least` : 'no more than .015 less'})` });
+    const base = plans.own[p.key].w;
+    out.push({ group: 'plans', what: `${p.key}: ${p.what}`, ok: p.w >= base + p.by, said: `${p.key}, ${p.what}: wOBA ${p.w.toFixed(3)} against his own calls' ${base.toFixed(3)} (${margin(p.by)})` });
   }
   out.push({ group: 'plans', what: `miller: ${MILLER[1]}`, ok: plans.miller.per.every(x => x.k < 0.5), said: `miller, ${MILLER[1]}: strikes out ${plans.miller.per.map(x => pct(x.k)).join(', ')} on seeds ${SEEDS.join(', ')} (under 50% on each)` });
   // The platoon split: the wOBA of a batter on the pitcher's own side of the plate and on the other, each against both of
