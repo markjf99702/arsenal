@@ -562,6 +562,18 @@ test('Sale’s four-seamer and slider in turn are held only to not clearly beati
   assert.ok(!at(-0.04).ok, at(-0.04).said);
 });
 
+// Jacob Misiorowski's stuff, like Miller's and Rogers's, plays down the middle nearly as well as with his own calls, so
+// the lab holds him there only to doing no better than those, give or take .015 (test/lab.mjs, MIDDLING): a run where
+// down the middle comes out .019 worse than his own calls, or a little better, passes, and one .020 better doesn't.
+test('Misiorowski down the middle every pitch is held only to not beating his own calls', () => {
+  const at = gap => {
+    const middle = measured.plans.middle.map(p => (p.key === 'misiorowski' ? { ...p, w: measured.plans.own.misiorowski.w + gap } : p));
+    return checks(PARAMS, { ...measured, plans: { ...measured.plans, middle } }).find(c => c.what === 'misiorowski: down the middle every pitch');
+  };
+  for (const gap of [0.019, 0.001, -0.01]) assert.ok(at(gap).ok, at(gap).said);
+  assert.ok(!at(-0.02).ok, at(-0.02).said);
+});
+
 test('each real pitcher’s pitches get missed about as often as his really did, and he strikes out, walks and gets hit as he did', () => holds('pitchers'));
 
 // Fouls follow the count, a knob for each (js/atbat-params.js, fairBy): less of his contact goes fair in one, and more

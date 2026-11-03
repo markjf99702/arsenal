@@ -281,7 +281,7 @@ const turns = (a, sa, b, sb) => j => (j % 2 ? { code: b, spot: S(sb) } : { code:
 // (MIDDLING), no more than .015 less; and Chris Sale's four-seamer up and slider down and away in turn, which are most of
 // his own calls, no more than .030 less, not clearly better.
 const WORSE = 0.03, EVEN = -0.015, NOT_BETTER = -0.03;
-export const MIDDLING = new Set(['miller', 'rogers']);
+export const MIDDLING = new Set(['miller', 'rogers', 'misiorowski']);
 // Each plan: the pitcher, what it is, its calls, and how much more wOBA than his own calls it has to allow.
 export const PLANS = {
   // Down the middle every pitch, with his own mix: every pitcher.
@@ -375,12 +375,13 @@ export function checks(params, { lab, types, platoon, breaking2, pitchers, hitte
     // The knuckleball as wild as Waldron's: as many in the zone, within 4 points.
     for (const r of rows) if (r.code === 'KN') near('pitchers', `${key}'s knuckleball in the zone`, r.zone, r.zoneReal, 0.04, pct);
   }
-  // Each plan is clearly worse for him than his own calls: at least .030 more wOBA, pooled. Two pitchers' stuff, with
-  // their own walks and damage, plays down the middle nearly as well as with their own calls (MIDDLING): Mason Miller's,
-  // which is missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch there every time walks
-  // nobody. They are held only to doing no better there than with their own calls, give or take .015. And a pitcher whose
-  // own calls are mostly two pitches does about as well throwing those two in turn: Chris Sale's four-seamer up and
-  // slider down and away are held only to being not clearly better than his own calls, by the same .030 the other way.
+  // Each plan is clearly worse for him than his own calls: at least .030 more wOBA, pooled. Three pitchers' stuff, with
+  // their own walks and damage, plays down the middle nearly as well as with their own calls (MIDDLING): Mason Miller's
+  // and Jacob Misiorowski's, which are missed anywhere, and Tyler Rogers's, which is hit weakly anywhere, while a pitch
+  // there every time walks nobody. They are held only to doing no better there than with their own calls, give or take
+  // .015. And a pitcher whose own calls are mostly two pitches does about as well throwing those two in turn: Chris
+  // Sale's four-seamer up and slider down and away are held only to being not clearly better than his own calls, by the
+  // same .030 the other way.
   // (Matt Waldron's knuckleball, whose wobble the hitter can't read however often he's seen it, isn't held to the
   // knuckleball to one spot every time: that does better than his own calls.)
   const three = v => v.toFixed(3).replace(/^0/, ''), margin = by => (by > 0 ? `${three(by)} more, at least` : `no more than ${three(-by)} less`);
